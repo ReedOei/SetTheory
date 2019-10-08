@@ -23,6 +23,11 @@ Definition iff_backward :
 intuition.
 Defined.
 
+Ltac prove := 
+  intuition;
+  try congruence;
+  intuition.
+
 Tactic Notation "iff" uconstr(expr) "forward" "given" uconstr(H) :=
   pose proof iff_forward expr H.
 
@@ -39,10 +44,10 @@ Tactic Notation "iff" uconstr(expr) :=
   end.
 
 Tactic Notation "follows" "from" tactic(tac) :=
-  tac; intuition.
+  tac; prove.
 
 Tactic Notation "disjunc" tactic(tac) :=
-  (left; tac) || (right; tac).
+  (left; tac; prove) || (right; tac; prove).
 
 Parameter existence : set.
 Parameter extensionality :
@@ -76,13 +81,15 @@ Parameter powerset_prop :
   forall (x : set), forall (y : set), y is in powerset x <-> y is a subset of x.
 Parameter comprehension : forall (x : set) (P : set -> Prop), set.
 
+Notation "'for' x 'in' y , P" := (forall (x : set), x is in y -> P) (at level 70).
 Notation "{ x ; P }" := (comprehension x P) (no associativity).
+Notation "{ y 'in' x ; P }" := (comprehension x (fun y => P)).
 
 Parameter comprehension_prop :
   forall (P : set -> Prop),
     forall (x z : set), z is in { x ; P } <-> (z is in x /\ P z).
 
-Definition emptyset : set := { existence ; fun x => x <> x }.
+Definition emptyset : set := { x in existence ; x <> x }.
 
 Lemma elem_comprehension : 
   forall {P : set -> Prop} {x z : set}, z is in { x ; P } -> P z.
@@ -95,7 +102,7 @@ Tactic Notation "use" "comprehension" "for" uconstr(v) :=
   pose proof elem_comprehension v.
 
 Tactic Notation "contradiction" "by" tactic(tac) :=
-  tac; intuition; contradiction.
+  tac; prove; contradiction.
 
 Lemma emptyset_is_empty : forall (z : set), ~(z is in emptyset).
 Proof.
@@ -195,18 +202,15 @@ Parameter foundation :
 Notation "'there' 'is' 'unique' s 'so' 'that' P" := (
   there is some s so that (P s /\ forall (x : set), P x -> x = s)) (at level 70).
 
-Definition function (x : set) (P : set -> set -> Prop) :=
+Definition function_formula (x : set) (P : set -> set -> Prop) :=
   forall (z : set), z is in x -> (there is unique y so that P z).
 
 Parameter replacement : set -> (set -> set -> Prop) -> set.
 Parameter replacement_prop :
   forall (x : set) (P : set -> set -> Prop), 
-    function x P -> 
+    function_formula x P -> 
         forall (z : set), z is in x -> (
           there is some w so that (w is in (replacement x P) /\ P z w)).
-
-Notation "'for' x 'in' y , P" := (forall (x : set), x is in y -> P) (at level 70).
-Notation "{ y 'in' x ; P }" := (comprehension x (fun y => P)).
 
 Definition intersection (c : set) : set := { y in (union c) ; for s in c, y is in s }.
 
@@ -232,6 +236,13 @@ intros.
 follows from (apply left_in_pairing).
 Qed.
 
+Lemma pairing_in_ordered_pair :
+  forall (x y : set), pairing x y is in (x, y).
+Proof.
+intros.
+follows from (apply right_in_pairing).
+Qed.
+
 Lemma pairing_is_singleton_eq :
   forall (x y : set), singleton x = pairing x y <-> x = y.
 Proof.
@@ -253,6 +264,77 @@ intros z.
 split; intros H; follows from (apply pairing_prop; apply pairing_prop in H).
 Qed.
 
+Lemma singleton_is_pair_then_pair_same :
+  forall (x y z : set), singleton x = pairing y z <-> x = y /\ y = z.
+Proof.
+intros.
+split.
+- intros.
+pose proof in_singleton x as is_in_sing_x.
+rewrite H in is_in_sing_x.
+apply pairing_prop in is_in_sing_x.
+inversion is_in_sing_x.
+rewrite H0 in H; follows from (iff (pairing_is_singleton_eq y z)).
+rewrite H0, pairing_commutes in H; follows from (iff (pairing_is_singleton_eq z y)).
+- intros.
+intuition.
+follows from (rewrite H0, H1; apply pairing_is_singleton_eq).
+Qed.
+
+Lemma ordered_pair_unique_pairing :
+  forall (a b c d : set), pairing a b is in (c, d) -> a = b \/ pairing a b = pairing c d.
+Proof.
+intros.
+apply pairing_prop in H.
+inversion H.
+left.
+follows from (symmetry in H0; iff (singleton_is_pair_then_pair_same c a b)).
+follows from right.
+Qed.
+
+Tactic Notation "sufficient" "to" "show" constr(expr) :=
+  cut (expr); prove.
+
+Tactic Notation "sufficient" "to" "show" constr(expr) "because" tactic(tac) :=
+  cut (expr); prove; tac; prove.
+
+Lemma in_in_col_in_union :
+  forall (a b c : set), a is in b -> b is in c -> a is in union c.
+Proof.
+intros a b c a_in_b b_in_c.
+pose proof union_prop c a.
+sufficient to show (there is some s so that (s is in c /\ a is in s)).
+follows from (exists b).
+Qed.
+
+Lemma in_col_is_subset_of_union :
+  forall (a c : set), a is in c -> a is a subset of union c.
+Proof.
+intros.
+unfold subset.
+intros.
+follows from (apply (in_in_col_in_union z a c)).
+Qed.
+
+Lemma singleton_subset_is_elem :
+  forall (a b : set), singleton a is a subset of b -> a is in b.
+Proof.
+intros.
+follows from (pose proof H a (in_singleton a)).
+Qed.
+
+Lemma ordered_pair_contains_one_singleton :
+  forall (x y z : set), singleton x is in (y,z) -> x = y.
+Proof.
+intros.
+apply pairing_prop in H.
+inversion H.
+- follows from (iff (singleton_eq x y)).
+- sufficient to show (singleton x = singleton y) because 
+    (repeat (follows from (iff (singleton_eq x y)))).
+follows from (apply singleton_is_pair_then_pair_same in H0).
+Qed.
+
 Lemma ordered_pair_is_ordered :
   forall (x y : set), (x, y) = (y, x) -> x = y.
 Proof.
@@ -265,6 +347,85 @@ apply pairing_prop in H0.
 destruct H0.
 - follows from (apply singleton_eq).
 - follows from (apply pairing_is_singleton_eq; rewrite pairing_commutes).
+Qed.
+
+Lemma ordered_pair_same :
+  forall (a : set), (a, a) = singleton (singleton a).
+Proof.
+intros.
+intuition.
+Qed.
+
+Notation "{ a , b }" := (pairing a b).
+
+Lemma pairing_eq :
+  forall (a b c d : set), {a,b} = {c,d} -> (a = c /\ b = d) \/ (a = d /\ b = c).
+Proof.
+intros.
+pose proof left_in_pairing a b.
+pose proof right_in_pairing a b.
+rewrite H in H0, H1.
+apply pairing_prop in H0.
+apply pairing_prop in H1.
+inversion H0.
+inversion H1.
+left.
+prove.
+rewrite H2, H3 in H.
+follows from (iff (pairing_is_singleton_eq c d)).
+prove.
+inversion H1.
+right; prove.
+rewrite H2, H3, (pairing_commutes c d) in H.
+follows from (right; iff (pairing_is_singleton_eq d c)).
+Qed.
+
+Lemma ordered_pair_equality :
+  forall (a b c d : set), (a, b) = (c, d) -> a = c /\ b = d.
+Proof.
+intros.
+pose proof iff_backward (extensionality (a,b) (c,d)) H.
+split.
+-
+pose proof H0 (singleton a).
+pose proof singleton_in_ordered_pair a b.
+pose proof in_col_is_subset_of_union (singleton a) (c,d).
+intuition.
+unfold ordered_pair in H4.
+apply singleton_subset_is_elem, in_pair_union in H4.
+inversion H4.
+follows from (apply singleton_contains_unique in H5).
+apply pairing_prop in H5.
+inversion H5.
+prove.
+rewrite H6 in H1.
+apply pairing_prop in H1.
+inversion H1.
+follows from (iff (singleton_eq d c)).
+rewrite pairing_commutes in H7.
+follows from (iff (pairing_is_singleton_eq d c)).
+-
+pose proof H0 (pairing a b).
+pose proof pairing_in_ordered_pair a b.
+intuition.
+apply ordered_pair_unique_pairing in H1.
+inversion H1.
+rewrite H4, ordered_pair_same in H.
+pose proof singleton_in_ordered_pair c d.
+rewrite <- H in H5.
+apply singleton_contains_unique in H5.
+iff (singleton_eq c b).
+pose proof pairing_in_ordered_pair c d.
+rewrite <- H in H7.
+apply pairing_prop in H7.
+inversion H7; pose proof singleton_is_pair_then_pair_same b c d; follows from (symmetry in H8).
+apply pairing_eq in H4.
+inversion H4.
+prove.
+prove.
+rewrite H4, H8 in H.
+apply ordered_pair_is_ordered in H.
+prove.
 Qed.
 
 End Sets.
