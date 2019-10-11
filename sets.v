@@ -8,10 +8,22 @@ Parameter elem : set -> set -> Prop.
 
 Definition subset (x y : set) := forall (z : set), elem z x -> elem z y.
 
+Inductive formula : Type :=
+  | Eq : set -> set -> formula
+  | In : set -> set -> formula
+  | Neg : formula -> formula
+  | And : formula -> formula -> formula
+  | Or : formula -> formula -> formula
+  | Forall : (set -> formula) -> formula
+  | Exists : (set -> formula) -> formula.
+
 Notation "x 'is' 'a' 'subset' 'of' y" := (subset x y) (at level 70).
 Notation "x 'is' 'in' y" := (elem x y) (at level 30, no associativity).
 Notation "'there' 'is' 'some' s 'so' 'that' P" := (exists (s : set), P) (at level 60).
 Notation "'for' 'any' s 'holds' P" := (forall (s : set), P) (at level 60).
+
+Notation "'there' 'is' 'some' s 'in' x 'so' 'that' P" := (exists (s : set), s is in x /\ P) (at level 60).
+Notation "'for' 'any' s 'in' x 'holds' P" := (forall (s : set), s is in x -> P) (at level 60).
 
 Lemma iff_forward : 
   forall {P1 P2 : Prop}, (P1 <-> P2) -> P1 -> P2.
@@ -51,11 +63,11 @@ Tactic Notation "follows" "from" tactic(tac) :=
 Tactic Notation "disjunc" tactic(tac) :=
   (left; tac; prove) || (right; tac; prove).
 
-Tactic Notation "sufficient" "to" "show" constr(expr) :=
-  cut (expr); prove.
-
 Tactic Notation "sufficient" "to" "show" constr(expr) "because" tactic(tac) :=
-  cut (expr); prove; tac; prove.
+  cut expr; only 1 : (prove; tac; prove).
+
+Tactic Notation "sufficient" "to" "show" constr(expr) :=
+  sufficient to show expr because idtac.
 
 Parameter existence : set.
 Parameter extensionality :
@@ -158,7 +170,7 @@ inversion H.
 - follows from (exists b; split; apply right_in_pairing || intuition).
 Qed.
 
-Lemma in_pair_union :
+Lemma pair_union_prop :
   forall {a b c : set}, c is in (a U b) <-> c is in a \/ c is in b.
 Proof.
 intros.
@@ -397,7 +409,7 @@ split.
 -
 pose proof iff_forward (H0 (singleton a)) singleton_in_ordered_pair as sing_a_in_cd.
 pose proof in_col_is_subset_of_union (singleton a) (c,d) sing_a_in_cd.
-apply singleton_subset_is_elem, in_pair_union in H1.
+apply singleton_subset_is_elem, pair_union_prop in H1.
 inversion H1.
 follows from (apply singleton_contains_unique in H2).
 apply pairing_prop in H2.
@@ -427,6 +439,84 @@ inversion H2; prove.
 rewrite H2, H6 in H.
 apply ordered_pair_is_ordered in H.
 prove.
+Qed.
+
+Definition cart_prod_formula (X Y : set) (p : set) : Prop := 
+  there is some x in X so that (there is some y in Y so that (p = (x,y))).
+Definition cart_prod (X Y : set) : set :=
+  { p in powerset (powerset (X U Y)) ; cart_prod_formula X Y p}.
+
+Lemma cart_prod_base_set_prop :
+  forall {X Y x y : set}, x is in X -> y is in Y -> (x,y) is in powerset (powerset (X U Y)).
+Proof.
+intros X Y x y x_in_X y_in_Y.
+apply powerset_prop.
+unfold subset.
+intros z z_in_pair.
+apply powerset_prop.
+unfold subset.
+intros w w_in_z.
+apply pair_union_prop.
+
+apply pairing_prop in z_in_pair.
+inversion z_in_pair.
+- rewrite H in w_in_z.
+follows from (left; iff singleton_contains_unique given w_in_z).
+
+- rewrite H in w_in_z.
+apply pairing_prop in w_in_z.
+inversion w_in_z.
+follows from left.
+follows from right.
+Qed.
+
+Lemma cart_prod_formula_holds :
+  forall {X Y x y : set}, x is in X -> y is in Y -> cart_prod_formula X Y (x,y).
+Proof.
+intros X Y x y x_in_X y_in_Y.
+exists x; prove.
+exists y; prove.
+Qed.
+
+Tactic Notation "use" "both" tactic(tac1) "and" tactic(tac2) :=
+  progress (split; ((tac1; prove) || (tac2; prove))).
+
+Lemma cart_prod_prop_subset :
+  forall {X Y x y : set}, x is in X -> y is in Y -> (x,y) is in cart_prod X Y.
+Proof.
+intros X Y x y x_in_X y_in_Y.
+sufficient to show (cart_prod_formula X Y (x,y)) because (
+  apply comprehension_prop;
+  use both (apply cart_prod_base_set_prop) and (apply cart_prod_formula_holds)
+).
+follows from (apply cart_prod_formula_holds).
+Qed.
+
+Tactic Notation "follows" "by" uconstr(expr) "in" ident(H) :=
+  follows from (apply expr in H).
+
+Tactic Notation "follows" "by" uconstr(expr) :=
+  follows from (apply expr) ||
+  match goal with
+  | H : _ |- _ => follows by expr in H
+  end.
+
+Lemma cart_prod_prop_supset :
+  forall {X Y x y : set}, (x,y) is in cart_prod X Y -> x is in X /\ y is in Y.
+Proof.
+intros X Y x y xy_in_prod.
+use comprehension for xy_in_prod; simpl in H.
+repeat destruct H; repeat destruct H0.
+follows by ordered_pair_equality.
+Qed.
+
+Lemma cart_prod_set :
+  forall {X Y x y : set}, (x,y) is in cart_prod X Y <-> x is in X /\ y is in Y.
+Proof.
+intros.
+split.
+- apply cart_prod_prop_supset.
+- intros; follows by cart_prod_prop_subset.
 Qed.
 
 End Sets.
