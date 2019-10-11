@@ -13,15 +13,17 @@ Notation "x 'is' 'in' y" := (elem x y) (at level 30, no associativity).
 Notation "'there' 'is' 'some' s 'so' 'that' P" := (exists (s : set), P) (at level 60).
 Notation "'for' 'any' s 'holds' P" := (forall (s : set), P) (at level 60).
 
-Definition iff_forward : 
+Lemma iff_forward : 
   forall {P1 P2 : Prop}, (P1 <-> P2) -> P1 -> P2.
+Proof.
 intuition.
-Defined.
+Qed.
 
-Definition iff_backward :
+Lemma iff_backward :
   forall {P1 P2 : Prop}, (P1 <-> P2) -> P2 -> P1.
+Proof.
 intuition.
-Defined.
+Qed.
 
 Ltac prove := 
   intuition;
@@ -35,12 +37,12 @@ Tactic Notation "iff" uconstr(expr) "backward" "given" uconstr(H) :=
   pose proof iff_backward expr H.
 
 Tactic Notation "iff" uconstr(expr) "given" uconstr(H) :=
-  (pose proof iff_forward expr H) ||
-  (pose proof iff_backward expr H).
+  iff expr forward given H ||
+  iff expr backward given H.
 
 Tactic Notation "iff" uconstr(expr) :=
   match goal with
-  | H : _ |- _ => iff expr given H
+  | H : _ |- _ => iff expr given H (* Try every hypothesis to see if we can generate additional facts *)
   end.
 
 Tactic Notation "follows" "from" tactic(tac) :=
@@ -49,24 +51,33 @@ Tactic Notation "follows" "from" tactic(tac) :=
 Tactic Notation "disjunc" tactic(tac) :=
   (left; tac; prove) || (right; tac; prove).
 
+Tactic Notation "sufficient" "to" "show" constr(expr) :=
+  cut (expr); prove.
+
+Tactic Notation "sufficient" "to" "show" constr(expr) "because" tactic(tac) :=
+  cut (expr); prove; tac; prove.
+
 Parameter existence : set.
 Parameter extensionality :
   forall (a b : set),
     ( forall (z : set), z is in a <-> z is in b ) <-> a = b.
 Parameter pairing : set -> set -> set.
+
+Notation "{ a , b }" := (pairing a b).
+
 Parameter pairing_prop :
   forall (a b : set),
-    forall (w : set), w is in (pairing a b) <-> (w = a \/ w = b).
+    forall (w : set), w is in {a,b} <-> (w = a \/ w = b).
 
 Lemma left_in_pairing :
-  forall (a b : set), a is in pairing a b.
+  forall (a b : set), a is in {a,b}.
 Proof.
 intros a b.
 follows from (pose proof pairing_prop a b a).
 Qed.
 
 Lemma right_in_pairing :
-  forall (a b : set), b is in pairing a b.
+  forall (a b : set), b is in {a,b}.
 Proof.
 intros a b.
 follows from (pose proof pairing_prop a b b).
@@ -110,9 +121,11 @@ intros z zinemptyset.
 contradiction by (use comprehension for zinemptyset).
 Qed.
 
+Notation "'U' C" := (union C) (at level 70).
+
 (* Note: The following are both useful helpers and also proofs that such sets exist *)
-Definition pair_union (a b : set) : set := union (pairing a b).
-Definition singleton (a : set) : set := pairing a a.
+Definition pair_union (a b : set) : set := U {a,b}.
+Definition singleton (a : set) : set := {a,a}.
 
 Notation "a 'U' b" := (pair_union a b) (at level 80).
 
@@ -158,7 +171,7 @@ intros.
 follows from (unfold singleton; apply pairing_prop).
 Qed.
 
-Lemma singleton_contains_unique : forall (x y : set), x is in singleton y <-> x = y.
+Lemma singleton_contains_unique : forall {x y : set}, x is in singleton y <-> x = y.
 Proof.
 intros.
 split.
@@ -166,7 +179,7 @@ split.
 - follows from (intro Eq; rewrite Eq; pose proof pairing_prop y y y).
 Qed.
 
-Lemma singleton_eq : forall (x y : set), singleton x = singleton y <-> x = y.
+Lemma singleton_eq : forall {x y : set}, singleton x = singleton y <-> x = y.
 Proof.
 intros.
 split.
@@ -176,7 +189,7 @@ follows from (apply singleton_contains_unique; rewrite <- H; apply in_singleton)
 follows from (rewrite H).
 Qed.
 
-Definition successor (x : set) := pair_union x (singleton x).
+Definition successor (x : set) := x U (singleton x).
 
 Parameter infinity : set.
 Parameter infinity_prop :
@@ -212,9 +225,9 @@ Parameter replacement_prop :
         forall (z : set), z is in x -> (
           there is some w so that (w is in (replacement x P) /\ P z w)).
 
-Definition intersection (c : set) : set := { y in (union c) ; for s in c, y is in s }.
+Definition intersection (c : set) : set := { y in U c ; for s in c, y is in s }.
 
-Definition ordered_pair (x y : set) := pairing (singleton x) (pairing x y).
+Definition ordered_pair (x y : set) := {singleton x, {x, y}}.
 
 Notation "( x , y )" := (ordered_pair x y) (no associativity).
 
@@ -230,33 +243,33 @@ contradiction by (pose proof H1 x0).
 Qed.
 
 Lemma singleton_in_ordered_pair :
-  forall (x y : set), singleton x is in (x, y).
+  forall {x y : set}, singleton x is in (x, y).
 Proof.
 intros.
 follows from (apply left_in_pairing).
 Qed.
 
 Lemma pairing_in_ordered_pair :
-  forall (x y : set), pairing x y is in (x, y).
+  forall {x y : set}, {x, y} is in (x, y).
 Proof.
 intros.
 follows from (apply right_in_pairing).
 Qed.
 
 Lemma pairing_is_singleton_eq :
-  forall (x y : set), singleton x = pairing x y <-> x = y.
+  forall {x y : set}, singleton x = {x,y} <-> x = y.
 Proof.
 intros.
 split.
 - intros.
 pose proof right_in_pairing x y as y_in_pairing.
-follows from (rewrite <- H in y_in_pairing; pose proof (singleton_contains_unique y x)).
+follows from (rewrite <- H in y_in_pairing; pose proof (@singleton_contains_unique y x)).
 - intros.
 follows from (rewrite H).
 Qed.
 
 Lemma pairing_commutes :
-  forall (x y : set), pairing x y = pairing y x.
+  forall {x y : set}, {x,y} = {y,x}.
 Proof.
 intros x y.
 apply extensionality.
@@ -265,7 +278,7 @@ split; intros H; follows from (apply pairing_prop; apply pairing_prop in H).
 Qed.
 
 Lemma singleton_is_pair_then_pair_same :
-  forall (x y z : set), singleton x = pairing y z <-> x = y /\ y = z.
+  forall (x y z : set), singleton x = {y,z} <-> x = y /\ y = z.
 Proof.
 intros.
 split.
@@ -274,15 +287,15 @@ pose proof in_singleton x as is_in_sing_x.
 rewrite H in is_in_sing_x.
 apply pairing_prop in is_in_sing_x.
 inversion is_in_sing_x.
-rewrite H0 in H; follows from (iff (pairing_is_singleton_eq y z)).
-rewrite H0, pairing_commutes in H; follows from (iff (pairing_is_singleton_eq z y)).
+rewrite H0 in H; follows from (iff (@pairing_is_singleton_eq y z)).
+rewrite H0, pairing_commutes in H; follows from (iff (@pairing_is_singleton_eq z y)).
 - intros.
 intuition.
 follows from (rewrite H0, H1; apply pairing_is_singleton_eq).
 Qed.
 
 Lemma ordered_pair_unique_pairing :
-  forall (a b c d : set), pairing a b is in (c, d) -> a = b \/ pairing a b = pairing c d.
+  forall (a b c d : set), {a,b} is in (c, d) -> a = b \/ {a,b} = {c,d}.
 Proof.
 intros.
 apply pairing_prop in H.
@@ -292,14 +305,8 @@ follows from (symmetry in H0; iff (singleton_is_pair_then_pair_same c a b)).
 follows from right.
 Qed.
 
-Tactic Notation "sufficient" "to" "show" constr(expr) :=
-  cut (expr); prove.
-
-Tactic Notation "sufficient" "to" "show" constr(expr) "because" tactic(tac) :=
-  cut (expr); prove; tac; prove.
-
 Lemma in_in_col_in_union :
-  forall (a b c : set), a is in b -> b is in c -> a is in union c.
+  forall (a b c : set), a is in b -> b is in c -> a is in U c.
 Proof.
 intros a b c a_in_b b_in_c.
 pose proof union_prop c a.
@@ -308,7 +315,7 @@ follows from (exists b).
 Qed.
 
 Lemma in_col_is_subset_of_union :
-  forall (a c : set), a is in c -> a is a subset of union c.
+  forall (a c : set), a is in c -> a is a subset of U c.
 Proof.
 intros.
 unfold subset.
@@ -329,14 +336,14 @@ Proof.
 intros.
 apply pairing_prop in H.
 inversion H.
-- follows from (iff (singleton_eq x y)).
+- follows from (iff singleton_eq given H0).
 - sufficient to show (singleton x = singleton y) because 
-    (repeat (follows from (iff (singleton_eq x y)))).
+    (repeat (follows from (iff (@singleton_eq x y)))).
 follows from (apply singleton_is_pair_then_pair_same in H0).
 Qed.
 
 Lemma ordered_pair_is_ordered :
-  forall (x y : set), (x, y) = (y, x) -> x = y.
+  forall {x y : set}, (x, y) = (y, x) -> x = y.
 Proof.
 intros x y pair_eq.
 iff (extensionality (x,y) (y,x)) given pair_eq.
@@ -350,13 +357,10 @@ destruct H0.
 Qed.
 
 Lemma ordered_pair_same :
-  forall (a : set), (a, a) = singleton (singleton a).
+  forall {a : set}, (a, a) = singleton (singleton a).
 Proof.
-intros.
 intuition.
 Qed.
-
-Notation "{ a , b }" := (pairing a b).
 
 Lemma pairing_eq :
   forall (a b c d : set), {a,b} = {c,d} -> (a = c /\ b = d) \/ (a = d /\ b = c).
@@ -367,17 +371,21 @@ pose proof right_in_pairing a b.
 rewrite H in H0, H1.
 apply pairing_prop in H0.
 apply pairing_prop in H1.
+
 inversion H0.
+
 inversion H1.
 left.
 prove.
 rewrite H2, H3 in H.
-follows from (iff (pairing_is_singleton_eq c d)).
+follows from (iff (@pairing_is_singleton_eq c d)).
+
 prove.
+
 inversion H1.
-right; prove.
-rewrite H2, H3, (pairing_commutes c d) in H.
-follows from (right; iff (pairing_is_singleton_eq d c)).
+right. prove.
+rewrite H2, H3, (@pairing_commutes c d) in H.
+follows from (right; iff (@pairing_is_singleton_eq d c)).
 Qed.
 
 Lemma ordered_pair_equality :
@@ -387,43 +395,36 @@ intros.
 pose proof iff_backward (extensionality (a,b) (c,d)) H.
 split.
 -
-pose proof H0 (singleton a).
-pose proof singleton_in_ordered_pair a b.
-pose proof in_col_is_subset_of_union (singleton a) (c,d).
-intuition.
-unfold ordered_pair in H4.
-apply singleton_subset_is_elem, in_pair_union in H4.
-inversion H4.
-follows from (apply singleton_contains_unique in H5).
-apply pairing_prop in H5.
-inversion H5.
-prove.
-rewrite H6 in H1.
-apply pairing_prop in H1.
+pose proof iff_forward (H0 (singleton a)) singleton_in_ordered_pair as sing_a_in_cd.
+pose proof in_col_is_subset_of_union (singleton a) (c,d) sing_a_in_cd.
+apply singleton_subset_is_elem, in_pair_union in H1.
 inversion H1.
-follows from (iff (singleton_eq d c)).
-rewrite pairing_commutes in H7.
-follows from (iff (pairing_is_singleton_eq d c)).
+follows from (apply singleton_contains_unique in H2).
+apply pairing_prop in H2.
+inversion H2.
+prove.
+rewrite H3 in sing_a_in_cd.
+apply pairing_prop in sing_a_in_cd.
+inversion sing_a_in_cd.
+follows from (iff singleton_eq given H4).
+rewrite pairing_commutes in H4.
+follows from (iff pairing_is_singleton_eq given H4).
 -
-pose proof H0 (pairing a b).
-pose proof pairing_in_ordered_pair a b.
-intuition.
+pose proof iff_forward (H0 (pairing a b)) pairing_in_ordered_pair.
 apply ordered_pair_unique_pairing in H1.
 inversion H1.
-rewrite H4, ordered_pair_same in H.
-pose proof singleton_in_ordered_pair c d.
+rewrite H2, ordered_pair_same in H.
+pose proof @singleton_in_ordered_pair c d.
+rewrite <- H in H3.
+apply singleton_contains_unique in H3.
+iff singleton_eq given H3.
+pose proof @pairing_in_ordered_pair c d.
 rewrite <- H in H5.
-apply singleton_contains_unique in H5.
-iff (singleton_eq c b).
-pose proof pairing_in_ordered_pair c d.
-rewrite <- H in H7.
-apply pairing_prop in H7.
-inversion H7; pose proof singleton_is_pair_then_pair_same b c d; follows from (symmetry in H8).
-apply pairing_eq in H4.
-inversion H4.
-prove.
-prove.
-rewrite H4, H8 in H.
+apply pairing_prop in H5.
+inversion H5; pose proof singleton_is_pair_then_pair_same b c d; follows from (symmetry in H6).
+apply pairing_eq in H2.
+inversion H2; prove.
+rewrite H2, H6 in H.
 apply ordered_pair_is_ordered in H.
 prove.
 Qed.
