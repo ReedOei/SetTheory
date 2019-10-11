@@ -25,6 +25,12 @@ Notation "'for' 'any' s 'holds' P" := (forall (s : set), P) (at level 60).
 Notation "'there' 'is' 'some' s 'in' x 'so' 'that' P" := (exists (s : set), s is in x /\ P) (at level 60).
 Notation "'for' 'any' s 'in' x 'holds' P" := (forall (s : set), s is in x -> P) (at level 60).
 
+Notation "'there' 'is' 'unique' s 'so' 'that' P" := (
+  there is some s so that (P s /\ forall (x : set), P x -> x = s)) (at level 70).
+
+Notation "'there' 'is' 'unique' s 'in' y 'so' 'that' P" := (
+  there is some s in y so that (P s /\ forall (x : set), P x -> x = s)) (at level 70).
+
 Lemma iff_forward : 
   forall {P1 P2 : Prop}, (P1 <-> P2) -> P1 -> P2.
 Proof.
@@ -68,6 +74,18 @@ Tactic Notation "sufficient" "to" "show" constr(expr) "because" tactic(tac) :=
 
 Tactic Notation "sufficient" "to" "show" constr(expr) :=
   sufficient to show expr because idtac.
+
+Tactic Notation "use" "both" tactic(tac1) "and" tactic(tac2) :=
+  progress (split; ((tac1; prove) || (tac2; prove))).
+
+Tactic Notation "follows" "by" uconstr(expr) "in" ident(H) :=
+  follows from (apply expr in H).
+
+Tactic Notation "follows" "by" uconstr(expr) :=
+  follows from (apply expr) ||
+  match goal with
+  | H : _ |- _ => follows by expr in H
+  end.
 
 Parameter existence : set.
 Parameter extensionality :
@@ -223,9 +241,6 @@ Parameter foundation :
   forall (x : set),
     nonempty x ->
       there is some y so that (y is in x /\ ~(there is some z so that (z is in x /\ z is in y))).
-
-Notation "'there' 'is' 'unique' s 'so' 'that' P" := (
-  there is some s so that (P s /\ forall (x : set), P x -> x = s)) (at level 70).
 
 Definition function_formula (x : set) (P : set -> set -> Prop) :=
   forall (z : set), z is in x -> (there is unique y so that P z).
@@ -478,28 +493,13 @@ exists x; prove.
 exists y; prove.
 Qed.
 
-Tactic Notation "use" "both" tactic(tac1) "and" tactic(tac2) :=
-  progress (split; ((tac1; prove) || (tac2; prove))).
-
 Lemma cart_prod_prop_subset :
   forall {X Y x y : set}, x is in X -> y is in Y -> (x,y) is in cart_prod X Y.
 Proof.
 intros X Y x y x_in_X y_in_Y.
-sufficient to show (cart_prod_formula X Y (x,y)) because (
-  apply comprehension_prop;
-  use both (apply cart_prod_base_set_prop) and (apply cart_prod_formula_holds)
-).
-follows from (apply cart_prod_formula_holds).
+apply comprehension_prop.
+use both (apply cart_prod_base_set_prop) and (apply cart_prod_formula_holds).
 Qed.
-
-Tactic Notation "follows" "by" uconstr(expr) "in" ident(H) :=
-  follows from (apply expr in H).
-
-Tactic Notation "follows" "by" uconstr(expr) :=
-  follows from (apply expr) ||
-  match goal with
-  | H : _ |- _ => follows by expr in H
-  end.
 
 Lemma cart_prod_prop_supset :
   forall {X Y x y : set}, (x,y) is in cart_prod X Y -> x is in X /\ y is in Y.
@@ -510,7 +510,7 @@ repeat destruct H; repeat destruct H0.
 follows by ordered_pair_equality.
 Qed.
 
-Lemma cart_prod_set :
+Lemma cart_prod_prop_pairs :
   forall {X Y x y : set}, (x,y) is in cart_prod X Y <-> x is in X /\ y is in Y.
 Proof.
 intros.
@@ -518,5 +518,54 @@ split.
 - apply cart_prod_prop_supset.
 - intros; follows by cart_prod_prop_subset.
 Qed.
+
+Lemma cart_prod_prop :
+  forall {X Y z : set}, 
+    z is in cart_prod X Y <-> 
+    there is some x in X so that (there is some y in Y so that (z = (x,y))).
+Proof.
+intros.
+split.
+- intros z_in_prod.
+apply comprehension_prop in z_in_prod.
+apply proj2 in z_in_prod.
+intuition.
+- intros z_is_pair.
+destruct z_is_pair, H, H0, H0.
+rewrite H1.
+follows by cart_prod_prop_pairs.
+Qed.
+
+Definition is_function (dom : set) (codom : set) (f : set) : Prop := 
+  f is a subset of (cart_prod dom codom) /\
+  forall (x : set), x is in dom -> there is unique y in codom so that (fun y => (x,y) is in f).
+
+Definition functions (dom : set) (codom : set) : set :=
+  { f in powerset (cart_prod dom codom) ; is_function dom codom f }.
+
+Lemma functions_prop_supset :
+  forall (dom codom f : set), is_function dom codom f -> f is in functions dom codom.
+Proof.
+intros.
+apply comprehension_prop.
+split.
+- apply powerset_prop.
+unfold subset.
+intros z z_in_f.
+destruct H.
+prove.
+- prove.
+Qed.
+
+Lemma functions_prop :
+  forall (dom codom f : set), f is in functions dom codom <-> is_function dom codom f.
+Proof.
+intros.
+split.
+- follows by comprehension_prop. (* True simply by using the comprehension formula *)
+- follows by functions_prop_supset.
+Qed.
+
+Notation "f : X --> Y" := (f is in (functions X Y)) (at level 70).
 
 End Sets.
