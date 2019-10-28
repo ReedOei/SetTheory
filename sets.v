@@ -21,15 +21,15 @@ Notation "x 'is' 'a' 'subset' 'of' y" := (subset x y) (at level 70).
 Notation "x 'is' 'in' y" := (elem x y) (at level 30, no associativity).
 Notation "'there' 'is' 'some' s 'so' 'that' P" := (exists (s : set), P) (at level 60).
 Notation "'for' 'any' s 'holds' P" := (forall (s : set), P) (at level 60).
+Notation "'for' x 'in' y , P" := (forall (x : set), x is in y -> P) (at level 70).
 
 Notation "'there' 'is' 'some' s 'in' x 'so' 'that' P" := (exists (s : set), s is in x /\ P) (at level 60).
-Notation "'for' 'any' s 'in' x 'holds' P" := (forall (s : set), s is in x -> P) (at level 60).
 
 Notation "'there' 'is' 'unique' s 'so' 'that' P" := (
   there is some s so that (P s /\ forall (x : set), P x -> x = s)) (at level 70).
 
 Notation "'there' 'is' 'unique' s 'in' y 'so' 'that' P" := (
-  there is some s in y so that (P s /\ forall (x : set), P x -> x = s)) (at level 70).
+  there is some s in y so that (P s /\ (for x in y, (P x -> x = s)))) (at level 70).
 
 Lemma iff_forward : 
   forall {P1 P2 : Prop}, (P1 <-> P2) -> P1 -> P2.
@@ -44,9 +44,12 @@ intuition.
 Qed.
 
 Ltac prove := 
-  intuition;
-  try congruence;
-  intuition.
+  do 2 (
+    simpl;
+    intuition;
+    try congruence;
+    intuition
+  ).
 
 Tactic Notation "iff" uconstr(expr) "forward" "given" uconstr(H) :=
   pose proof iff_forward expr H.
@@ -122,7 +125,6 @@ Parameter powerset_prop :
   forall (x : set), forall (y : set), y is in powerset x <-> y is a subset of x.
 Parameter comprehension : forall (x : set) (P : set -> Prop), set.
 
-Notation "'for' x 'in' y , P" := (forall (x : set), x is in y -> P) (at level 70).
 Notation "{ x ; P }" := (comprehension x P) (no associativity).
 Notation "{ y 'in' x ; P }" := (comprehension x (fun y => P)).
 
@@ -415,7 +417,7 @@ rewrite H2, H3, (@pairing_commutes c d) in H.
 follows from (right; iff (@pairing_is_singleton_eq d c)).
 Qed.
 
-Lemma ordered_pair_equality :
+Lemma ordered_pair_eq :
   forall (a b c d : set), (a, b) = (c, d) -> a = c /\ b = d.
 Proof.
 intros.
@@ -507,7 +509,7 @@ Proof.
 intros X Y x y xy_in_prod.
 use comprehension for xy_in_prod; simpl in H.
 repeat destruct H; repeat destruct H0.
-follows by ordered_pair_equality.
+follows by ordered_pair_eq.
 Qed.
 
 Lemma cart_prod_prop_pairs :
@@ -540,6 +542,13 @@ Definition is_function (dom : set) (codom : set) (f : set) : Prop :=
   f is a subset of (cart_prod dom codom) /\
   forall (x : set), x is in dom -> there is unique y in codom so that (fun y => (x,y) is in f).
 
+Definition compatible (dom codom f : set) (actual : set -> set) : Prop :=
+  for x in dom, (x, actual x) is in f.
+
+Inductive function (dom codom : set) : Type :=
+  | func (f : set) (actual : set -> set) :
+      compatible dom codom f actual -> is_function dom codom f -> function dom codom.
+
 Definition functions (dom : set) (codom : set) : set :=
   { f in powerset (cart_prod dom codom) ; is_function dom codom f }.
 
@@ -566,6 +575,129 @@ split.
 - follows by functions_prop_supset.
 Qed.
 
-Notation "f : X --> Y" := (f is in (functions X Y)) (at level 70).
+Definition apply {X Y : set} (f : function X Y) (x : set) : set :=
+  match f with
+  | func _ _ _ actual _ _ => actual x
+  end.
+
+Notation "f [ x ]" := (apply f x) (at level 70).
+
+Lemma apply_compat :
+  forall {X Y : set} (f : function X Y), for x in X, (f[x] is in Y).
+Proof.
+intros X Y f x x_in_X.
+destruct f.
+destruct i.
+pose proof s (x, actual x) (c x x_in_X).
+apply cart_prod_prop in H.
+destruct H, H, H0, H0.
+follows by ordered_pair_eq.
+Qed.
+
+Definition rep_prop {X Y : set} (f : function X Y) (x y : set) : Prop :=
+  match f with
+  | func _ _ f_set _ _ _ => (x,y) is in f_set
+  end.
+
+Lemma use_uniqueness :
+  forall {P : set -> Prop} {x y : set},
+    there is unique z so that P -> P x -> P y -> x = y.
+Proof.
+intros P x y uniq Px Py.
+destruct uniq, H.
+pose proof H0 x Px.
+pose proof H0 y Py.
+prove.
+Qed.
+
+Lemma use_uniqueness_in :
+  forall {P : set -> Prop} {A x y : set},
+    there is unique a in A so that P ->
+    x is in A -> P x -> y is in A -> P y ->
+    x = y.
+Proof.
+intros P A x y uniq x_in_A Px y_in_A Py.
+destruct uniq, H, H0.
+pose proof H1 x x_in_A Px.
+pose proof H1 y y_in_A Py.
+prove.
+Qed.
+
+Lemma func_unique_map :
+  forall {X Y : set} (f : set),
+    for x in X, for y1 in Y, for y2 in Y, 
+      (is_function X Y f -> (x, y1) is in f -> (x, y2) is in f -> y1 = y2).
+Proof.
+intros X Y f x x_in_X y1 y1_in_Y y2 y2_in_Y is_func y1_in_f y2_in_f.
+destruct is_func.
+pose proof H0 x x_in_X.
+follows by (@use_uniqueness_in (fun k => (x,k) is in f) Y).
+Qed.
+
+Lemma rep_prop_compat :
+  forall {X Y : set} (f : function X Y),
+    for x in X, for y in Y, (rep_prop f x y -> f[x] = y).
+Proof.
+intros X Y f x x_in_X y y_in_Y rep_prop.
+destruct f.
+simpl.
+simpl in rep_prop.
+pose proof c x x_in_X.
+destruct i.
+pose proof H1 x x_in_X.
+pose proof H0 (x, actual x) H.
+apply cart_prod_prop_pairs in H3.
+follows by (@use_uniqueness_in (fun k => (x,k) is in f) Y).
+Qed.
+
+Lemma for_any_is_for_in :
+  forall (P : set -> Prop),
+    (forall (x : set), P x) -> (forall (Y : set), for x in Y, P x).
+Proof.
+prove.
+Qed.
+
+Lemma rep_prop_is_function_formula :
+  forall {X Y : set} (f : function X Y), function_formula X (rep_prop f).
+Proof.
+intros X Y f x x_in_X.
+destruct f, i.
+pose proof e x x_in_X.
+simpl.
+destruct H, H.
+exists x0.
+prove.
+pose proof s (x, x1) H0.
+apply cart_prod_prop_pairs in H3.
+destruct H3.
+exact (H2 x1 H4 H0).
+Qed.
+
+Definition replacement_im (X : set) (P : set -> set -> Prop) (prf : function_formula X P) : set :=
+  { y in replacement X P; there is some x in X so that (P x y) }.
+
+Definition im {X Y : set} (f : function X Y) (A : set) {prf : A is a subset of X} : set := 
+  replacement_im X (rep_prop f) (rep_prop_is_function_formula f).
+
+Lemma im_prop_supset :
+  forall {X Y : set} (f : function X Y) (A y : set) {prf : A is a subset of X}, 
+    y is in (@im X Y f A prf) -> there is some x in X so that (f[x] = y).
+Proof.
+intros X Y f A y prf y_in_im.
+apply comprehension_prop in y_in_im.
+destruct y_in_im, H0, H0.
+pose proof replacement_prop X (rep_prop f) (rep_prop_is_function_formula f) x H0.
+destruct H2.
+pose proof rep_prop_is_function_formula f.
+pose proof H3 x H0.
+destruct H4.
+intuition.
+pose proof H7 x0 H6.
+pose proof H7 y H1.
+exists x.
+split.
+- prove.
+- follows by rep_prop_compat.
+Qed.
 
 End Sets.
