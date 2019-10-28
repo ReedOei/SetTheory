@@ -50,21 +50,34 @@ This means that, if there is a complete assignment, then there are no more chair
 So this statement is a sort of \emph{compound} statement: there are multiple parts to it.
 In order to prove it, we need to prove every part of the statement.
 
-Let's start with the first part: if there is a complete assignment, then there are no more chairs than students.
-If there is a complete assignment, then every chair has some student assignment to it, by definition.
-So take the students that we assigned to chairs out of our list of students.
-Either the list is empty, so there are exactly as many students as chairs, or the list is not empty, and there are more students than chairs.
-In either case, there are at least as many students as chairs: or, put another way, there are no more chairs than students.
+From now on, we will write claims like the above as \emph{theorems}, \emph{propositions}, and \emph{lemmas}, generally in decreasing order of importance.
+\reed{Go through and convert all the propositions after this too}
 
-And now let's do the second part: if there are no more chairs than students, then there is a complete assignment.
-That is, we want to build a complete assignment.
-We'll do this similarly to how we built the good assignment for our previous statement.
-Let's start with no students assigned to no chairs.
-If there's no chairs at all, then we're done.
-Otherwise, let's pick one of the remaining chairs: $j_1$.
-Because there are at least as many students as chairs, there has to be at least one student, so let's pick any random student $i_1$ to assign to $j_1$.
-As we did before, we simply repeat this process to build the assignment.
-At each stage, if we have chairs left to assign, we must also have students left to assign, because we remove one chair and one student from each list for each assignment, meaning that if we had at least as many students as chairs before making a choice, then we must also have at least as many students as chairs afterwards.
+So we'll write the above claims as:
+\begin{theorem}
+    There is a complete assignment if and only if there are no more chairs than students.
+\end{theorem}
+
+Every claim must be proven, so theorems, propositions, and lemmas will be accompanied by a proof, like the following.
+The square at the end of the proof indicates that the proof is complete.
+
+\begin{proof}
+    Let's start with the first part: if there is a complete assignment, then there are no more chairs than students.
+    If there is a complete assignment, then every chair has some student assignment to it, by definition.
+    So take the students that we assigned to chairs out of our list of students.
+    Either the list is empty, so there are exactly as many students as chairs, or the list is not empty, and there are more students than chairs.
+    In either case, there are at least as many students as chairs: or, put another way, there are no more chairs than students.
+
+    And now let's do the second part: if there are no more chairs than students, then there is a complete assignment.
+    That is, we want to build a complete assignment.
+    We'll do this similarly to how we built the good assignment for our previous statement.
+    Let's start with no students assigned to no chairs.
+    If there's no chairs at all, then we're done.
+    Otherwise, let's pick one of the remaining chairs: $j_1$.
+    Because there are at least as many students as chairs, there has to be at least one student, so let's pick any random student $i_1$ to assign to $j_1$.
+    As we did before, we simply repeat this process to build the assignment.
+    At each stage, if we have chairs left to assign, we must also have students left to assign, because we remove one chair and one student from each list for each assignment, meaning that if we had at least as many students as chairs before making a choice, then we must also have at least as many students as chairs afterwards.
+\end{proof}
 
 So we now know two things for sure: if we have a good assignment, then there are at least as many chairs as students; and if we have a complete assignment, then there are at least as many students as chairs.
 We also know the converses \reed{define converse at some point} hold, but let's just put that aside for now.
@@ -283,9 +296,82 @@ Consider the following picture, where each row represents one ``group'':
 
 We can assign the students by starting at the top left corner, and moving along the grid diagonally, as shown below.
 That is, $s_{1,1}$ is assigned to seat $1$, $s_{1,2}$ is assigned to seat $2$, $s_{2,1}$ is assigned to seat $3$, and so on.
-Again, we can see that if we go far enough, we can get every student.
+Again, we can see that if we go far enough with this process of counting along the diagonal, we can get every student.
+That is, we have a good, complete assignment from our new ``infinite buddy'' class to our original group of chairs.
+So we must have the same amount of students in the original class as in our new class!
+
+And, of course, this argument extends even further.
+If we give each student an infinite number of buddies, and give each of those students an infinite number of friends, and give each of those friends an infinite number of friends, and so on for any finite number of repetitions, we can repeatedly apply the argument above to build a good, complete assignment of students to chairs.
 
 \paragraph{Is it possible to have too many students?}
+
+So even if we add infinitely many students for each student in the original class, we still have the same amount of students!
+That's pretty weird, and naturally leads to the following question:
+
+\begin{quote}
+    Is it possible to have an amount of students bigger than the original, infinite class?
+\end{quote}
+
+After all, infinity is infinity.
+What's bigger than infinity?
+Must be nothing, of course.
+\reed{Maybe we should discuss this a little earlier, to motivate why we even care to show that different sizes of infinity are actually hte ``same''.
+I assumed that people \textbf{would} be on board with there being different sizes of infinity, but maybe that's not really the case, and people actually have the opposite view.}
+
+Let's try one more thought experiment, another new way of making a bigger class.
+\reed{This analogy maybe needs some work}
+Let suppose we add one student for \emph{group of students} in the original class.
+For the sake of the experiment, let's say that each new student is assigned exactly one group of student in the original class, who will introduce them to the class and help them with things they're not familiar with.
+That is, we have a good, complete assignment from the new students to groups of students in the original class.
+We'll write $g$ for a group of students in the original class.
+For example, $g$ could be $\curlys{s_1, s_2, s_3, s_4, s_5}$, where the brackets just indicate a group of students, and we'll have some corresponding new student $n_g$, indicating that $n_g$ is assigned to the students 1, 2, 3, 4, and 5.
+We could also have some other group $h$ which is $\curlys{s_1, s_3, s_5, s_7, \ldots}$, in other words, all the odd-numbered students.
+
+At first glance, this might seem similar to the previous example, where we give each student an infinite number of buddies, but this is slightly different because we're adding a new student for each group of students in the original class, rather than adding infinitely many students for each student in the original class.
+Importantly, we're adding a new student even for the \textbf{infinite} groups of students in the original class rather than just finite groups: this is really what differentiates it from the previous example.
+Is it possible that we still have the same number of students even after adding all these students?
+Let's even imagine that we make each student in the original class give up their seats, so we're only trying to seat the new students.
+
+In fact, it is not possible to even seat just the new students!
+Let's see why: suppose that we did have some good, compelte assignment of the new students to chairs.
+That is, each new student $n_g$ is assigned to some chair $c_i$; equivalently, some chair $c_i$ has some new student $n_{g_i}$.
+Consider the group of students $m$, where student $s_i$ is in the group $m$ if $s_i$ is \textbf{not} in the group $g_i$.
+Let's do the first few together.
+Note that below we just pick whether the student is in the group or not arbitrarily, it makes no difference; you can choose any way you want and the argument will still work.
+\reed{Is this the best way to explain this?}
+
+\begin{enumerate}
+    \item Suppose that student $s_1$ is \textbf{not} in the group $g_1$; then $s_1$ \textbf{is} in the group $m$.
+    \item Suppose that student $s_2$ is \textbf{not} in the group $g_2$; then $s_2$ \textbf{is} in the group $m$.
+    \item Suppose that student $s_3$ \textbf{is} in the group $g_3$; then $s_3$ is \textbf{not} in the group $m$.
+    \item Suppose that student $s_4$ is \textbf{not} in the group $g_4$; then $s_4$ \textbf{is} in the group $m$.
+    \item Suppose that student $s_5$ \textbf{is} in the group $g_5$; then $s_5$ is \textbf{not} in the group $m$.
+    \item Suppose that student $s_6$ \textbf{is} in the group $g_6$; then $s_6$ is \textbf{not} in the group $m$.
+    \item And so on
+\end{enumerate}
+
+So in this example, $m$ starts out $\curlys{s_1, s_2, s_4, \ldots}$.
+We have a new student for \textbf{every} group of students, so we have a new student for the group $m$, who we called $n_m$.
+So what chair is student $n_m$ sitting in?
+Well it can't be the first chair: that student doesn't have $s_1$ in their group, but $n_m$ does.
+Because their groups aren't the same, they can't be the same student, because each new student has a unique group of students assigned to them.
+It can't be second chair: that student doesn't have $s_2$ in their group, but $n_m$ does.
+It can't be third chair: that student does have $s_2$ in their group, but $n_m$ doesn't.
+
+In fact, it can't be any chair at all!
+Suppose that $n_m$ is sitting in chair $c_i$.
+We know that the student sitting there is $n_{g_i}$, so student $n_m$ must be student $n_m$.
+But if $n_{g_i}$ has student $s_i$ from the original class in their group, then $n_m$ doesn't have $s_i$ in their group, just by the way we picked the group $m$.
+Similarly, if $n_{g_i}$ doesn't have student $s_i$ in their group, then $n_m$ must have $s_i$ in their group!
+So their groups don't match, and so the students aren't the same!
+
+Then there has to be at least one student, $n_m$, who doesn't have a chair.
+So this isn't a complete, good assignment: in particular, it's not complete.
+That means there's no way that we can build a good, complete assignment for all of these new students: there's too many students to seat!
+So there are more new students than there were in the original class, because we could seat all the students in the original class.
+
+There's definitely infinite many new students, and infinitely many students in the original class; but there's more new students than students in the original class.
+So that means there \textbf{are} ``bigger'' infinities: not all infinite groups are the same size!
 
 \paragraph{What are the properties of ``same amount''?}
 \reed{Maybe an interesting digression, but perhaps they are not yet convinced that this is interesting enough to talk about formal properties}
@@ -299,3 +385,8 @@ My logic in the previous paragraph was as follows:
 \end{enumerate}
 
 This brings up a new question: if I have three groups of objects, $A$, $B$, and $C$, and I know that $\samenumber{A}{B}$ and $\samenumber{C}{B}$, can I say that $\samenumber{A}{C}$?
+
+\subsection{Implications}
+
+\reed{Write this, maybe talk about integers and rationals and such?}
+
