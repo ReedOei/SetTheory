@@ -1,0 +1,207 @@
+\usepackage{xcolor}
+\usepackage{forloop}
+\usepackage{ifthen}
+\usepackage{calc}
+\usepackage{xspace}
+\usepackage{mathrsfs}
+
+\newcounter{i}
+\newcounter{j}
+\newcounter{n1}
+
+\newcommand{\concat}{%
+  \mathbin{\raisebox{0.5ex}{\scalebox{.7}{$\frown$}}}%
+}
+
+\newcommand{\numberof}[1]{\ensuremath{\# #1}}
+\newcommand{\samenumber}[2]{\ensuremath{\numberof{#1} \equiv \numberof{#2}}}
+
+\renewcommand{\epsilon}{\varepsilon}
+
+\newcommand{\iso}{\ensuremath{\cong}}
+\newcommand{\gl}[2]{\ensuremath{\text{GL}\parens{#1, #2}}}
+
+%\newcommand{\reed}[1]{\relax}
+%\newcommand{\Fix}[1]{\relax}
+\newcommand{\reed}[1]{{\color{magenta}\bfseries [#1]}}
+\newcommand{\Fix}[1]{{\color{red}\bfseries [#1]}}
+\newcommand{\Comment}[1]{}
+\newcommand{\Space}[1]{}
+\newcommand{\Num}[1]{#1}
+
+\newcommand{\injects}{\ensuremath{\hookrightarrow}}
+\newcommand{\surjects}{\ensuremath{\twoheadrightarrow}}
+
+\DeclarePairedDelimiter\ceil{\lceil}{\rceil}
+\DeclarePairedDelimiter\floor{\lfloor}{\rfloor}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{proposition}{Proposition}
+\newtheorem{claim}{Claim}
+\newtheorem{corollary}{Corollary}
+
+\newcommand{\nat}{\ensuremath{\mathbb{N}}}
+\newcommand{\real}{\ensuremath{\mathbb{R}}}
+\newcommand{\integers}{\ensuremath{\mathbb{Z}}}
+\newcommand{\rational}{\ensuremath{\mathbb{Q}}}
+\newcommand{\complex}{\ensuremath{\mathbb{C}}}
+
+\newcommand{\nonzero}[1]{\ensuremath{#1_{\neq 0}}}
+\newcommand{\greaterset}[2]{\ensuremath{#1_{> #2}}}
+\newcommand{\lesserset}[2]{\ensuremath{#1_{< #2}}}
+\newcommand{\subgroup}[2]{\ensuremath{#1 < #2}}
+\newcommand{\normalsubgroup}[2]{\ensuremath{#1 \triangleleft #2}}
+\newcommand{\id}[1]{\ensuremath{\bm{1}_{#1}}}
+
+\newcommand{\notationNonZero}[1][X]{Let $\nonzero{#1}$ denote the set of $x \in #1$ so that $x \neq 0$.\xspace}
+\newcommand{\notationGreaterSet}[1][X]{Let $\greaterset{#1}{y}$ denote the set of $x \in #1$ so that $x > y$.\xspace}
+\newcommand{\notationLesserSet}[1][X]{Let $\lesserset{#1}{y}$ denote the set of $x \in X$ so that $x < y$.\xspace}
+\newcommand{\notationSubgroup}[1][H]{Let $\subgroup{#1}{G}$ denote that $#1$ is a subgroup of $G$.\xspace}
+\newcommand{\notationNormalSubgroup}[1][N]{Let $\normalsubgroup{#1}{G}$ denote that $#1$ is a normal subgroup of $G$.\xspace}
+\newcommand{\notationIdentity}[1][X]{Let $\id{#1}$ denote the identity function on $#1$.\xspace}
+
+% \Sym{X} is the set of bijections from X to X
+\newcommand{\Sym}[1]{\ensuremath{\text{Sym}\parens{#1}}}
+\newcommand{\Aut}[1]{\ensuremath{\text{Aut}\parens{#1}}}
+\newcommand{\notationSym}[1][X]{Let $\Sym{X}$ be the group of bijections of $X$.\xspace}
+
+\newcommand{\toplim}{\ensuremath{\text{T}\lim}}
+\newcommand{\toplimup}{\ensuremath{\overline{\toplim}}}
+\newcommand{\toplimlow}{\ensuremath{\underline{\toplim}}}
+
+\newcommand{\emptysingleton}{\ensuremath{\curlys{\emptyset}}}
+\newcommand{\withoutempty}{\ensuremath{\setminus \emptysingleton}}
+
+\newcommand{\isnat}[1]{\ensuremath{#1 \in \nat}}
+\newcommand{\seq}[3]{\ensuremath{{\left( #1_{#2} \right)}_{#2 \in #3}}}
+\newcommand{\setint}[3]{\ensuremath{\bigcap_{#2 \in #3} #1_{#2}}}
+\newcommand{\natinti}[2]{\ensuremath{\setint{#1}{#2}{\nat}}}
+\newcommand{\natint}[1]{\ensuremath{\natinti{#1}{n}}}
+\newcommand{\natseqi}[2]{\ensuremath{\seq{#1}{#2}{\nat}}}
+\newcommand{\natseq}[1]{\ensuremath{\natseqi{#1}{n}}}
+
+\newcommand{\diam}[1]{\ensuremath{\text{diam} \left( #1 \right)}}
+
+\newcommand{\eventually}{\ensuremath{\forall^{\infty}}}
+\newcommand{\infinitelymany}{\ensuremath{\exists^{\infty}}}
+
+\newcommand{\power}[1]{\ensuremath{\mathcal{P} \left( #1 \right)}}
+\newcommand{\card}[1]{\ensuremath{\left| #1 \right|}}
+
+\newcommand{\brackets}[3]{\ensuremath{{\left#1 {#3} \right#2}}}
+\newcommand{\parens}[1]{\brackets{(}{)}{#1}}
+\newcommand{\angles}[1]{\brackets{<}{>}{#1}}
+\newcommand{\curlys}[1]{\brackets{\{}{\}}{#1}}
+\newcommand{\squares}[1]{\brackets{[}{]}{#1}}
+\newcommand{\parensum}[3]{\ensuremath{\parens{\sum_{#1}^{#2} {#3}}}}
+
+\newcommand{\poly}[2]{\ensuremath{{#1}\left[ #2 \right]}}
+
+\newcommand{\tand}{\ensuremath{~\text{and}~}}
+\newcommand{\tor}{\ensuremath{~\text{or}~}}
+\newcommand{\tsuchthat}{\ensuremath{~\text{s.t.}~}}
+
+\newcommand{\beatree}[1]{\ensuremath{\subseteq {#1}^{\leq \nat}}}
+
+\newcommand{\metricspace}[2]{\ensuremath{\parens{{#1},{#2}}}}
+
+\newcommand{\setbuild}[2]{\ensuremath{\left\{ {#1} : {#2} \right\}}}
+
+\newcommand{\openball}[3][]{\ensuremath{B_{#1}\parens{{#2},{#3}}}}
+\newcommand{\closedball}[3][]{\ensuremath{\overline{B}_{#1}\parens{{#2},{#3}}}}
+
+\newcommand{\powerset}[1]{\ensuremath{\mathcal{P}\parens{#1}}}
+\newcommand{\powersetfin}[1]{\ensuremath{\mathcal{P}_{\text{fin}}\parens{#1}}}
+
+\newcommand{\subgroupgen}[1]{\ensuremath{{\left< {#1} \right>}}}
+
+\newcommand{\idmatrix}[1]{%
+    \setcounter{n1}{#1 - 1}
+    \begin{pmatrix}
+        \forloop{i}{0}{\value{i} < #1}{%
+            \forloop{j}{0}{\value{j} < #1}{%
+                \ifthenelse{\equal{\value{i}}{\value{j}}}{1}{0}
+                \ifthenelse{\value{j} < \value{n1}}{&}{}
+            }
+            \ifthenelse{\value{i} < \value{n1}}{\\}{}
+        }
+    \end{pmatrix}
+}
+
+\newcommand{\twobytwo}[4]{\ensuremath{\begin{pmatrix} #1 & #2 \\ #3 & #4 \end{pmatrix}}}
+
+\newcommand{\after}{\circ}
+
+
+\newcommand{\finitecommabody}[1]{}
+\newcommand{\countablecommabody}[1]{}
+\newcommand{\finitecomma}[2]{%
+    \renewcommand{\finitecommabody}[1]{#1}%
+    \ensuremath{\finitecommabody{0}, \finitecommabody{1}, \ldots, \finitecommabody{#2 - 1}}}
+\newcommand{\finiteset}[2]{\ensuremath{\curlys{\finitecomma{#1}{#2}}}}
+\newcommand{\countablecomma}[1]{\ensuremath{%
+    \renewcommand{\countablecommabody}[1]{#1}%
+    \ensuremath{\countablecommabody{0}, \countablecommabody{1}, \ldots}}}
+\newcommand{\countableset}[1]{\ensuremath{\curlys{\countablecomma{#1}}}}
+
+\newcommand{\woutlog}{without loss of generality\xspace}
+\newcommand{\Woutlog}{Without loss of generality\xspace}
+
+\newcommand{\actOn}[2]{\ensuremath{#1 \cdot #2}}
+\newcommand{\kernel}[1]{\ensuremath{\text{ker}\parens{#1}}}
+
+\newcommand{\deffuncparam}[6]{%
+    \expandafter\newcommand\csname domain#1\endcsname{\ensuremath{#3}}%
+    \expandafter\newcommand\csname codomain#1\endcsname{\ensuremath{#5}}%
+    \expandafter\newcommand\csname decl#1\endcsname[1]{\ensuremath{#2_{##1} : #3 #4 #5}}%
+    \expandafter\newcommand\csname funcname#1\endcsname[1]{\ensuremath{#2_{##1}}}%
+    \expandafter\newcommand\csname body#1\endcsname[2]{\ensuremath{#6}}%
+    \expandafter\newcommand\csname call#1\endcsname[2]{\ensuremath{#2_{##1} \parens{##2}}}%
+    \expandafter\newcommand\csname callbody#1\endcsname[2]{\ensuremath{\expandafter\csname call#1\endcsname{##1}{##2} = \expandafter\csname body#1\endcsname{##1}{##2}}}%
+    \expandafter\newcommand\csname map#1\endcsname[2]{\ensuremath{##2 \mapsto \expandafter\csname body#1\endcsname{##1}{##2} }}%
+    \expandafter\newcommand\csname inversecall#1\endcsname[2]{\ensuremath{#2_{##1} \parens{##2}^{-1}}}%
+    \expandafter\newcommand\csname image#1\endcsname[1]{\ensuremath{\text{im}\parens{#2_{##1}}}}%
+}
+
+\newcommand{\defbinfunc}[6]{%
+    \expandafter\newcommand\csname domain#1\endcsname{\ensuremath{#3}}%
+    \expandafter\newcommand\csname codomain#1\endcsname{\ensuremath{#5}}%
+    \expandafter\newcommand\csname decl#1\endcsname{\ensuremath{#2 : #3 #4 #5}}%
+    \expandafter\newcommand\csname funcname#1\endcsname{\ensuremath{#2}}%
+    \expandafter\newcommand\csname body#1\endcsname[2]{#6}%
+    \expandafter\newcommand\csname call#1\endcsname[2]{\ensuremath{#2 \parens{##1, ##2}}}%
+    \expandafter\newcommand\csname callpair#1\endcsname[1]{\ensuremath{#2 \parens{##1}}}%
+    \expandafter\newcommand\csname callbody#1\endcsname[2]{\ensuremath{\expandafter\csname call#1\endcsname{##1}{##2} = \expandafter\csname body#1\endcsname{##1}{##2}}}%
+    \expandafter\newcommand\csname map#1\endcsname[2]{\ensuremath{\parens{##1, ##2} \mapsto \expandafter\csname body#1\endcsname{##1}{##2} }}%
+}
+
+\newcommand{\defbinop}[6]{%
+    \expandafter\newcommand\csname domain#1\endcsname{\ensuremath{#3}}%
+    \expandafter\newcommand\csname codomain#1\endcsname{\ensuremath{#5}}%
+    \expandafter\newcommand\csname decl#1\endcsname{\ensuremath{#2 : #3 #4 #5}}%
+    \expandafter\newcommand\csname funcname#1\endcsname{\ensuremath{#2}}%
+    \expandafter\newcommand\csname body#1\endcsname[2]{#6}%
+    \expandafter\newcommand\csname call#1\endcsname[2]{\ensuremath{##1 #2 ##2}}%
+    \expandafter\newcommand\csname callbody#1\endcsname[2]{\ensuremath{\expandafter\csname call#1\endcsname{##1}{##2} = \expandafter\csname body#1\endcsname{##1}{##2}}}%
+    \expandafter\newcommand\csname map#1\endcsname[2]{\ensuremath{\parens{##1, ##2} \mapsto \expandafter\csname body#1\endcsname{##1}{##2} }}%
+}
+
+\newcommand{\deffunc}[6]{%
+    \expandafter\newcommand\csname domain#1\endcsname{\ensuremath{#3}}%
+    \expandafter\newcommand\csname codomain#1\endcsname{\ensuremath{#5}}%
+    \expandafter\newcommand\csname decl#1\endcsname{\ensuremath{#2 : #3 #4 #5}}%
+    \expandafter\newcommand\csname funcname#1\endcsname{\ensuremath{#2}}%
+    \expandafter\newcommand\csname body#1\endcsname[1]{#6}%
+    \expandafter\newcommand\csname call#1\endcsname[1]{\ensuremath{#2 \parens{##1}}}%
+    \expandafter\newcommand\csname callbody#1\endcsname[1]{\ensuremath{\expandafter\csname call#1\endcsname{##1} = \expandafter\csname body#1\endcsname{##1}}}%
+    \expandafter\newcommand\csname map#1\endcsname[1]{\ensuremath{##1 \mapsto \expandafter\csname body#1\endcsname{##1} }}%
+    \expandafter\newcommand\csname invcall#1\endcsname[1]{\ensuremath{#2^{-1}\parens{##1}}}%
+    \expandafter\newcommand\csname image#1\endcsname{\ensuremath{\text{im}\parens{#2}}}%
+}
+
+\newcommand{\defproj}[3]{%
+    \defbinfunc{#1#2}{\pi_{#2}}{#2 \times #3}{\to}{#2}{##1}%
+    \defbinfunc{#1#3}{\pi_{#3}}{#2 \times #3}{\to}{#3}{##2}%
+}
+

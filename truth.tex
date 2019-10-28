@@ -1,0 +1,184 @@
+\section{Truth}
+
+Some statements are true; others are false.
+How do we \textbf{know}, for sure, what is true?
+Can we know at all?
+
+Well, some statements, at least, uncontroversial: for example, $1 = 1$.
+In general, if I have anything, let's call it $x$, $x = x$ is definitely true.
+So then the statement ``for any $x$, $x = x$ is true'' is, itself, a true statement.
+
+Let's ask another very basic, uncontroversial question: are there things?
+I think you will not protest when I say, ``yes, there are things.''
+In fact, let's weaken this a little bit: ``yes, there is a thing.''
+It's generally true that it's easier to show there is at least one thing than that there are multiple things; moreover, it often is unimportant how many things there are, if there is at least one thing.
+For example, if there is a route from your house to the store, it doesn't really matter that there are multiple routes from your house to the store (even though this is almost certainly the case).
+
+More generally, \emph{tautologies}, or statements that is always true: like ``a true statement is true'' and ``a false statement is false'' are true.
+Less abstractly, it could be a statement like ``either I have class today or I don't have class today.''
+
+Let's introduce some terminology to make the rest of this book less cumbersome.
+We will introduce \emph{variables} for \emph{statements}.
+So then, instead of saying ``a statement'' or ``the first statement'', I will say ``suppose A is a statement''.
+We'll define exactly what statements are soon, but for now, you can think of it of being basically any sentence.
+
+\paragraph{Basic statements}
+
+Some of the most basic statements are the statements ``a true statement is true'' and ``a false statement is true'' (which it, itself, clearly false).
+From now on, we'll refer to these as $\top$, or ``True'', and $\bot$, or ``False'', respectively.
+
+These two form the basis of all statements we can make; but what other statements can we make?
+Earlier we said that we can say that $x = x$ for any ``thing'' (to be defined later) $x$, so let's add that to the list of basic statements.
+
+\paragraph{The Meaning of Words}
+
+Let's talk about combining statements now in various ways that you're probably familiar with.
+Below $A$ and $B$ are arbitrary statements.
+
+Firstly, if I know that $A$ is true, then the statement ``$A$ is true'', is, itself true.
+For example, the sentence ``$1 = 1$ is true'' is the same as saying ``$1=1$''.
+Therefore, sometimes we will shorten things by just writing ``suppose $A$'' instead of ``suppose $A$ is true.''
+
+If I know that $A$ is true and $B$ is true, then I know that ``$A$ and $B$'' is true.
+For example, I know that ``$1 = 1$'' and ``$2 = 2$'' are true statements, so I always know that ``$1 = 1$ and $2 = 2$'' is a true statement.
+This, like many of the examples in this chapter, are quite obvious: on the other hand, they're also quite useful.
+Our objective is to build up the number of things that we know to be true, without a doubt, until we can answer interesting questions.
+So we know that if we have two true statements $A$ and $B$, we can combine them into a new statemnet, ``$A$ and $B$'' that is also true.
+
+But there are other ways to combine statements.
+If I know that either $A$ is true, or $B$ is true, or perhaps both are true, then the statement ``$A$ or $B$'' is true.
+We choose to say that if both are true, ``$A$ or $B$'' is true because it simplifies things: this is called an \emph{inclusive or}.
+There's also the \emph{exclusive or}, which is perhaps more familiar, in which ``$A$ (exclusive) or $B$'' would be true if $A$ is true or $B$ is true, but not both.
+
+It is quite cumbersome to write long sentences to describe obvious things, so we will state to write these facts in a more concise way.
+For example, we will write our rule that if I know that $A$ is true and $B$ is true, then ``$A$ and $B$'' is true as follows:
+
+\begin{mathpar}
+    \inferrule{A \and B}{A \tand B}
+\end{mathpar}
+
+We read that as ``given `$A$' and `$B$', we can conclude `$A$ and $B$' ''.
+This is called an \emph{inference rule}, or simply a \emph{rule}.
+The statements above the line are called the \emph{premises} or \emph{assumptions}, and the part below is called the \emph{conclusion}.
+We say that we can \emph{prove} $C$ if $C$ is on the bottom of some inference rule where all the premises are true.
+
+Below is how we write that if ``$A$'' is true, or if ``$B$'' is true, then ``$A$ or $B$'' is true.
+
+\begin{mathpar}
+    \inferrule{A}{A \tor B}
+
+    \inferrule{B}{A \tor B}
+\end{mathpar}
+
+Note that we use \textbf{two} rules here, but both rules allow us to conclude that ``$A \tor B$'' is true.
+\reed{probably say more about this}
+
+Let's talk about one more way to combine statements.
+Consider the statement ``$x + x = 2$''.
+This statement \textbf{may} be true, if $x = 1$.
+But if $x = 2$ (or any number other than $1$), then the statement is false.
+When this happens, we say that ``$x = 1$ \emph{implies} $x + x = 2$''.
+The rule for this scenario looks like this:
+
+\begin{mathpar}
+    \inferrule*{
+        \inferrule*[Right=assume]{ }{
+            A \\\\
+            \vdots \\\\
+            B
+        }
+    }{ A \implies B}
+\end{mathpar}
+
+When we write:
+
+\begin{mathpar}
+    \inferrule*[Right=assume]{ }{
+        A \\\\
+        \vdots \\\\
+        B
+    }
+\end{mathpar}
+
+we mean that, if we assume $A$, then we have some proof of $B$.
+
+Now, suppose that I know that $A \implies B$ is true.
+How can I use that information?
+Well, if I know that $A \implies B$ is true, and I also know that $A$ is true, then I know that $B$ is true.
+We can write this as:
+
+\begin{mathpar}
+    \inferrule{A \and A \implies B}{B}
+\end{mathpar}
+
+So far we've only discussed how to say that a statement is true; but obviously not all statements are true (e.g., ``$1 = 2$'' is false).
+Let's take a brief digression first.
+Consider what the following rule means:
+
+\begin{mathpar}
+    \inferrule{ }{\top}
+\end{mathpar}
+
+So if the things above the line are our assumptions, but there are no assumptions, then that means we can always say that ``$\top$'' is true, without any additional assumptions required.
+Recalling that $\top$ corresponds to the statement ``true statements are true'', so naturally we don't need to have any assumptions to tell that this is true; it just is.
+
+What about a rule for $\bot$, the statement that is always false?
+However, it actually doesn't make sense to include such a rule: something false should never be able to proved.
+But let's for a moment consider what it would mean if we could prove something false is true, in particular, let's take our archetypically false statement: ``false statements are true.''
+If this statement were true, then we would know that \textbf{every} statement would be true!
+
+We can see this as follows: let's suppose I have some statement $A$, but I know that $A$ is false.
+But we're assuming that ``false statements are true'', so then $A$ is actually true, because it's a false statement.
+
+Clearly this is a sort of nonsense, but it is useful for one thing: saying that something is false.
+If we somehow manage to prove that $\bot$ is true, then we can prove anything, even a false statement, is true.
+We can write this in a rule as follows:
+
+\begin{mathpar}
+    \inferrule{ \bot }{ A }
+\end{mathpar}
+
+We read this as, ``if `false statements are true', then all statements (and in particular, $A$) are true.''
+Then we can say:
+
+\begin{mathpar}
+    \inferrule{ A \implies \bot }{ A \text{ is false} }
+
+    \inferrule{ A \text{ is false} }{A \implies \bot}
+\end{mathpar}
+
+This means that if $A \implies \bot$, then $A \text{ is false}$ and if $A \text{ is false}$ then $A \implies \bot$; that is, the two statements are equivalent.
+
+Then if we know that $A$ is both true and false, a \emph{contradiction}, then we can prove anything.
+Let's take some arbitrary statement $B$, which we will show is true assuming that $A$ is both true and false.
+
+\begin{mathpar}
+    \inferrule{
+        \inferrule{
+            A \and
+            \inferrule{A \text{ is false}}{A \implies \bot}
+        }{\bot}
+    }{B}
+\end{mathpar}
+
+where we can make the last inference because we can prove anything given $\bot$.
+
+\paragraph{Different Walks of Talking}
+Now let's talk about different ways to talk about the same thing.
+
+Let's say I have two statements, but they are not both true: that means that at least one of them must be false.
+Similarly, if I have two statements, and one of them is not true, then they are certainly not both true.
+
+What if I simulataneously know that a statement is true and false?
+Clearly this cannot happen; but let's for a moment suppose it could.
+In fact, if this happens, that means we can prove \textbf{anything}!
+
+To explain this, let's suppose we have any other statement, and let's show that this other statement must be true.
+Knowing that the first statement is true, we can either conclude that the second statement is true, or we can conclude that is it false, because all statements are either true or false. \footnote{Are they? Why is this true?}
+Simiarly, knowing that the first statement is false, we can either conclude that the second statement is true, or we can conclude that the second statement is false.
+
+Let's suppose knowing the first statement is true implies the second statement is true.
+Then we know the second statement is true.
+Let's suppose knowing the first statement is true implies the second statement is false.
+Then we know that the first statement is false implies that the second statement is true.
+
