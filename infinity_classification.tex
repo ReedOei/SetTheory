@@ -1,0 +1,86 @@
+\section{The Kinds of Infinity}
+
+In the previous section, we established that there are multiple kinds, or sizes, of infinity.
+Or, at least, there are two: the things that are the same size as the positive integers, and the things that are as many as groups of positive integers.
+
+\subsection{Some New Language}
+
+Our language, while quite versatile, is not quite ideal for the topic at hand.
+That previous sentence is probably very difficult to read, and is even more difficult to talk about with other people.
+In fact, many of the previous sentences are, despite the author's best effort, difficult to parse.
+
+To fix this problem, we're going to introduce some new words to make talking about groups and infinities a bit easier.
+
+First, we're going to introduce so new terms for things we've been saying; in particular, we want to replace some common English terms with their technical versions, because using plain English terms can be misleading if we don't mean them in a colloquial sense.
+Instead of ``group'', we'll use \emph{set} or \emph{collection}.
+The things inside a set or collection are called \emph{elements}.
+Note that order in a set doesn't matter, the set $\curlys{1,2}$ is the same as the set $\curlys{2,1}$; we only care what's in the set.
+Instead of ``amount'', we will use \emph{cardinality}.
+Then, instead of saying ``we have the same amount of students in the original class as there are chairs'', we'll say ``the collection of students in the new class has same cardinality as the set of chairs.''
+This isn't shorter, but it's more precise: any mathematically trained person will know what we mean; if we use ``group'' and ``amount'', it's too vague to be sure what we're really talking about without going into more detail.
+Instead of saying ``the set $A$ has the same cardinality as positive integers'', we'll say ``$A$ is \emph{countable}'', or ``there are \emph{countably many} elements of $A$''.
+If some set is too big to have a good, complete assignment with a countable set, we'll say it is \emph{uncountable}.
+Finally, instead of ``groups of things in a set $X$'' we'll say ``\emph{subsets} of $X$''; so then we can say ``the set of subsets of positive integers is uncountable.''
+\reed{Is this too many new definitions to just throw at them?}
+\reed{Should definitions be more rigorous?}
+
+For some examples, $\curlys{1,2,3}$ is a group of things in the bigger group $\curlys{1,2,3,4,5}$, so $\curlys{1,2,3}$ is a \textbf{subset} of $\curlys{1,2,3,4,5}$.
+Similarly, $\curlys{1}$ is a subset of $\curlys{1,2,3,4,5}$.
+Finally, note that we consider the ``empty group'' or \emph{empty set}, $\emptyset := \curlys{}$, which has no elements to be a subset of \textbf{every} set.
+\reed{How to build familiarity with the empty set and sets in general, but maintaining the flow?}
+\reed{Is this even important right now?}
+
+\subsection{How many sizes of infinity?}
+
+As briefly discussed earlier, we've so far found two different kinds of infinity: countable and uncountable.
+Is that all there is: specfically, if a set is uncountable, it is the same size as every other uncountable set?
+\reed{I have literally no intuition for guessing what people will think about this...}
+
+The answer is no, and we'll need one more term to talk about it: the \emph{powerset} of a set is the set of all subsets of that set.
+So the powerset of $\curlys{1,2,3}$ is $\curlys{\emptyset, \curlys{1}, \curlys{2}, \curlys{3}, \curlys{1,2}, \curlys{1,3}, \curlys{2,3}, \curlys{1,2,3}}$.
+By convention, for a set $A$, we consider both $\emptyset$ and $A$ to be subsets of $A$.
+\reed{Should probably explain this convention...}
+We write ``the powerset of a set $A$'' as $\powerset{A}$.
+Then we can rephrase the earlier sentence about the powerset of $\curlys{1,2,3}$ as:
+
+\[
+    \powerset{\curlys{1,2,3}} = \curlys{\emptyset, \curlys{1}, \curlys{2}, \curlys{3}, \curlys{1,2}, \curlys{1,3}, \curlys{2,3}, \curlys{1,2,3}}
+\]
+
+Then we have the following theorem:
+
+\begin{theorem}
+    For any set $A$, the cardinality of the powerset of $A$, $\powerset{A}$, is greater than the cardinality of $A$; that is:
+
+    \[
+        \abs{\powerset{A}} > \abs{A}
+    \]
+\end{theorem}
+
+\begin{proof}
+
+\end{proof}
+
+\subsection{Different Kinds of Numbers}
+
+We've discussed and used a variety of different kinds of numbers throughout this book.
+First, we talked about \reed{positive integers}: $1$, $2$, $3$, $4$, $5$, etc.
+
+But there are, of course, other kinds of numbers: what about $0$, $-10$, $\frac{1}{2}$, or the famous $\pi$?
+Each of these numbers is a representative of a different kind of numbers.
+Each kind of numbers forms a set of numbers.
+
+We call the numbers $0$, $1$, $2$, $3$, $4$, $5$, and so on the \emph{natural numbers}, because they are ``natural'' in the sense that they are obviously useful for counting.
+We denote the set of all natural numbers by $\nat$, which is just a fancy way to write an $N$.
+
+The numbers like $-10$, $-5$, $2$, or $129$ are called \emph{integers}, coming from the Latin \emph{integer}, meaning ``whole''.
+We can clearly see that every natural is itself an integer, but we also include the natural numbers.
+\reed{Is this actually that obvious...I think so?}
+We write the set of integers as $\integers$, because the German word for ``numbers'' is \emph{Zahlen}.
+
+Next, we have numbers like $\frac{5}{2}$, $-\frac{11}{2}$, $\frac{129}{1819}$, and so on.
+These numbers are called \emph{rational numbers}, because they are ``ratios'' of integers (where the bottom number is not $0$).
+We write the set rational numbers as $\rational$ for ``quotient''.
+
+\subsection{How many of each kind of number are there?}
+
