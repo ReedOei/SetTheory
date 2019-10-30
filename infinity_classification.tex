@@ -58,8 +58,36 @@ Then we have the following theorem:
 \end{theorem}
 
 \begin{proof}
+    The proof here is almost the same as the previous section, where we showed that adding a new student for each group of students in the original class, or each subset of the students in the original class, gives a set of students that is larger than the original class.
 
+    For the sake of a contradiction \reed{we should explain proof by contradiction at some point}, let's suppose that the two sets have the same cardinality, meaning there is a good, complete assignment of the elements in $A$ to the elements in $\powerset{A}$, which are subsets of $A$.
+    That is, for every element $x$ of $A$, there is some subset of $A$, $A_x$; and every subset of $A$ is $A_x$ for some element $x$ of $A$.
+
+    Consider the subset of $A$ which contains $x$ if and only if $x$ is \textbf{not} in $A_x$, and call this subset $B$.
+    By our assumption, we must have $B = A_y$ for some element $y$ of $A$.
+    But by definition, if $y$ is an element of $A_y$, then $y$ is not an element of $B$; if $y$ is not an element of $A_y$, then $y$ is an element of $B$.
+    Therefore, the two sets \textbf{cannot} be the same, so there is some subset, namely $B$, which is missing from our list.
+    So there cannot be any such good, complete assignment.
 \end{proof}
+
+But this brings up a new, very interesting question.
+
+\begin{quote}
+    If we have some set $A$, is there any set that has a cardinality greater than $A$, but less than $\powerset{A}$?
+\end{quote}
+
+At first, it may seem like the answer to this question is quite obvious.
+If I have a set with $4$ things in it, like $\curlys{1,2,3,4}$, then the set $\curlys{1,2,3,4,5}$ is a bigger set, but it doesn't have as many things as the powerset of the original set.
+And, indeed, whenever a set is finite, we can easily find such a set.
+The question only really becomes interesting when we talk about infinite sets.
+
+As we've seen, even if we add a single element to an infinite set, the infinite set doesn't become any ``bigger''; that is, the cardinality of the set remains the same.
+In fact, even ``doubling'' and ``squaring'' the size of the set didn't make any difference in the cardinality.
+The only operation we've seen so far that makes a difference is taking the powerset.
+Anything less, and it seems that we can't increase the size of the set by enough to matter.
+
+On the other hand, it seems like there ought to be some set with a cardinality between the powerset and the set itself.
+After all, there's a lot of ``space'' in between these sets. \reed{clarify this point}
 
 \subsection{Different Kinds of Numbers}
 
