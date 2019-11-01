@@ -18,7 +18,7 @@ Note that order in a set doesn't matter, the set $\curlys{1,2}$ is the same as t
 Instead of ``amount'', we will use \emph{cardinality}.
 Then, instead of saying ``we have the same amount of students in the original class as there are chairs'', we'll say ``the collection of students in the new class has same cardinality as the set of chairs.''
 This isn't shorter, but it's more precise: any mathematically trained person will know what we mean; if we use ``group'' and ``amount'', it's too vague to be sure what we're really talking about without going into more detail.
-Instead of saying ``the set $A$ has the same cardinality as positive integers'', we'll say ``$A$ is \emph{countable}'', or ``there are \emph{countably many} elements of $A$''.
+Instead of saying ``the set $A$ has the same cardinality as natural numbers'', we'll say ``$A$ is \emph{countable}'', or ``there are \emph{countably many} elements of $A$''.
 If some set is too big to have a good, complete assignment with a countable set, we'll say it is \emph{uncountable}.
 Finally, instead of ``groups of things in a set $X$'' we'll say ``\emph{subsets} of $X$''; so then we can say ``the set of subsets of positive integers is uncountable.''
 \reed{Is this too many new definitions to just throw at them?}
@@ -89,10 +89,15 @@ Anything less, and it seems that we can't increase the size of the set by enough
 On the other hand, it seems like there ought to be some set with a cardinality between the powerset and the set itself.
 After all, there's a lot of ``space'' in between these sets. \reed{clarify this point}
 
+But it's very difficult to talk about cardinality for completely abstract sets that contain only other abstract objects as elements.
+Instead, we'll talk about something much more concrete: numbers.
+For the moment, we don't really care \textbf{what} our set contains, only \textbf{how many things} it contains.
+So for convenience, we might as well just talk about some well-understood set of things, and numbers fit the bill.
+
 \subsection{Different Kinds of Numbers}
 
 We've discussed and used a variety of different kinds of numbers throughout this book.
-First, we talked about \reed{positive integers}: $1$, $2$, $3$, $4$, $5$, etc.
+First, we talked about natural numbers: $0$, $1$, $2$, $3$, $4$, $5$, etc.
 
 But there are, of course, other kinds of numbers: what about $0$, $-10$, $\frac{1}{2}$, or the famous $\pi$?
 Each of these numbers is a representative of a different kind of numbers.
@@ -110,5 +115,142 @@ Next, we have numbers like $\frac{5}{2}$, $-\frac{11}{2}$, $\frac{129}{1819}$, a
 These numbers are called \emph{rational numbers}, because they are ``ratios'' of integers (where the bottom number is not $0$).
 We write the set rational numbers as $\rational$ for ``quotient''.
 
+And finally, we get to the biggest group of numbers we'll consider for now: the ``real numbers'', written $\real$.
+You can think of these as all the ``decimal numbers'': so all the rational numbers, but also numbers like $\pi$ or $\sqrt{2}$. \reed{We should have some introduction to this}
+
 \subsection{How many of each kind of number are there?}
+
+The motivation for even discussing numbers in the first place is talking about the size of sets; let's do that.
+
+First, let's establish a baseline: countable sets (those that have the same cardinality as the natural numbers).
+We'll compare everything to countable sets, because in some sense, there's no smaller kind of infinite set.
+Why is this?
+
+Let's first try out defining what an infinite set is \reed{should have them think about it first}: it's basically something that has lots and lots of things in it.
+Or, another way to put it, is that it's not finite.
+But then what does being finite mean?
+
+\begin{definition}
+    A set $A$ is \emph{finite} if it has the same cardinality as the set $\curlys{0, 1, 2, \ldots, n}$ for some natural number $n$; equivalently, if there is a good, complete assignment between $A$ and $\curlys{0, 1, 2, \ldots, n}$ for some natural number $n$.
+\end{definition}
+
+This leads to an easy definition of infinite sets.
+
+\begin{definition}
+    A set $A$ is \emph{infinite} if it is not finite.
+\end{definition}
+
+Now we can describe why there's no ``smaller kind of infinity'' than countable sets.
+
+\begin{theorem}
+    If $A$ is infinite, then it's cardinality is at least as large as the cardinality of the natural numbers, $\nat$.
+\end{theorem}
+\begin{proof}
+    To see that this is the case, we need to build some good, complete assignment between some subset of $A$ and the natural numbers $\nat$, or vice versa; we need to pair each natural number with some element of $A$.
+
+    Let's start with $0$, because it's the smallest natural number.
+    Then pick any element from $A$, let's call it $a_0$.
+    We'll assign $0$ to $a_0$.
+
+    Now let's move on to the next natural number, $1$.
+    Pick some other element from $A$, which is not $a_0$, and call it $a_1$.
+    Note that there has to be some element, because $A$ is infinite: if it only contained $a_0$, it would obviously be finite!
+    So then we'll assign $1$ to $a_1$.
+
+    Then just repeat this process for each $n$, so we assign $n$ to some element of $A$ that is not any of the previously chosen $a_0$, $a_1$, $a_2$, etc. \reed{Sneaky recursively defined function here}
+    At every step there will be some $a_n$ we haven't used, or we'll have built a good, complete assignment between $\curlys{0, 1, 2, \ldots, n - 1}$, but that means that $A$ is finite!
+    Note that this assignment is, in fact, good: we only use each element of $a$ once, so we'll never have two different natural numbers assigned to the same element of $A$.
+
+    So then we built a good, complete assignment between $\nat$ and some subset of $A$, namely, the subset consisting of all choices we made during the process described above: that might seem a little circular, but it's not. \reed{explain why not?}
+    So then $A$ must be at least as big as $\nat$.
+\end{proof}
+
+So that means that every infinite set is at least countable.
+
+Let's talk about the integers, $\integers$, now.
+How many of them are there?
+At first glance, it seems obviously more than the natural numbers; but recall the argument from before, when we ``doubled'' the size of our class, but ended up with the same cardinality of students?
+We can apply that same trick here: we are doubling the natural numbers: for every $n$, we have $-n$ (except $0$).
+
+What about the rationals, $\rational$?
+Clearly that must be bigger: but again, we already showed it's not.
+Remember that we showed that giving each student in the infinite, countable class results in the same cardinality for the set of students.
+And what are rational numbers, other than pairs of integers (one for the numerator, and one for the denominator); technically, there's even fewer rationals than this, because $\frac{1}{2} = \frac{2}{4}$, so there's fewer rationals than pairs of integers! \reed{Should we clarify this point?}
+But the set is definitely infinite, because we have one rational for each natural number, specifically, for $n$, we have $\frac{n}{1}$; alternatively, $\nat$ is a subset of $\rational$.
+So the rationals are also countable!
+
+What about real numbers?
+Surely the real numbers must be bigger than the natural numbers?
+Let's just talk about the real numbers that are between $0$ and $1$: there's still a lot of them there.
+But how many?
+Well, let's talk about powersets again.
+If we could show there are as many real numbers between $0$ and $1$ as there are subsets of natural numbers, that would show there are more real numbers between $0$ and $1$ than all of the natural numbers: we showed this earlier.
+So we want to pair up real numbers between $0$ and $1$ and natural numbers.
+We can do this by writing real numbers as decimals, specifically, decimals in binary. \reed{can we avoid using binary? should we avoid using binary (maybe just teach them binary at some point)?}
+Each real number between $0$ and $1$ looks like $0.0101001010\ldots$ for some string of $0$'s and $1$'s.
+
+What is the connection between subsets of natural numbers and binary decimal expansions of real numbers?
+We can think of a subset of natural numbers as a collection of numbers, but we can also think of it as a sequence of $0$'s and $1$'s: a binary sequence.
+The $n$-th digit of this sequence is $1$ is $n$ is in the subset, and $0$ if it is not.
+We can represent every subset this way. \reed{Should we prove this?}
+So now we have a binary sequence for each subset of natural numbers.
+From here, it's quite straightforward to assign each such sequence to a real number between $0$ and $1$.
+Just write $0.$ followed by the corresponding binary sequence, so if your subset only contains $1$ and $2$, then the corresponding real number is $0.0110000\ldots$, where the $0$'s continue forever.
+
+\reed{Should we even talk about this? It's kind of a technicality}
+There is one issue: some subsets of natural numbers will map to the same real number.
+For example $0.0\overline{1} = 0.1\overline{0}$; that is $0.011111111\ldots$, where the $1$'s continue forever, is equal to $0.100000$, where the $0$'s continue forever. \reed{Definitely will need to prove this at some point...}
+However, note that this only occurs when the decimal representation of the real number is finite and followed by infinitely many zeroes.
+This happens only for a countable number of real numbers \reed{Should probably prove this too at some point}, so if we remove all of these subsets of natural numbers, we get a good, complete assignment of subsets of natural numbers to real numbers.
+Note that after removing these subsets, the resulting set is still not countable; that is, it is strictly larger than the natural numbers, because if it were not, then we could get all the subsets of natural numbers by unioning two countable sets, which is a contradiction. \reed{This needs more detail/explanation probably}
+
+So there are as many real numbers between $0$ and $1$ as there are natural numbers!
+So there are, in fact, \textbf{more} real numbers than natural numbers.
+This probably conforms with your intuition, and it isn't too surprising, though perhaps seeing that there are as many rational numbers as natural numbers caused you to doubt this.
+Speaking of which, this proof actually does something else very interesting: because there are more real numbers than natural numbers, but the same number of rational numbers as natural numbers, ther emust be \textbf{far} more real numbers than there are rational numbers!
+That means that \textbf{almost every} real number is \textbf{not} rational!
+\reed{This probably merits more discussion}
+
+But we still have one lingering question: how many real numbers are there?
+In fact, there are the same number of real numbers, total, as there are real numbers between $0$ and $1$.
+We can see this in figure \ref{fig:bijection-01-real}.
+
+\begin{figure}\label{fig:bijection-01-real}
+    \centering
+    \begin{tikzpicture}
+        \node[] (left) at (-6,2) {};
+        \node[] (right) at (10,2) {};
+
+        \draw[<->, thick] (left) -- (right);
+        \path[name path=line] (left) -- (right);
+
+        \node[circle, fill=black, inner sep=0.1em, label=above:$0$] (zero) at (2,2) {};
+        \node[circle, fill=black, inner sep=0.1em, label=above:$1$] (p1) at (4,2) {};
+        \node[circle, fill=black, inner sep=0.1em, label=above:$-1$] (m1) at (0,2) {};
+        \node[circle, fill=black, inner sep=0.1em, label=above:$2$] (p2) at (6,2) {};
+        \node[circle, fill=black, inner sep=0.1em, label=above:$-2$] (m2) at (-2,2) {};
+        \node[circle, fill=black, inner sep=0.1em, label=above:$3$] (p3) at (8,2) {};
+        \node[circle, fill=black, inner sep=0.1em, label=above:$-3$] (m3) at (-4,2) {};
+
+        \node[circle, fill=black, inner sep=0.1em, label=above:$\sqrt{2}$] (rt2) at (4.91421356237309,2) {};
+
+        \node[circle, fill=black, inner sep=0.1em, label=right:$0$] (x0) at (0,0) {};
+        \node[circle, fill=black, inner sep=0.1em, label=right:$1$] (x1) at (4,0) {};
+        \node[circle, fill=black, inner sep=0.1em] (center) at (2,0) {};
+
+        \draw[thick, name path=arcpath] (x0) arc [radius=2, start angle=180, end angle=0];
+
+        \draw[thick] (center) -- (m3);
+        \path[name path=m3line] (center) -- (m3);
+        \path[name intersections={of=arcpath and m3line, by=m3int}];
+        \node[circle, fill=black, inner sep=0.1em, label=left:$0.1024\ldots$] (rt2i) at (m3int) {};
+
+        \draw[thick] (center) -- (rt2);
+        \path[name path=rt2line] (center) -- (rt2);
+        \path[name intersections={of=arcpath and rt2line, by=rt2int}];
+        \node[circle, fill=black, inner sep=0.1em, label=right:$0.8040\ldots$] (rt2i) at (rt2int) {};
+    \end{tikzpicture}
+
+    \caption{The bijection between $(0,1)$ and the reals}
+\end{figure}
 
