@@ -147,7 +147,10 @@ Tactic Notation "use" "comprehension" "for" uconstr(v) :=
 Tactic Notation "contradiction" "by" tactic(tac) :=
   tac; prove; contradiction.
 
-Lemma emptyset_is_empty : forall (z : set), ~(z is in emptyset).
+Definition empty (X : set) : Prop :=
+  forall (Y : set), ~(Y is in X).
+
+Lemma emptyset_is_empty : empty emptyset.
 Proof.
 intros z zinemptyset.
 contradiction by (use comprehension for zinemptyset).
@@ -586,7 +589,7 @@ Definition apply {X Y : set} (f : function X Y) (x : set) : set :=
   | func _ _ _ actual _ _ => actual x
   end.
 
-Notation "f [ x ]" := (apply f x) (at level 70).
+Notation "f [ x ]" := (apply f x) (at level 10).
 
 Lemma apply_compat :
   forall {X Y : set} (f : function X Y), for x in X, (f[x] is in Y).
@@ -742,5 +745,219 @@ split.
 - apply rep_prop_in_codom in H1.
 follows by rep_prop_compat.
 Qed.
+
+Inductive relation (X Y : set) : Type :=
+  | rel (x : set) : x is a subset of cart_prod X Y -> relation X Y.
+
+Definition related {X Y : set} (R : relation X Y) (x y : set) :=
+  match R with
+  | rel _ _ underlying _ => (x, y) is in underlying
+  end.
+
+Definition binary_rel (X : set) := relation X X.
+
+Definition irrefl {X : set} (R : binary_rel X) :=
+  for x in X, ~(related R x x).
+
+Definition transitive {X : set} (R : binary_rel X) :=
+  for x in X, for y in X, for z in X, 
+    (related R x y -> related R y z -> related R x z).
+
+Inductive partial_ord (X : set) : Type :=
+  | partial (R : binary_rel X) :
+      irrefl R -> transitive R -> partial_ord X.
+
+Definition transitive_set (x : set) : Prop :=
+  for y in x, (y is a subset of x).
+
+Definition partial_related {X : set} (P : partial_ord X) (x y : set) :=
+  match P with
+  | partial _ R _ _ => related R x y
+  end.
+
+Definition total_ord_prop {X : set} (P : partial_ord X) :=
+  for x in X, for y in X,
+    ((partial_related P x y) \/ (x = y) \/ (partial_related P y x)).
+
+Inductive total_ord (X : set) : Type :=
+  | total (R : partial_ord X) : total_ord_prop R -> total_ord X.
+
+Definition total_related {X : set} (T : total_ord X) (x y : set) :=
+  match T with
+  | total _ R _ => partial_related R x y
+  end.
+
+Definition setminus (X : set) (Y : set) : set :=
+  { x in X; x is in X /\ ~(x is in Y) }.
+
+Notation "X \ Y" := (setminus X Y) (at level 70).
+
+Lemma setminus_prop :
+  forall {X Y x : set}, x is in (X \ Y) -> x is in X /\ ~(x is in Y).
+Proof.
+intros X Y x x_in_setminus.
+follows by comprehension_prop.
+Qed.
+
+Definition nonempty_powerset (X : set) : set :=
+  powerset X \ singleton emptyset.
+
+Definition singleton_is_subset_iff_elem :
+  forall {X x : set}, x is in X <-> singleton x is a subset of X.
+Proof.
+intros X x.
+split.
+- intros x_in_X z z_in_x.
+follows by singleton_contains_unique.
+- intros sing_x_subs_X.
+exact (sing_x_subs_X x (in_singleton x)).
+Qed.
+
+Lemma nonempty_has_nonempty_powerset :
+  forall (X : set), nonempty X -> nonempty (powerset X).
+Proof.
+intros X nonempty_X.
+destruct nonempty_X as [x x_in_X].
+exists (singleton x).
+follows from (apply powerset_prop, singleton_is_subset_iff_elem).
+Qed.
+
+Lemma in_emptyset_absurd :
+  forall {x : set}, ~(x is in emptyset).
+Proof.
+intros x x_in_emptyset.
+pose proof emptyset_is_empty x x_in_emptyset.
+contradiction.
+Qed.
+
+Lemma empty_iff_emptyset : 
+  forall (X : set), X = emptyset <-> empty X.
+Proof.
+intros X.
+split.
+- intros X_is_emptyset.
+rewrite X_is_emptyset.
+apply emptyset_is_empty.
+- intros X_empty.
+apply extensionality.
+intros z.
+split.
+-- intros z_in_X.
+follows from (pose proof X_empty z z_in_X).
+-- intros z_in_emptyset.
+follows from (pose proof in_emptyset_absurd z_in_emptyset).
+Qed.
+
+Lemma not_in_sing_empty_is_not_empty :
+  forall (Y : set), ~(Y is in singleton emptyset) -> ~(empty Y).
+Proof.
+intros Y not_in_sing_empty empty_Y.
+apply empty_iff_emptyset in empty_Y.
+rewrite empty_Y in not_in_sing_empty.
+pose proof in_singleton emptyset.
+contradiction.
+Qed.
+
+(* TODO: We can't say Y is nonempty, only that ~(empty Y)...excluded middle issues. Should we cave and use it? *)
+Lemma in_nonempty_powerset_is_not_empty :
+  forall (X Y : set), Y is in nonempty_powerset X -> ~(empty Y).
+Proof.
+intros X Y in_ne_powset empty_Y.
+apply comprehension_prop, proj2, proj2, not_in_sing_empty_is_not_empty in in_ne_powset.
+contradiction.
+Qed.
+
+Definition choice_function {X : set} (f : function (nonempty_powerset X) X) : Prop :=
+  forall (Y : set), nonempty Y -> Y is a subset of X -> f[Y] is in Y.
+
+Definition well_ord_prop {X : set} 
+                         (T : total_ord X) 
+                         (min : function (nonempty_powerset X) X) :=
+  forall (Y : set) (prf_nonempty : nonempty Y) (prf: Y is a subset of X),
+    (for y in Y, ~(total_related T y (min[Y]))) /\
+    (min[Y]) is in Y.
+
+Inductive well_order (X : set) : Type :=
+  | well (R : total_ord X) 
+         (min : function (nonempty_powerset X) X)
+    : well_ord_prop R min -> well_order X.
+
+Definition well_order_min {X : set} (W : well_order X) :=
+  match W with
+  | well _ _ min _ => min
+  end.
+
+Definition least {X : set} (W : well_order X) (Y : set) :=
+  (well_order_min W)[Y].
+
+Notation "P 'min'" := (well_order_min P) (at level 70).
+
+Notation "P 'least' 'in' A" := (least P A) (no associativity, at level 70).
+
+Lemma min_is_choice_function :
+  forall {X : set} (W : well_order X), choice_function (W min).
+Proof.
+intros X W.
+intros Y nonempty_Y Y_subs_X.
+destruct W.
+pose proof w Y nonempty_Y Y_subs_X.
+prove.
+Qed.
+
+Definition well_related {X : set} (W : well_order X) (x y : set) :=
+  match W with
+  | well _ R _ _ => total_related R x y
+  end.
+
+Notation "x 'is' P 'less' 'than' y" := (well_related P x y) (no associativity, at level 70).
+
+Inductive ordinal :=
+  | ord (x : set) : transitive_set x -> ordinal.
+
+Lemma emptyset_trans : transitive_set emptyset.
+Proof.
+intros x x_in_emptyset.
+follows by in_emptyset_absurd.
+Qed.
+
+Definition set_succ (x : set) : set := x U singleton x.
+
+Tactic Notation "use" "transitivity" constr(elem) "and" constr(x) :=
+  match goal with
+  | [ x_trans : transitive_set x, e_in_y : elem is in ?Y, y_in_x : ?Y is in x |- _ ] =>
+    apply (in_subset_in_supset (x_trans ?Y y_in_x)) in e_in_y
+  end.
+
+Tactic Notation "use" "transitivity" "to" "get" constr(z) "in" constr(x) :=
+  match goal with
+  | [ x_trans : transitive_set x,
+      z_in_y : z is in ?y,
+      y_in_x : ?y is in x |- _ ] => 
+    pose proof (in_subset_in_supset (x_trans y y_in_x) z_in_y)
+  end.
+
+Lemma set_succ_transitive_is_transitive :
+  forall {x : set}, transitive_set x -> transitive_set (set_succ x).
+Proof.
+intros x x_trans.
+intros y y_in_succ_x.
+intros z z_in_y.
+apply pair_union_prop in y_in_succ_x.
+inversion y_in_succ_x.
+- use transitivity to get z in x.
+follows by pair_union_prop.
+- apply singleton_contains_unique in H.
+rewrite H in z_in_y.
+follows by pair_union_prop.
+Qed.
+
+Definition ord_succ (x : ordinal) : ordinal := 
+  match x with
+  | ord s trans_prf => ord (set_succ s) (set_succ_transitive_is_transitive trans_prf)
+  end.
+
+Definition zero : ordinal := ord emptyset emptyset_trans.
+Definition one : ordinal := ord_succ zero.
+Definition two : ordinal := ord_succ one.
 
 End Sets.
