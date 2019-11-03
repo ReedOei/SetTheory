@@ -117,6 +117,8 @@ We write the set rational numbers as $\rational$ for ``quotient''.
 
 And finally, we get to the biggest group of numbers we'll consider for now: the ``real numbers'', written $\real$.
 You can think of these as all the ``decimal numbers'': so all the rational numbers, but also numbers like $\pi$ or $\sqrt{2}$. \reed{We should have some introduction to this}
+In some sense, the name ``real'' is a bit unfortuante: the real numbers are no more ``real'' than other numbers.
+But the name has stuck, and it's hard to imagine changing it to anything else.
 
 \subsection{How many of each kind of number are there?}
 
@@ -251,6 +253,54 @@ We can see this in figure \ref{fig:bijection-01-real}.
         \node[circle, fill=black, inner sep=0.1em, label=right:$0.8040\ldots$] (rt2i) at (rt2int) {};
     \end{tikzpicture}
 
-    \caption{The bijection between $(0,1)$ and the reals}
+    \caption{A pairing of the real numbers between $0$ and $1$ and all the real numbers}
 \end{figure}
+
+So if there are as many real numbers between $0$ and $1$ as there are real numbers in general, I think you will not have trouble believing me when I say that this is also true for any (distinct) real numbers: if $x$ and $y$ are real numbers, with $x \neq y$, then there are as many real numbers between $x$ and $y$ as there are real numbers in general.
+But, as we know, there are \textbf{not} as many rational numbers as there are real numbers.
+So far, every infinite set we've only talked about is either countable or has the same cardinality as the real numbers.
+Is there anything between these two?
+
+\subsection{The Continuum Hypothesis}
+
+And that, my friends, is the Continuum Hypothesis, or CH.
+As you might be able to guess from the title case name, it's a bit of a Big Deal.
+Specifically, the Continuum Hypothesis is the following statement:
+
+\begin{quote}
+    There are no sets with cardinality strictly greater than the natural numbers and strictly less than the real numbers.
+\end{quote}
+
+Depending on who you are, this statement may feel intuitively true, or intuitively false.
+
+On the one hand, we haven't seen any sets that bigger than countable: the rational feel bigger, but they're not.
+Even if we pair lots and lots and lots of integers together, and consider all such pairs, we see that it's still countable!
+From the other side, if we take anything other than special subsets of the reals like the natural numbers or rational numbers, then we get a set that's as big as all the real numbers.
+We saw this when we considered all the real numbers between $0$ and $1$, but of course this will also happen for \textbf{any} interval \reed{Define interval or just don't use the word?}.
+So how would anything fit between these potentially infinitely close together reals and the countable sets, which are so much smaller?
+
+But, on the other side, the gap in size between countable numbers and the reals is so \textbf{huge} that it feels like we can easily fit in more cardinalities.
+Otherwise, at some point, we might take a single step and cross the gap instantly from countable to \emph{continuum}, the cardinality of the reals.
+
+The other question you might ask, what's bigger than the real numbers, is already answered: the powerset of the reals is bigger.
+But this leads to a more general form \reed{should we say what this means...it's not standard English really} of the previous statement:
+
+\begin{quote}
+    If $A$ is infinite, then there are no sets with cardinality strictly greater than $A$ but strictly less than $\powerset{A}$.
+\end{quote}
+
+This statement is known as the Generalized Continuum Hypothesis, or GCH.
+It is perhaps not too surprising that if GCH is true, then CH is also true, because CH is basically just GCH with $A = \nat$
+
+But the most surprising thing of all is that both CH and GCH are \emph{independent} of the standard mathematical axioms!
+What does that mean?
+It basically means that we cannot prove that CH (and, by extension, GCH) is true; but we also cannot prove that it is false!
+Specifically, the standard axiomatic system for mathematics, ZFC, which essentially serves as a foundation for all of mathematics, CH is neither true nor false.
+That is, it is consistent with the ZFC axioms that CH is true, but it is also consistent with the ZFC axioms that CH is false (assuming ZFC is itself consistent).
+
+We should take a step back here to realize what a momentous thing this is.
+Most people think of mathematics as being a subject in which everything has a definitive answer; even if we don't know the answer now, there must be \textbf{some} answer.
+But this is not true.
+For some questions, the ``answer'', if you would call it that (I would), is that the question cannot be answered.
+We must also underscore that it is not that the Continuum Hypothesis is really hard to prove true, or really hard to prove false, and just haven't figured it out yet: we've (we in the sense of the human race) have \textbf{proven} that it cannot be proven.
 

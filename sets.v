@@ -594,6 +594,11 @@ destruct H, H, H0, H0.
 follows by ordered_pair_eq.
 Qed.
 
+Definition underlying_set {X Y : set} (f : function X Y) : set :=
+  match f with
+  | func _ _ f_set _ _ _ => f_set
+  end.
+
 Definition rep_prop {X Y : set} (f : function X Y) (x y : set) : Prop :=
   match f with
   | func _ _ f_set _ _ _ => (x,y) is in f_set
@@ -679,6 +684,37 @@ Definition replacement_im (X : set) (P : set -> set -> Prop) (prf : function_for
 Definition im {X Y : set} (f : function X Y) (A : set) {prf : A is a subset of X} : set := 
   replacement_im X (rep_prop f) (rep_prop_is_function_formula f).
 
+Lemma in_subset_in_supset :
+  forall {X Y : set}{a : set}, X is a subset of Y -> a is in X -> a is in Y.
+Proof.
+prove.
+Qed.
+
+Lemma in_subset_of_cart_prod :
+  forall {X Y : set} {x y A : set}, 
+    A is a subset of cart_prod X Y -> (x, y) is in A -> (x is in X /\ y is in Y).
+Proof.
+intros.
+apply (in_subset_in_supset H) in H0.
+follows by cart_prod_prop_supset.
+Qed.
+
+Lemma function_is_subset :
+  forall {X Y f : set}, is_function X Y f -> f is a subset of cart_prod X Y.
+Proof.
+intros X Y f is_func.
+follows from (destruct is_func).
+Qed.
+
+Lemma rep_prop_in_codom :
+  forall {X Y : set} {f : function X Y} {x y : set}, rep_prop f x y -> y is in Y.
+Proof.
+intros X Y f x y rep_prop_f_x_y.
+destruct f; simpl in rep_prop_f_x_y.
+apply function_is_subset in i.
+follows by (in_subset_of_cart_prod i).
+Qed.
+
 Lemma im_prop_supset :
   forall {X Y : set} (f : function X Y) (A y : set) {prf : A is a subset of X}, 
     y is in (@im X Y f A prf) -> there is some x in X so that (f[x] = y).
@@ -697,7 +733,8 @@ pose proof H7 y H1.
 exists x.
 split.
 - prove.
-- follows by rep_prop_compat.
+- apply rep_prop_in_codom in H1.
+follows by rep_prop_compat.
 Qed.
 
 End Sets.
