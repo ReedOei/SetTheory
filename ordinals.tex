@@ -1,0 +1,91 @@
+\section{Ordinals}
+
+The most natural way to represent the size of a finite set is by saying how many elements it has; this number is always a natural number.
+But have you ever wondered what numbers are?
+As in, \textbf{what is zero?}
+\textbf{What is one?}
+Or why does $1 + 1 = 2$?
+And why does $4 + 2 = 4 + 2$?
+And why does that work for all numbers?
+Does it work for all numbers?
+
+Well, I won't answer all those questions necessarily, but I will answer some of them.
+
+\subsection{Defining the natural numbers}
+
+Hopefully you aren't tremendously disappointed, but the objective of math is rarely to answer the question ``What \textbf{really} is $X$?''
+Instead, we generally ask: ``What are the essential properties of $X$?''
+We can also choose to define representations of objects, and if these representations conform to all the properties, then we may just end up saying that they ``really'' \textbf{are} the object, if it becomes convenient.
+This, for us, is one of those cases.
+
+Let's start defining some natural numbers.
+What are the most basic objects we can talk about, without needing to rely on any other definitions?
+We can't say something like ``$3$ means $3$ apples'' or something, because then we need to define apples.
+We could just say $0$ is some object with some properties (perhaps that $0 + x = 0$), but we already know of some object that, in many ways, acts just like $0$ does: the empty set.
+If I take any set, and I take all the elements in that set and I add the elements of the empty set, then I have the same elements as I did before.
+So this property is a lot like the fact that we all know and love, that $0 + x = 0$.
+So we'll define $0$ to be $\emptyset$; we write $0 := \emptyset$ to mean that $0 = \emptyset$, and that this is true \emph{by definition}.
+
+This is a fundamental principle of this business of precisely defining objects: there are some properties we want to preserve, and we looks for simpler objects that we already know that have these same properties.
+Along the way, we may need to define new notions \reed{should I use a word other than ``notions'' here...} and objects; this is more generally part of the process of mathematical modeling.
+
+We've defined one natural number, the smallest one, which is a good start, but what about the rest of the natural numbers?
+Let's consider one other property of the natural numbers: we can get any natural number by just adding $1$ to $0$ a bunch of times.
+For example, $4 = 0 + 1 + 1 + 1 + 1$, and $5 = 0 + 1 + 1 + 1 + 1 + 1$.
+You can see how this pattern will continue; so I won't write them all out.
+So really, we don't actually need to write every single number out, we just need to define what it means to ``add $1$'' to a natural number, and we can get all the rest of the natural numbers.
+And to do this, we'll consider one last property of natural numbers: specifically, how do we order natural numbers?
+That is, we know that $0 < 1 < 2$, and $0 < 1 < 2 < 3$, and so on.
+So the set of natural numbers less than $3$ is $\curlys{0,1,2}$, the set of natural numbers less than $2$ is $\curlys{0,1}$, the set of natural numbers less than $1$ is just $\curlys{0}$, and finally the set of natural numbers less than $0$ is $\emptyset$, because there are no natural numbers less than $0$.
+But wait!
+We defined $0$ to be $\emptyset$; what if we just defined $1$ to be $\curlys{0}$, and $2$ to be $\curlys{0,1}$, and so on.
+That is, each natural number is the set of numbers that are less than it, and ``adding one'' means including the currently number in this collection.
+
+To write the previous sentence in symbols, let's define $n + 1 := n \cup \curlys{n}$.
+Let's verify that this definition actually works.
+We already agreed that $0 = \emptyset$, so then:
+\begin{align*}
+    0 + 1 &= \emptyset \cup \curlys{\emptyset} = \curlys{\emptyset} = \curlys{0} \\
+    1 + 1 &= 1 \cup \curlys{1} = \curlys{\emptyset} \cup \curlys{\curlys{\emptyset}} = \curlys{\emptyset, \curlys{\emptyset}} = \curlys{0, 1} \\
+    2 + 1 &= 2 \cup \curlys{2} = \curlys{\emptyset, \curlys{\emptyset}} \cup \curlys{\curlys{\emptyset, \curlys{\emptyset}}} = \curlys{\emptyset, \curlys{\emptyset}, \curlys{\emptyset, \curlys{\emptyset}}} = \curlys{0, 1, 2} \\
+    &\vdots
+\end{align*}
+
+This definition has the nice property that if $n \in m$, then $n < m$: for example $0 \in 1$, because $0 = \emptyset$ and $1 = \curlys{\emptyset}$.
+In fact, because we're trying to define the natural numbers ``from scratch'', this will work for us as a \textbf{definition} of what it means for one natural number to be less than another.
+
+This is the beginning of a definition of the natural numbers, but it is important to note that this isn't the \textbf{only} definition of the natural numbers; there are many, (essentially) equivalent definitions which are appropriate for different situations.
+
+\subsection{Defining arithmetic on natural numbers}
+
+Let's step back for a moment, and take stock of what we've done:
+
+\begin{enumerate}
+    \item Defined $0 := \emptyset$
+    \item Defined, for any natural number $n$, $n + 1$
+    \item Defined what is means for two natural numbers $n$ and $m$ to be less than each other, specifically $n \in m$ means that $n < m$.
+\end{enumerate}
+
+What other things might we like to do with natural numbers?
+Naturally, we might like to add them, multiply them, and so on.
+Let's define addition first, again, being careful to do so only in terms of things we have already defined.
+We'll define addition of two natural numbers, $n$ and $m$, as follows:
+\begin{align*}
+    n + 0 &:= n \\
+    n + (m + 1) &:= (n + m) + 1 \\
+\end{align*}
+
+Above, we've defined what it means to do $n + 1$, and we just declare that $n + 0 := n$.
+Let's do an example of addition:
+\[
+    1 + 2 = 1 + (1 + 1) = (1 + 1) + 1 = 2 + 1 = 3
+\]
+
+Basically, our objective is to ``convert'' the operation of doing $n + m$ into just doing $n + 1 + 1 + \cdots + 1$, because we know how to add $1$ to a natural number.
+
+\reed{show that we can take max and min by using unions and intersections}
+
+\subsection{Some properties of natural numbers}
+
+\reed{Here we should eventually define the set of all ordinals, then derive some wacky wacky shit and be like ``wait this isn't right...''}
+

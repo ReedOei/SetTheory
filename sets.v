@@ -558,6 +558,17 @@ Inductive function (dom codom : set) : Type :=
   | func (f : set) (actual : set -> set) :
       compatible dom codom f actual -> is_function dom codom f -> function dom codom.
 
+Definition do_fst (X Y xy : set) : xy is in cart_prod X Y -> set.
+intros xy_in_prod.
+apply cart_prod_prop in xy_in_prod.
+destruct xy_in_prod.
+
+Definition fst : function X Y :=
+  func 
+  { xy in cart_prod (cart_prod X Y) X;
+    there is some x in X, there is some y in Y, (xy = ((x,y),x)) }
+  (fun 
+
 Definition functions (dom : set) (codom : set) : set :=
   { f in powerset (cart_prod dom codom) ; is_function dom codom f }.
 
@@ -592,7 +603,8 @@ Definition apply {X Y : set} (f : function X Y) (x : set) : set :=
 Notation "f [ x ]" := (apply f x) (at level 10).
 
 Lemma apply_compat :
-  forall {X Y : set} (f : function X Y), for x in X, (f[x] is in Y).
+  forall {X Y : set} (f : function X Y),
+    for x in X, (f[x] is in Y).
 Proof.
 intros X Y f x x_in_X.
 destruct f.
@@ -730,20 +742,13 @@ Lemma im_prop_supset :
 Proof.
 intros X Y f A y prf y_in_im.
 apply comprehension_prop in y_in_im.
-destruct y_in_im, H0, H0.
-pose proof replacement_prop X (rep_prop f) (rep_prop_is_function_formula f) x H0.
-destruct H2.
-pose proof rep_prop_is_function_formula f.
-pose proof H3 x H0.
-destruct H4.
-intuition.
-pose proof H7 x0 H6.
-pose proof H7 y H1.
+destruct y_in_im as [y_in_rep exist_x],
+         exist_x as [x x_func],
+         x_func as [x_in_X f_x_is_y].
 exists x.
-split.
-- prove.
-- apply rep_prop_in_codom in H1.
-follows by rep_prop_compat.
+split; prove.
+- apply rep_prop_compat; prove.
+-- apply rep_prop_in_codom in f_x_is_y; prove.
 Qed.
 
 Inductive relation (X Y : set) : Type :=
@@ -873,9 +878,18 @@ Definition choice_function {X : set} (f : function (nonempty_powerset X) X) : Pr
 Definition well_ord_prop {X : set} 
                          (T : total_ord X) 
                          (min : function (nonempty_powerset X) X) :=
-  forall (Y : set) (prf_nonempty : nonempty Y) (prf: Y is a subset of X),
+  forall (Y : set) (nonempty_Y : nonempty Y) (Y_subs_X : Y is a subset of X),
     (for y in Y, ~(total_related T y (min[Y]))) /\
     (min[Y]) is in Y.
+
+Lemma nonempty_is_not_empty :
+  forall {X : set}, nonempty X -> ~(empty X).
+Proof.
+intros X nonempty_X empty_X.
+destruct nonempty_X as [x x_in_X].
+pose proof empty_X x x_in_X.
+contradiction.
+Qed.
 
 Inductive well_order (X : set) : Type :=
   | well (R : total_ord X) 
@@ -887,8 +901,10 @@ Definition well_order_min {X : set} (W : well_order X) :=
   | well _ _ min _ => min
   end.
 
-Definition least {X : set} (W : well_order X) (Y : set) :=
-  (well_order_min W)[Y].
+Definition least {X : set} (W : well_order X) (Y : set) : set :=
+  match W with
+  | well _ _ min _ => min[Y]
+  end.
 
 Notation "P 'min'" := (well_order_min P) (at level 70).
 
@@ -897,8 +913,7 @@ Notation "P 'least' 'in' A" := (least P A) (no associativity, at level 70).
 Lemma min_is_choice_function :
   forall {X : set} (W : well_order X), choice_function (W min).
 Proof.
-intros X W.
-intros Y nonempty_Y Y_subs_X.
+intros X W Y nonempty_Y Y_subs_X.
 destruct W.
 pose proof w Y nonempty_Y Y_subs_X.
 prove.
@@ -911,8 +926,16 @@ Definition well_related {X : set} (W : well_order X) (x y : set) :=
 
 Notation "x 'is' P 'less' 'than' y" := (well_related P x y) (no associativity, at level 70).
 
+
+Definition inclusion_rel (X : set) : binary_rel X :=
+  { a in cart_prod X X; fst[a] is in snd[a] }.
+  
+
+Definition included_ordered (x : set) : Prop :=
+  total_ord 
+
 Inductive ordinal :=
-  | ord (x : set) : transitive_set x -> ordinal.
+  | ord (x : set) : transitive_set x -> inclusion_ordered x -> ordinal.
 
 Lemma emptyset_trans : transitive_set emptyset.
 Proof.
@@ -921,12 +944,6 @@ follows by in_emptyset_absurd.
 Qed.
 
 Definition set_succ (x : set) : set := x U singleton x.
-
-Tactic Notation "use" "transitivity" constr(elem) "and" constr(x) :=
-  match goal with
-  | [ x_trans : transitive_set x, e_in_y : elem is in ?Y, y_in_x : ?Y is in x |- _ ] =>
-    apply (in_subset_in_supset (x_trans ?Y y_in_x)) in e_in_y
-  end.
 
 Tactic Notation "use" "transitivity" "to" "get" constr(z) "in" constr(x) :=
   match goal with
@@ -959,5 +976,162 @@ Definition ord_succ (x : ordinal) : ordinal :=
 Definition zero : ordinal := ord emptyset emptyset_trans.
 Definition one : ordinal := ord_succ zero.
 Definition two : ordinal := ord_succ one.
+
+Fixpoint nth_ordinal (n : nat) : ordinal :=
+  match n with
+  | O => zero
+  | S k => ord_succ (nth_ordinal k)
+  end.
+
+Definition injection {X Y : set} (f : function X Y) : Prop :=
+  for x in X, for y in Y, (f[x] = f[y] -> x = y).
+
+Definition surjection {X Y : set} (f : function X Y) : Prop :=
+  for y in Y, (there is some x in X so that (f[x] = y)).
+
+Definition bijection {X Y : set} (f : function X Y) : Prop :=
+  injection f /\ surjection f.
+
+Definition proper_subset (X Y : set) : Prop :=
+  X is a subset of Y /\ nonempty (Y \ X).
+
+Lemma subset_trans :
+  forall {X Y Z : set}, X is a subset of Y -> Y is a subset of Z -> X is a subset of Z.
+Proof.
+intros X Y Z X_subs_Y Y_subs_Z.
+intros x x_in_X.
+prove.
+Qed.
+
+Definition pred (x X : set) (W : well_order X) (x_in_X : x is in X) : set :=
+  { y in X; y is W less than x }.
+
+Definition initial_segment (X Y : set) (W : well_order Y) : Prop :=
+  X is a subset of Y /\
+  forall (x : set) (x_in_Y : x is in Y), pred x Y W x_in_Y is a subset of X.
+
+Notation "X 'is' 'a' 'proper' 'subset' 'of' Y" := (proper_subset X Y) (at level 70).
+
+Definition proper_initial_segment (X Y : set) (W : well_order Y) : Prop :=
+  initial_segment X Y W /\ X is a proper subset of Y /\ nonempty X.
+
+Lemma nonempty_subset_is_nonempty :
+  forall {X Y : set}, nonempty X -> X is a subset of Y -> nonempty Y.
+Proof.
+intros X Y nonempty_X X_subs_Y.
+destruct nonempty_X as [x x_in_X].
+exists x.
+prove.
+Qed.
+
+Lemma comprehension_subset :
+  forall {P : set -> Prop} {X : set}, { X; P } is a subset of X.
+Proof.
+intros P X y.
+apply comprehension_prop.
+Qed.
+
+Lemma setminus_is_subset :
+  forall (X Y : set), (X \ Y) is a subset of X.
+Proof.
+intros X Y.
+apply comprehension_subset.
+Qed.
+
+Lemma proper_subset_is_subset :
+  forall {X Y : set}, X is a proper subset of Y -> X is a subset of Y.
+Proof.
+intros X Y X_prop_subs_Y.
+intros z z_in_X.
+destruct X_prop_subs_Y.
+prove.
+Qed.
+
+Definition intersect (A : set) (B : set) : set :=
+  { x in A U B; x is in A /\ x is in B }.
+
+Lemma intersect_prop :
+  forall {A B x : set}, x is in intersect A B <-> x is in A /\ x is in B.
+Proof.
+intros A B x.
+split.
+- apply comprehension_prop.
+- intros x_in_both.
+destruct x_in_both as [x_in_A x_in_B].
+apply comprehension_prop.
+prove.
+apply pair_union_prop.
+prove.
+Qed.
+
+Lemma intersect_is_subset_left :
+  forall (A B : set), intersect A B is a subset of A.
+Proof.
+intros A B x x_in_int.
+apply comprehension_prop in x_in_int.
+prove.
+Qed.
+
+Lemma intersect_is_subset_right :
+  forall (A B : set), intersect A B is a subset of B.
+Proof.
+intros A B x x_in_int.
+apply comprehension_prop in x_in_int.
+prove.
+Qed.
+
+Tactic Notation "use" "subset" "to" "get" constr(z) "in" constr(x) :=
+  match goal with
+  | [ z_in_y : z is in ?y,
+      y_subs_x : ?y is a subset of x |- _ ] => 
+    pose proof (y_subs_x z z_in_y)
+  | [ z_in_y : z is in ?y,
+      y_prop_subs_x : ?y is a proper subset of x |- _ ] =>
+    pose proof (proper_subset_is_subset y_prop_subs_x z z_in_y)
+  | [ z_in_y : z is in intersection ?y x |- _ ] =>
+    pose proof (intersect_is_subset_right y x z z_in_y)
+  | [ z_in_y : z is in intersection x ?y |- _ ] =>
+    pose proof (intersect_is_subset_left y x z z_in_y)
+  | [ z_in_y : z is in (x \ ?y) |- _ ] =>
+    pose proof (setminus_is_subset x y z z_in_y)
+  end.
+
+Lemma exists_least_not_in_proper_subset :
+  forall {X Y : set} {W : well_order Y},
+    X is a proper subset of Y -> (W least in (Y \ X)) is in Y.
+Proof.
+intros X Y W X_prop_subs_Y.
+destruct X_prop_subs_Y as [X_subs_Y nonempty_dif].
+destruct W.
+pose proof setminus_is_subset Y X as dif_subset.
+pose proof proj2 (w (Y \ X) nonempty_dif dif_subset).
+simpl.
+prove.
+Qed.
+
+Lemma initial_seg_bounded :
+  forall {X Y y : set} {W : well_order Y},
+    initial_segment X Y W -> y is in (Y \ X) -> forall (x : set), x is in X -> x is W less than y.
+Proof.
+intros X Y y W init_seg y_in_dif x x_in_X.
+destruct init_seg as [X_subs_Y init_seg_prop].
+use subset to get y in Y.
+pose proof init_seg_prop y H.
+
+Lemma proper_initial_segment_is_pred :
+  forall {X Y : set} {W : well_order Y},
+    proper_initial_segment X Y W -> (exists (x : set) (x_in_Y : x is in Y), X = pred x Y W x_in_Y).
+Proof.
+intros X Y W prop_init_seg.
+destruct prop_init_seg as [init_seg rest],
+         rest as [X_prop_subs_Y nonempty_X].
+exists (W least in (Y \ X)).
+exists (exists_least_not_in_proper_subset X_prop_subs_Y).
+apply extensionality.
+intros z.
+split.
+- intros z_in_X.
+apply comprehension_prop.
+use subset to get z in Y; prove.
 
 End Sets.
