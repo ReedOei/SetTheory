@@ -1,6 +1,8 @@
 \section{Ordinals}
 
 The most natural way to represent the size of a finite set is by saying how many elements it has; this number is always a natural number.
+Ideally, we'd also have some ``numbers'' that let us discuss the sizes of infinite sets.
+
 But have you ever wondered what numbers are?
 As in, \textbf{what is zero?}
 \textbf{What is one?}
@@ -82,10 +84,105 @@ Let's do an example of addition:
 \]
 
 Basically, our objective is to ``convert'' the operation of doing $n + m$ into just doing $n + 1 + 1 + \cdots + 1$, because we know how to add $1$ to a natural number.
+If you've ever heard ``addition just counting'' \reed{I think there's some more common way that this usually gets phrased}, well, that's true for natural numbers, and that's how we choose to define addition.
+And if you've ever heard ``multiplication is just repeated addition'', you'll know how we're going to define multiplication.
+
+\begin{align*}
+    n \cdot 0 &:= 0 \\
+    n \cdot (m + 1) &:= n + n \cdot m
+\end{align*}
 
 \reed{show that we can take max and min by using unions and intersections}
 
 \subsection{Some properties of natural numbers}
 
+Let's step back again, now that we've defined a whole bunch of operations on natural numbers, and look at some properties of natural numbers.
+Let's write out a few natural numbers so we can see some patterns:
+
+\begin{itemize}
+    \item[] $0 = \emptyset$
+    \item[] $5 = \curlys{0,1,2,3,4}$
+    \item[] $6 = \curlys{0,1,2,3,4,5}$
+    \item[] $10 = \curlys{0,1,2,3,4,5,6,7,8,9}$
+\end{itemize}
+
+Specifically, there's a couple important properties here: which we can see what we look at $5$ and $6$.
+In fact, maybe it's so obvious that it doesn't even seem to warrant mention, but let's not that not only do we have $5 \in 6$, we also have $5 \subseteq 6$!
+Said another way, this is somewhere less surprising: we know that $2 < 5$, and $5 < 6$, so this is just saying that $2 < 6$.
+Put yet another way, we know $2 \in 5$, and $5 \in 6$, and $5 \subseteq 6$, so $2 \in 6$.
+
+If you're familiar with the transitive property in general, that if $x < y$ and $y < z$, then $x < z$, you'll recognize this as being something similar.
+In fact, let's make preicse what we've been saying, and come up with a general definition of ``transitive'' as it relates to sets:
+
+\begin{definition}
+    A set $X$ is called \emph{transitive} if for any $Y \in X$, $Y \subseteq X$.
+\end{definition}
+
+Let's now discuss perhaps the most important property of the natural numbers, called \emph{well-ordering}, which says that any subset of the natraul numbers has a smallest element.
+To see why this statement is important, or indeed, why this statement really has any meaning at all, let's consider some sets for which it is not true.
+
+\begin{example}
+    The set of integers, $\integers$, is not well-ordered, because there is no smallest integer.
+\end{example}
+
+In retrospect, this maybe seems obvious, and is probably not what you were thinking of.
+Perhaps you were picturing a \emph{bounded} set, such as the integers greater than $-10$ and less than $10$ (or even just greater than $-10$), which certainly does have a least element.
+However, if we consider the real numbers, taking again our favorite example---the real numbers between $0$ and $1$ (not including $0$)---we can again see that there even though this set is bounded, both above and below \reed{Should we define these terms, or avoid them, or just not worry about it?}, there is no least element, because we can always halve a number and get a smaller number that's still in the set \reed{is this 100\% obvious? does it merit more explanation}
+Now that you're perhaps convinced why well-ordering is a somewhat special property \reed{should we do more on this topic?}, let's give it a proper definition.
+
+\begin{definition}
+    A set $A$ is well-ordered if every nonempty subset $B$ of $A$ has a least element.
+\end{definition}
+
+Not only are the natural numbers well-ordered, but every natural number is itself well-ordered: any nonempty subset of a natural number $n$ is a subset of the natural numbers.
+\reed{elaborate?}
+
+\reed{We should probably talk a little bit more about something stuff here, or give more examples}
+
+\subsection{Ordinals}
+
+Let's expand our definition of natural numbers a little bit, because we want to talk more generally about the sizes of sets, and natural numbers only let us discuss the sizes of finite sets.
+That is, we need to start defining infinite numbers.
+Despite what you may have heard, it is absolutely possible to talk coherently about infinity, and even infinitely large numbers: in fact, we've already discussed the topic of infinity quite frequently, in discussing the various sizes of infinite and schemes for comparing different infinite sets.
+
+First, let's look at what we did before, defining a natural number to be the set of all natural numbers less than it, and let's look at other things we already know about; specifically, the set of natural numbers, $\nat$, itself.
+Firstly, every natural number is a set of natural numbers: that is, for every $n \in \nat$, we also have $n \subseteq \nat$: so $\nat$ is transitive!
+Additionally, we already know that $\nat$ is well-ordered. \reed{Should we like, prove this at some point, or?}
+
+So $\nat$ has two of the important properties of natural numbers.
+That is, for our purposes, it's somewhat natural number-like.
+However, it'd be quite misleading to call it a \textbf{natural number}, so we'll invent a new term for this sort of number: they're called \emph{ordinals}, and they're traditionally denoted by Greek letters, starting with $\alpha$, $\beta$, and $\gamma$, so we'll follow that tradition.
+\reed{At some point should we describe why following conventions like this is important? That's probably an important thing, but not sure if it needs to be made explicit. in general, we should tlak about notation and stuff}
+
+\begin{definition}
+    A set $\alpha$ is called an \emph{ordinal} if it is transitive and well-ordered by $\in$.
+\end{definition}
+
+As we have already seen, all natural numbers are ordinals.
+However, $\nat$ is an ordinal, and not a natural number, so not \textbf{all} ordinals are natural numbers.
+Additionally, because every natural number is an element of $\nat$, $\nat$ is an ordinal bigger than any other natural number.
+That is, $\nat$ is a sort of infinite number: when we want to emphasize that $\nat$ is a infinite ordinal, we'll usually write $\omega_0$ instead of $\nat$, but they're the same thing.
+
+This also brings up to one more incredibly important realization.
+For all the natural numbers, we could get to any other natural number just ``adding one'', which we'll call the \emph{successor} from now.
+However, this is obviously not the case for $\omega_0$: if we have some natural number $n$, we can't add $1$ any finite number of times to get $\omega_0$.
+Put another way, for any natural numbers $n$ and $m$, $n + m < \omega_0$.
+So then $\omega_0$ is not the successor of \textbf{any} ordinal!
+
+This leads us to the realization that there are multiple, natural, classes of ordinals: successor ordinals, like the natural numbers, and limit ordinals, like $\omega_0$.
+In fact, there's a third kind: $0$.
+$0$ isn't the successor of any ordinal, because it's the smallest ordinal, but it's also not really a limit in the same way that $\omega_0$ is, so it get's it's own class.
+Let's give some more precise definitions for the various types of ordinals:
+
+\begin{definition}
+    An ordinal $\alpha$ is a \emph{successor} ordinal if there is some ordinal $\beta$ so that $\alpha = \beta + 1$.
+\end{definition}
+
+\begin{definition}
+    An ordinal $\alpha$ is call a \emph{limit} ordinal if for every $\beta < \alpha$, $\beta + < \alpha$.
+\end{definition}
+
 \reed{Here we should eventually define the set of all ordinals, then derive some wacky wacky shit and be like ``wait this isn't right...''}
+
+Let's now consider the set of all ordinals, which we'll call $\bm{Ord}$.
 
