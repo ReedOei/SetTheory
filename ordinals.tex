@@ -44,6 +44,18 @@ We defined $0$ to be $\emptyset$; what if we just defined $1$ to be $\curlys{0}$
 That is, each natural number is the set of numbers that are less than it, and ``adding one'' means including the currently number in this collection.
 
 To write the previous sentence in symbols, let's define $n + 1 := n \cup \curlys{n}$.
+What does $\cup$ mean?
+$\cup$ is used to write the \emph{union} of two sets.
+Below is a precise definition of what that means:
+
+\begin{definition}
+    For any sets $A$ and $B$, the set $A \cup B$ is the set of all elements that are in either $A$ or $B$, or both.
+    That is, $x \in A \cup B$ if and only if $x \in A$ or $x \in B$.
+\end{definition}
+
+For example, $\curlys{1,2} \cup \curlys{3,4} = \curlys{1,2,3,4}$, and $\curlys{a,b,c} \cup \curlys{a,d,f} = \curlys{a,b,c,d,f}$.
+Note that sets never contain ``repeats'': we can specify a set by just saying what's inside it, without specifying \textbf{how many} of that thing are in the set.
+
 Let's verify that this definition actually works.
 We already agreed that $0 = \emptyset$, so then:
 \begin{align*}
@@ -181,6 +193,65 @@ Let's give some more precise definitions for the various types of ordinals:
 \begin{definition}
     An ordinal $\alpha$ is call a \emph{limit} ordinal if for every $\beta < \alpha$, $\beta + < \alpha$.
 \end{definition}
+
+So we know that every natural number is an ordinal, and the set of natural numbers is an ordinal...what other ordinals are there?
+Well, our previous strategy for building more ordinals was to just take successors.
+So why not try that again?
+What is $\omega_0 + 1$?
+
+Well, by definition, it's $\omega_0 \cup \curlys{\omega}$, which certainly is \textbf{something}...but is it an ordinal?
+The question I'm asking might be phrased more mathematically as: ``is the successor of an ordinal still an ordinal?''
+The answer is ``yes'', and the reason will be laid out in the following proof.
+Note that we call this result a ``lemma'' rather than a ``thereom'' because it is not a huge, wide reaching fact, but it is a small fact that is often very useful. \reed{Should we clarify?}
+\reed{At some point, we should move over to more proofs and stuff, but when should that be?}
+
+\begin{lemma}
+    For any ordinal $\alpha$, it's successor, $\alpha + 1$, is also an ordinal.
+    \reed{this is a rather formal/abstract thing, maybe we don't need to worry about proving it right now}
+\end{lemma}
+\begin{proof}
+    We need to show both that $\alpha + 1$ is transitive and that it is well-ordered by $\in$, meaning that any nonempty subset of $\alpha$ has a least element.
+
+    Let's first show that it is transitive.
+    To do so, we need to show that any element of $\alpha + 1$ is a subset of $\alpha + 1$, so for any $\beta \in \alpha + 1$, $\beta \subseteq \alpha + 1$.
+
+    Suppose that we have some element $\beta \in \alpha + 1$.
+    Then because $\alpha + 1 = \alpha \cup \curlys{\alpha}$, either $\beta \in \alpha$ or $\beta \in \curlys{\alpha}$, by definition of the union.
+    Let's consider these two cases separately.
+    If $\beta \in \alpha$, then we know that $\beta \subseteq \alpha$, because $\alpha$ is an ordinal and therefore $\alpha$ is transitive.
+    Also, we know that $\alpha \subseteq \alpha + 1$, because $\alpha + 1 = \alpha \cup \curlys{\alpha}$; and that's all we wanted to show for now.
+    \reed{Should we explain/prove that $A \subseteq A \cup B$?}
+    Now let's suppose that $\beta \in \curlys{\alpha}$; but that means that $\beta = \alpha$, because $\curlys{\alpha}$ only has one element.
+    But as we just discussed, $\alpha \subseteq \alpha + 1$, so $\beta \subseteq \alpha + 1$, just like we wanted.
+
+    Now let's show that $\alpha + 1$ is well-ordered by $\in$.
+    That means that we need to show that for any nonempty subset $Y \subseteq \alpha + 1$, there is some $\in$-least element of $Y$.
+    \reed{Explain $\in$-least?}
+
+    So let's suppose we have some nonempty subset $Y \subseteq \alpha + 1$, and again we'll consider two cases, either $\alpha \in Y$ or $\alpha \not\in Y$.
+    Let's suppose that $\alpha \in Y$.
+    Now let's consider two more cases: either $Y = \curlys{\alpha}$, or there is some other element of $Y$, which we'll call $\beta$.
+    If $Y = \curlys{\alpha}$, then $\alpha$ is the $\in$-least element of $Y$ because it's the only element of $Y$.
+    Otherwise, there must be some other element $\beta \in Y$, that means that $\alpha$ and $\beta$ are different.
+    In this case, $\beta < \alpha$, because $\alpha$ is the biggest element in $\alpha + 1$ \reed{Does this need more explanation?}.
+    So then the least element of $Y$ must be less than $\alpha$, so the least element of $Y$ must be the same as the least element of $Y$ without $\alpha$.
+    However, $Y$ without $\alpha$ is a subset of $\alpha$ \reed{explain?}, so because $\alpha$ is well-ordered by $\in$, there is some $\in$-least element of $Y$.
+    Finally, let's consider the case that $\alpha \not\in Y$.
+    In this case, we know that $Y \subseteq \alpha$, so again using the fact that $\alpha$ is well-ordered by $\in$, as it is an ordinal, we can use that to get our least element of $Y$.
+
+    This completes, the proof: the successor of every ordinal is also an ordinal!
+\end{proof}
+
+This proof means there are \textbf{lots} of ordinals!
+In fact, we have ordinals $\omega_0$, $\omega_0 + 1$, $\omega_0 + 2$, $\omega_0 + 3$, and so on.
+But how many ordinals are there?
+Let's consider the following set: $\omega_0 \cup \curlys{\omega_0, \omega_0 + 1, \omega_0 + 2, \ldots}$, that is, the set of natural numbers unioned with $\omega_0 + n$ for every natural number $n$.
+Is this set an ordinal?
+It is certainly transitive, because anything in it is either a natural number or $\omega_0 + n$ for some natural number; the natural numbers are all subsets of $\omega_0$, and $\omega_0 + n$ is a subset of $\omega_0 + (n + 1)$.
+\reed{Is this proof too quick?}
+But is it well-ordered by $\in$?
+
+\reed{Should we construct uncountable ordinals without AXiom of choice (a la Hartogs?) probalby unnecessary, doubt the intended audience is worried about the axiom of choice}
 
 \reed{Here we should eventually define the set of all ordinals, then derive some wacky wacky shit and be like ``wait this isn't right...''}
 
