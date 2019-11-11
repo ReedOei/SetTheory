@@ -250,10 +250,90 @@ Is this set an ordinal?
 It is certainly transitive, because anything in it is either a natural number or $\omega_0 + n$ for some natural number; the natural numbers are all subsets of $\omega_0$, and $\omega_0 + n$ is a subset of $\omega_0 + (n + 1)$.
 \reed{Is this proof too quick?}
 But is it well-ordered by $\in$?
+Indeed, it is: suppose we have some nonempty subset $A$ of this set; because it's nonempty there must be \textbf{some} $\alpha \in A$.
+If $\alpha = \emptyset$, then it is the least element, because nothing is less than $0$ (in the natural numbers/ordinals).
+However, if it is not, then let's consider the set $\alpha \cap A$: the set of all ordinals that are both in $A$ and $\alpha$.
+Note that, because $\alpha$ is an ordinal, there is some least element $\beta \in \alpha \cap A$, and $\beta$ must also be the least element of $A$.
+We can see that this last part is true because if there were some other $\gamma \in A$ that was smaller than $\beta$, then $\gamma \in \beta$, and so $\gamma \in \alpha$, so $\beta$ is not the smallest element of $\alpha$ after all.
+
+In fact, this last fact we've proven is quite useful, so let's declare it as a lemma.
+
+\begin{lemma}\label{lem:nonemptyOrdIsOrd}
+    If $A$ is a nonempty set of ordinals, then $A$ has a least element.
+\end{lemma}
+\begin{proof}
+    See above, and notice that our proof works for any nonempty set of ordinals, not just the subsets we were considering above.
+\end{proof}
+
+This also gives us another useful fact about how to create new ordinals:
+\begin{lemma}\label{lem:transSetOfOrdIsOrd}
+    If $A$ is a transitive set of ordinals, then $A$ is itself an ordinal.
+\end{lemma}
+\begin{proof}
+    We only need to show that $A$ is well ordered by $\in$, because we already assumed that it is transitive.
+
+    If $A = \emptyset$, then we know that $A$ is an ordinal already.
+    If not, then there is some element in $A$, so it is a nonempty set of ordinals.
+    If we have some nonempty subset of it, then we know by Lemma \ref{lem:nonemptyOrdIsOrd} that this nonempty subset has a least element.
+\end{proof}
+
+Let's talk about one more nice fact about ordinals.
+\reed{more motivation}
+\begin{lemma}\ref{lem:inOrdIsOrd}
+    For an ordinal $\alpha$, any $\beta \in \alpha$ is also an ordinal.
+\end{lemma}
+\begin{proof}
+    Let's take some $\beta \in \alpha$ for some ordinal $\alpha$.
+    We want to show that $\beta$ is both transitive and well-ordered by $\in$.
+
+    First, let's show that it is transitive, so if we take some $\gamma \in \beta$, then we want to show that $\gamma \subseteq \beta$.
+    Because $\alpha$ is transitive, and $\beta \in \alpha$, we know that $\beta \subseteq \alpha$.
+    We also know that $\gamma \in \beta$, so that gives us that $\gamma \in \alpha$ and also that $\gamma \subseteq \alpha$ by using the transitivity of $\alpha$ again.
+    We want to know that $\gamma \subseteq \beta$, so let's take the standard approach of taking some $\delta \in \gamma$ and showing that $\delta \in \beta$.
+    Note that all three of $\delta$, $\gamma$, and $\beta$ are in $\alpha$, and $\alpha$ is well-ordered by $\in$, so $\delta \in \gamma \in \beta$, which we know, gives us that $\delta \in \beta$.
+    \reed{Should probably do more picture proofs or something}
+
+    The last thing is to show that $\beta$ is well-ordered by $\in$, or that every nonempty subset of $\beta$ has a least element.
+    However, if we have some nonempty subset $A$ of $\beta$, then $A$ is also a nonempty subset of $\alpha$ because $\alpha$ is a transitive set.
+    So then because $\alpha$ is well-ordered by $\in$, there is some least element of $A$, and $\beta$ is also well-ordered by $\in$.
+\end{proof}
 
 \reed{Should we construct uncountable ordinals without AXiom of choice (a la Hartogs?) probalby unnecessary, doubt the intended audience is worried about the axiom of choice}
-
 \reed{Here we should eventually define the set of all ordinals, then derive some wacky wacky shit and be like ``wait this isn't right...''}
 
-Let's now consider the set of all ordinals, which we'll call $\bm{Ord}$.
+Let's now consider the set of all ordinals, which we'll call $\bm{Ord}$, and see what kind of statement we can make about this set.
+For example, maybe we want to ask how big it is?
+Are there as many ordinals as there are real numbers?
+What about the powerset of the real numbers, or the powerset of the powerset of the real numbers, and so on?
+Certainly it's at least as big as the natural numbers, for several reasons.
+For one, it contains the natural numbers; secondly, it is infinite, and we've already seen that every infinite set is at least as large as the natural numbers.
+
+To answer this ``basic'' question, let's notice some facts about this set.
+Firstly, every element of this set is an ordinal, so if we have some $\beta \in \bm{Ord}$, then $\beta$ is a ordinal.
+This is nothing surprising, because that's literally how we defined the set.
+However, notice that, as we just proved in Lemma \ref{lem:inOrdIsOrd}, every element of $\beta$ is also an ordinal.
+So that means that every element of $\beta$ is also in $\bm{Ord}$, because that's how we defined $\bm{Ord}$, so then $\beta \subseteq \bm{Ord}$.
+But wait: that means that $\bm{Ord}$ is a transitive set of ordinals, and by Lemma \ref{lem:transSetOfOrdIsOrd}, that means that $\bm{Ord}$ \textbf{is} an ordinal!
+And that means that $\bm{Ord} \in \bm{Ord}$, so then $\bm{Ord}$ is a set that contains itself!
+
+Is that possible?
+On one hand, it seems very strange.
+On the other hand, probably so did the fact that there are as many rational numbers as natural numbers.
+So maybe our intuition doesn't line up here.
+How can we prove that this really is impossible?
+And if we can prove this, then that means we just proved a false statement, which definitely can't be done...but where did we go wrong?
+At each step, it seems we've been extremely logical, at times, perhaps overly so.
+In fact, we can see that this statement is a contradiction: by definition of an ordinal, every ordinal is well-ordered by $\in$.
+That means that $\in$ is irreflexive, so $x \not\in x$ for any ordinal $x$.
+Except we just showed that $\bm{Ord} \in \bm{Ord}$, and obviously a statement cannot both be true and false. \reed{presumably they will accept this as being ``obvious''}
+
+So we just proved a false statement, using seemingly logical methods.
+Does that mean that anything goes?
+If we can prove one false statement, can't we prove them all? \reed{Maybe the principle of explosion is not obvious?}
+
+Let's say we're trying to prove some statement $B$, and we know that $A$ is both true and false.
+If $B \implies A$, then $\neg A \implies \neg B$, so $\neg B$ is true.
+Otherwise, $B$ does not imply $A$, which means that $B$ is true and $A$ is not true.
+But we know that $A$ is true, so then $B$ must not be true, so $B$ is false.
+So then every statement is false... \reed{idk how convincing this is}
 
