@@ -1,8 +1,56 @@
 \section{Sets}
 
-So far we've only talked about sets in a very informal sense, and we've briefly discussed a couple operations.
-For example, I've said that $\curlys{1,2,3}$ is a set of three numbers, and that if I have two sets $A$ and $B$, I might take their union $A \cup B$ which is the set containing all the elements in $A$ and all the elements in $B$.
-For finite sets, this all seems pretty intuitive, and it seems unlikely that we can go wrong with anything that's vaguely described in this manner.
+It turns out that the mistake was in assuming that we can make a set of all ordinals.
+Specifically, we used the ``fact'' (in quotes because it leads to a contradiction) that we can make a set of all objects that satisfy some proposition for any proposition.
 
-However, for infinite sets, we have to realize that our intuition is often wrong, or at least incomplete.
+In fact, we can more generally see that this leads to contradiction by considering another set, formed in the same way: the set of all sets that do not contain themselves.
+Let's call this set $X$ for now.
+Is $X \in X$?
+Suppose that $X \in X$: but then $X$ is a set that contains itself, so it is \textbf{not} in $X$.
+Okay, then $X \not\in X$.
+But then, by definition of $X$, we \textbf{do} know that $X \in X$!
+Either way, we contradict ourselves.
+This is known as Russell's Paradox, named after Bertrand Russell, a mathematician from the early 1900s.
+
+There are several possible resolutions to this paradox: one is to restrict where we can take our objects from, and the other is to restrict which propositions we can use to build new sets.
+The first is the more common approach, but some nonstandard set theories allow for the second approach (see: Quine's ``New Foundations'') \reed{Cite} \reed{Should we even mention this?}
+
+In fact, what even is a ``set''?
+We can't just build sets however we want without getting a contradiction, as we discovered.
+So what \textbf{exactly} can we do without contradiction?
+
+A set of rules, usually called \emph{axioms}, that doesn't allow us to prove a contradiction is called \emph{consistent}.
+Let's ask the most basic question: can we be sure that we can't prove a contradiction in any system?
+
+The answer is yes: if we make no assumptions, other than the assumptions of basic logic, we will not be able to prove a contradiction.
+This raises the question: what are the rules of the so-called ``basic logic''?
+\reed{Should we discuss this? This is basically the ``truth'' section?}
+
+\subsection{Facts about sets}
+
+What sort of rules can we be sure are okay to say about sets?
+
+Let's first talk about some definitional properties of sets: when we talk about sets, what sorts of things might we expect to be true?
+You might be thinking of several things, but the first question to ask about objects in general is ``do these objects even exist?''
+Not in the physical sense, but as in, is it possible to have such an object without having a contradiction?
+
+For example, there is no number $x$ such that $x = 1$ and $x = 2$, because $1 \neq 2$.
+So if we were to start talking about numbers that have the property of being equal to both $1$ and $2$, you would rightly protest because there aren't any numbers.
+
+However, we have no complaints about sets, because we intuitively believe that sets exist.
+So let's list that as an axiom, meaning that we can't prove it, but we just assume it's true.
+You might protest that we \textbf{can} actually prove that sets exist: after all, isn't $\curlys{1,2,3}$ a set?
+But is it?
+How do you know it's a set?
+Without a definition of ``set'', you can't prove it.
+So the existence of sets is a fundamental statement whose truth we assume.
+If we assume a set exists, which set is it?
+We have no idea, and it's not really important, it just matters that there is some set.
+Let's just say that it satisfies the most basic property, which we want every set to satisfy: $x = x$.
+
+\begin{axiom}[Existence]
+    There is a set $x$ so that $x = x$.
+\end{axiom}
+
+We can also write the previous axiom in symbols as $\exists x (x = x)$, sometimes written as $\exists x \tsuchthat x = x$.
 
