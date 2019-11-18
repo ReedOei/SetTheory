@@ -43,14 +43,111 @@ You might protest that we \textbf{can} actually prove that sets exist: after all
 But is it?
 How do you know it's a set?
 Without a definition of ``set'', you can't prove it.
-So the existence of sets is a fundamental statement whose truth we assume.
-If we assume a set exists, which set is it?
-We have no idea, and it's not really important, it just matters that there is some set.
-Let's just say that it satisfies the most basic property, which we want every set to satisfy: $x = x$.
 
-\begin{axiom}[Existence]
-    There is a set $x$ so that $x = x$.
+But how do you define a set?
+Can we say exactly what a set is?
+In general, in math, we define things by what properties they have, rather than by exactly what they ``are''.
+So what sort of properties do sets have?
+
+Before we can say this, we need to establish a common language for how we talk about sets.
+If you look back over the previous chapters, you'll see discussion of sets centers are what elements a set has.
+In fact, it's really the only thing we need to be able to talk about sets.
+Note that we aren't really defining sets, or what it means for something to be an element of a set, just that this concept exists.
+That is, the sentence ``A is an element of B'' is true for some ``A'' and some ``B''.
+To adopt the common mathematical notation, we'll write this idea as $A \in B$.
+So for certain choices of $A$ and $B$, we expect that $A \in B$ is true.
+For other choices, it won't be true.
+That definitely meshes with our intuition: sets contain elements, but there's also object that sets don't contain.
+This is a convoluted way to say, for example, $1 \in \curlys{1,2,3}$, but $4 \not\in \curlys{1,2,3}$.
+Note that $A \not\in B$ means that ``$A$ is \textbf{not} an element of $B$.''
+
+This is illustrative of what how math usually works: we have some fuzzy notion of what we're talking about, but we want a precise definition so we can be sure of what we're saying and so that other people can understand us.
+Definitions exist to facilitate our exploration and communication.
+We need to think about our definitions to ensure that they agree with our intuition.
+Before we go any further, we should talk about the most fundamental thing about sets that we assume: that they exist.
+
+You'll see it doesn't actually matter what set we assume exist, but for now we'll assume it's the empty set.
+But actually, how do we even write that a set is empty?
+The only thing we can say about sets is what elements they contain.
+We can write this as follows:
+
+\begin{axiom}[Existence]\label{axiom:existBasic}
+    There is a set $A$ so that for any other set $B$, $B \not\in A$.
+\end{axiom}
+\reed{Remember to come back to this later and remove the requirement that it is empty, replace with comprehension}
+
+We can also write the previous axiom in symbols as $\exists A \forall B (B \not\in A)$.
+Usually it's clearer to avoid the symbols, though they can be convenient when working on a problem or explaining a solution to someone so it takes less time to write; we will continue to avoid the symbols, except in rare cases.
+
+There's one thing to note in this definition: we say that there are no other ``sets'' that are elements of $A$.
+Perhaps you haven't thought of sets being elements of sets before, but it's a perfectly reasonable notion.
+A set is just a container of sorts, so a set inside a set is a container inside a container.
+Perhaps it would be useful to think of a set of sets as a car containing grocery bags.
+However, the other important consideration is that, so far we haven't mentioned defining any objects other than sets; we will keep it this way.
+There will only be one fundamental kind of objects, the set, and everything else will be defined in terms of sets.
+You may, at first, think that this is quite the restriction, but it turns out that it's enough to define almost all of modern mathematics, with the exception of some advanced, niche fields.
+\reed{like category theory, or alternative set theories}
+
+While we could continue on in this way, defining sets by what elements they contain, and we will, you might have been tempted to phrase the above axiom as ``The empty set ($\emptyset$) exists'' or perhaps ``There exists a set $A$ so that $A = \emptyset$.''
+There's a couple problem with these definitions, however. \reed{is this too pedantic?}
+First, what is the empty set?
+We can't very well talk about something we haven't defined yet.
+The first definition also doesn't fit our typical way of talking about things: we haven't defined what sets \textbf{are}, just some properties of them, so what we're really saying is ``there is some set that has the properties of the empty set.''
+What are these properties?
+Exactly what we wrote in Axiom~\ref{axiom:existBasic}.
+
+The second definition is interesting, because it introduces a new symbol that we haven't defined yet: $=$.
+At first glance, this seems like it's not a big deal, but it actually is.
+What does it mean for two sets to be equal?
+Remember that we only have one way to talk about sets: what elements they contain.
+So if two sets contain exactly the same elements, how could we possibly distinguish them?
+This has a couple of consequences that you may have seen elsewhere, but let's first write down a definition of equality.
+
+\begin{axiom}[Extensionality]\label{axiom:extensionality}
+    For any two sets $A$ and $B$, $A = B$ if and only if for every $x$, $x \in A$ if and only if $x \in B$.
 \end{axiom}
 
-We can also write the previous axiom in symbols as $\exists x (x = x)$, sometimes written as $\exists x \tsuchthat x = x$.
+In truth, we need only say one ``direction'': that if for every $x$, $x \in A$ if and only if $x \in B$, then $A = B$.
+If we know that $A = B$, then of course everything that is true about $A$ is true about $B$, because they're the same thing.
+Note that here I said ``of course''; that means that it's another axiom (or, if you like, a defining property of equality), but it's a basic axiom of logic so we'll leave it out of our list.
+
+Some consequences of this definition are that the ``order'' we write the elements of a set in doesn't matter, and that it doesn't matter if a set has ``duplicates'', it's the same set.
+That means that $\curlys{1,2,3} = \curlys{2,3,1,1}$; only which elements appear matter to us.
+Now, we haven't actually defined enough to see that the previous sentence I wrote makes sense---we haven't defined enough to say that $\curlys{1,2,3}$ is a set.
+On the other hand, we get to make up the definitions, and it would go against all intuition to say that $\curlys{1,2,3}$ is \textbf{not} a set.
+You can rest assured that it will be a set, and we'll eventually see how (though perhaps not for that specific set). \reed{or should we show it for that specific set at some point?}
+
+So far we know two of the most basics facts about sets: that they exist, and how we can tell that two sets are the same.
+Specifically, we know that the empty set exists.
+But surely, as we alluded to, there must be other sets besides just the empty set.
+What are they?
+Instead of saying something vague about what sets are, let's say what \emph{operations} we can perform on two sets, to emphasize, two things that we \textbf{know} are sets, and get another set.
+The first is these is a way to form new sets containing existing sets.
+It's a bit weird to say that ``given any group of sets, we can make a set containing all those sets'', because what do we mean by ``group''?
+And if we mean ``set'', then we haven't actually said anything.
+However, what we can say is:
+
+\begin{axiom}[Pairing]\label{axiom:pairing}
+    For any sets $A$ and $B$, we can create a third set $C$ containing $A$ and $B$; that is, for every set $x$, $x \in C$ if and only if $x = A$ or $x = B$.
+\end{axiom}
+
+Conventionally, we might write this set as $\curlys{A, B}$; however, to define what $\curlys{A, B}$ means we first need to ensure that it really is a set at all.
+However, now that we've defined it, we'll make free use of the notation because it's quite convenient.
+
+Note that this axiom gets us a \textbf{lot} of new sets.
+We can use this axiom to build the set $\curlys{\emptyset, \emptyset}$, but note that this is the same as $\curlys{\emptyset}$.
+But then we can also build the set $\curlys{\curlys{\emptyset}}$, and $\curlys{\curlys{\curlys{\emptyset}}}$, and also $\curlys{\emptyset, \curlys{\emptyset}}$, the last of which perhaps looks familiar: if you recall, it's the ordinal $2$.
+So we know that $0$, $1$, and $2$, as ordinals, exist.
+Unfortunately, we can't define $3$ quite yet, because we can only pair two sets together, but not union them together.
+
+You may think that the next thing we should define is the union of two sets.
+And certainly that would resolve a lot of our problems, but it turns out that we can define a much more powerful operation: unioning every set in a collection of sets.
+Here when we say a ``collection of sets'', we mean a set of sets; recall that the only objects we have to talk about are sets.
+
+\begin{axiom}[Unions]\label{axiom:union}
+    For any set $A$, there is some set $U$ so that for any set $x$, $x \in U$ if and only if there is some set $B \in A$ so that $x \in B$.
+    We write this set $U$ as $\bigcup A$.
+\end{axiom}
+
+\reed{note (probably remove this) that the axiom only guarantees us ``some'' set that satisfies this property, yet we talk about ``the union''; howver, we can see that, given the way this set is defined, it will be defined uniquely, because it is determined in terms of it's elements}
 
