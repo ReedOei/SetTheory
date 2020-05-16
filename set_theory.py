@@ -17,15 +17,17 @@ class Element(SmallDot):
         self.parent = parent
         self.color = color
 
-        self.speed = 0.75
-        self.dir = random.uniform(0, 2*PI)
-
-        self.is_ready = True
-
         self.set_color(self.color)
+
+        self.is_ready = False
+        self.radii = None
 
         self.anchor_to(self.parent)
         self.move_to(self.reposition())
+
+        self.speed = 0.5*np.mean(self.radii)
+        self.dir = random.uniform(0, 2*PI)
+        self.is_ready = True
 
     def ready(self, val=True):
         self.is_ready = val
@@ -33,60 +35,56 @@ class Element(SmallDot):
 
     def anchor_to(self, new_parent):
         self.parent = new_parent
+        self.update_radii()
 
         self.clear_updaters()
         self.add_updater(lambda self, dt: self.update_position(dt))
 
         return self
 
+    def update_radii(self):
+        # NOTE: This will only work for circles or ellipses.
+        center = self.parent.get_center()
+        radius_x = (self.parent.get_width() - self.get_width()) / 2.0
+        radius_y = (self.parent.get_height() - self.get_height()) / 2.0
+        self.radii = np.array([radius_x, radius_y, 1])
+
+        return self
+
     def reposition(self, angle=None):
         if angle is None:
             offset_angle = random.uniform(0, 2*PI)
-            offset_radius = random.uniform(0, 1)
+            offset_radius = random.uniform(0, 1) * 0.95 # Make sure we don't end up outside self.parent
         else:
             offset_angle = angle
             offset_radius = 0.5
 
         # Use 2.2 so we don't get too close to the boundary.
-        return np.array([offset_radius * math.cos(offset_angle) * self.parent.get_width() / 2.2 + self.parent.get_x(),
-                         offset_radius * math.sin(offset_angle) * self.parent.get_height() / 2.2 + self.parent.get_y(), 0])
+        return np.array([offset_radius * math.cos(offset_angle) * self.radii[0] + self.parent.get_x(),
+                         offset_radius * math.sin(offset_angle) * self.radii[1] + self.parent.get_y(), 0])
 
     def update_position(self, dt):
         if self.is_ready:
-            new_x = self.get_x() + dt*self.speed*math.cos(self.dir)
-            new_y = self.get_y() + dt*self.speed*math.sin(self.dir)
-
-            i = 0
-            while not self.in_parent(new_x, new_y) and i < 5:
-                self.dir = random.uniform(0, 2*PI)
-
+            for i in range(3):
                 new_x = self.get_x() + dt*self.speed*math.cos(self.dir)
                 new_y = self.get_y() + dt*self.speed*math.sin(self.dir)
 
-                i += 1
+                if self.in_parent(new_x, new_y):
+                    self.move_to(np.array([new_x, new_y, 0]))
+                    return self
 
-            if self.in_parent(new_x, new_y):
-                self.move_to(np.array([new_x, new_y, 0]))
+                self.dir = random.uniform(0, 2*PI)
 
         return self
 
     def in_parent(self, new_x, new_y):
-        pt = np.array([new_x, new_y, 0])
-
-        # Note, this is also intended to work for ellipses.
-        if isinstance(self.parent, Circle):
-            center = self.parent.get_center()
-            radius_x = self.parent.get_width() / 2.0
-            radius_y = self.parent.get_height() / 2.0
-
-            radii = np.array([radius_x, radius_y, 1])
-
-            if radius_x == 0 or radius_y == 0:
-                return False
-            else:
-                return np.linalg.norm((pt - center) / radii) < 0.95
+        if self.radii[0] == 0 or self.radii[1] == 0:
+            return False
         else:
-            return True
+            pt = np.array([new_x, new_y, 0])
+
+            t = (pt - self.parent.get_center()) / self.radii
+            return np.dot(t, t) < 0.98**2
 
 class Set(VGroup):
     def __init__(self, shape=None, name=None, color=None):
@@ -115,6 +113,15 @@ class Set(VGroup):
 
     def get_elements(self):
         return self.elements
+
+    def scale_elements_only(self, amount):
+        for e in self.get_elements():
+            if isinstance(e, Element):
+                e.scale(amount)
+            elif isinstance(e, Set):
+                e.scale_elements_only(amount)
+
+        return self
 
     def change_name(self, new_name):
         anims = []
@@ -160,6 +167,16 @@ class Set(VGroup):
             self.obj = self.shape
 
         return anims
+
+    def scale(self, *args, **kwargs):
+        res = super().scale(*args, **kwargs)
+        self.update_radii()
+        return res
+
+    def update_radii(self):
+        for e in self.elements:
+            e.update_radii()
+        return self
 
     def conjure_elements(self, element_num=None, element_colors=None, elements=None):
         if element_num is not None:
@@ -338,25 +355,31 @@ class SetTheoryAxioms(Scene):
         self.wait()
 
     def define_cartesian_product(self):
-        # cart_prod_def = self.introduce_theorem("$$X \\times Y := \\{(x,y) : x \\in X \\land y \\in Y\\}$$", theorem_type="Definition")
-        # self.refine_text(cart_prod_def, "$$X \\times Y := \\{(x,y) : x \\in X, y \\in Y\\}$$", theorem_type="Definition")
-        # self.refine_text(cart_prod_def, "$$X \\times Y := \\{(x,y) : x \\in X, y \\in Y\\}$$???", theorem_type="Definition")
-        # self.refine_text(cart_prod_def, "$$X \\times Y := \\{z \\in \\mathcal{P}(\\mathcal{P}(X \\cup Y)) : \\exists x. x \\in X \\land \\exists y. y \\in Y \\land z = (x, y)\\}$$", theorem_type="Definition")
-        # self.refine_text(cart_prod_def, "$$X \\times Y := \\{z \\in \\mathcal{P}(\\mathcal{P}(X \\cup Y)) : \\exists x. x \\in X \\land \\exists y. y \\in Y \\land z = \\{\\{x\\}, \\{x,y\\}\\}\\}$$", theorem_type="Definition")
-        # self.refine_text(cart_prod_def, "$$X \\times Y := \\{z \\in \\mathcal{P}(\\mathcal{P}(X \\cup Y)) : \\exists x. x \\in X \\land \\exists y. y \\in Y \\land z = (x,y)\\}$$", theorem_type="Definition")
-        # self.refine_text(cart_prod_def, "$$X \\times Y := \\{z \\in \\mathcal{P}(\\mathcal{P}(X \\cup Y)) : \\exists x \\in X. \\exists y \\in Y. z = (x,y)\\}$$", theorem_type="Definition")
+        cart_prod_def = self.introduce_theorem("$$X \\times Y := \\{(x,y) : x \\in X \\land y \\in Y\\}$$", theorem_type="Definition")
+        self.refine_text(cart_prod_def, "$$X \\times Y := $$ $$\\{(x,y) : x \\in X, y \\in Y\\}$$", theorem_type="Definition")
+        self.refine_text(cart_prod_def, "$$X \\times Y := $$ $$\\{(x,y) : x \\in X, y \\in Y\\}$$???", theorem_type="Definition")
+        self.refine_text(cart_prod_def, "$$X \\times Y := $$ $$\\{z \\in \\mathcal{P}(\\mathcal{P}(X \\cup Y)) : \\exists x. x \\in X \\land \\exists y. y \\in Y \\land z = (x, y)\\}$$", theorem_type="Definition")
+        self.refine_text(cart_prod_def, "$$X \\times Y := $$ $$\\{z \\in \\mathcal{P}(\\mathcal{P}(X \\cup Y)) : \\exists x. x \\in X \\land \\exists y. y \\in Y \\land z = \\{\\{x\\}, \\{x,y\\}\\}\\}$$", theorem_type="Definition")
+        self.refine_text(cart_prod_def, "$$X \\times Y := $$ $$\\{z \\in \\mathcal{P}(\\mathcal{P}(X \\cup Y)) : \\exists x. x \\in X \\land \\exists y. y \\in Y \\land z = (x,y)\\}$$", theorem_type="Definition")
+        self.refine_text(cart_prod_def, "$$X \\times Y := \\{z \\in \\mathcal{P}(\\mathcal{P}(X \\cup Y)) : \\exists x \\in X. \\exists y \\in Y. z = (x,y)\\}$$", theorem_type="Definition")
+        self.refine_text(cart_prod_def, "$$X \\times Y := \\{z \\in \\mathcal{P}(\\mathcal{P}(X \\cup Y)) : \\exists x \\in X, y \\in Y. z = (x,y)\\}$$", theorem_type="Definition")
+        self.refine_text(cart_prod_def, "$$X \\times Y := \\{z \\in \\mathcal{P}(\\mathcal{P}(X \\cup Y)) : \\exists x \\in X, y \\in Y. z = (x,y)\\}$$", theorem_type=None)
+        self.play(FadeOutAndShift(cart_prod_def, UP))
+        self.wait()
 
         set_a = Set()
         set_b = Set()
 
-        self.play(*set_a.conjure(lambda s: s.move_to(0.1*LEFT).scale(0.1), element_colors=[RED]))
-        self.play(*set_b.conjure(lambda s: s.move_to(0.1*RIGHT).scale(0.1), element_colors=[GREEN, BLUE]))
+        self.play(*set_a.conjure(lambda s: s.move_to(0.1*LEFT).scale(0.25), element_colors=[RED]))
+        self.play(*set_b.conjure(lambda s: s.move_to(0.1*RIGHT).scale(0.25), element_colors=[GREEN, BLUE]))
 
-        set_u = self.union([set_a, set_b], height_padding=0.2, width_padding=0.2)
+        set_u = self.union([set_a, set_b], height_padding=0.1, width_padding=0.1)
+        self.wait()
         psets = self.powerset(set_u, r=0.4, rad_scale=0.5)
-        pset1 = self.pair(psets, height_padding=0.4, width_padding=0.4)
+        pset1 = self.pair(psets, height_padding=0.3, width_padding=0.3)
+        self.wait()
 
-        psets2 = self.powerset(pset1, r=3.3)
+        psets2 = self.powerset(pset1, r=3)
         pset2 = self.pair(psets2, height_padding=0.4, width_padding=0.4)
 
         def phi(s):
@@ -381,8 +404,24 @@ class SetTheoryAxioms(Scene):
         self.comprehension(pset2, phi)
         self.wait()
 
-        # self.play(FadeOutAndShift(cart_prod_def, UP))
-        # self.wait()
+        anims = []
+        for e in pset2.get_elements():
+            anims.append(ApplyMethod(e.scale, 2))
+
+        pset2.scale_elements_only(0.5)
+        self.play(*anims)
+        self.play(*pset2.reposition_elements(evenly=0.5))
+        self.wait()
+
+        pset2.scale_elements_only(2)
+        self.play(ApplyMethod(pset2.scale, 0.5))
+        self.wait()
+
+        cart_prod_def = self.write_theorem("$$X \\times Y := \\{z \\in \\mathcal{P}(\\mathcal{P}(X \\cup Y)) : \\exists x \\in X, y \\in Y. z = (x,y)\\}$$", theorem_type=None)
+        self.wait()
+
+        self.play(FadeOutAndShift(cart_prod_def, UP), FadeOut(pset2))
+        self.wait()
 
     def prove_singleton_exists(self):
         singletons = self.introduce_theorem("For any set $A$, the singleton $\\{A\\}$ is a set.")
@@ -689,6 +728,7 @@ class SetTheoryAxioms(Scene):
 
         old_elems = col.clear_elements()
         for s in old_elems:
+            # TODO: What to do with elements? Do we even need to worry about this?
             if isinstance(s, Set):
                 col.take_elements(s.clear_elements())
                 anims.append(FadeOut(s))
@@ -754,18 +794,29 @@ class SetTheoryAxioms(Scene):
 
         set_x.ready_elements()
 
-    def refine_text(self, old_text_obj, new_text, theorem_type=None, position=UP + LEFT):
+    def theorem_text(self, text, theorem_type="Theorem"):
         if theorem_type is None:
-            new_text_obj = TextMobject(new_text)
+            return TextMobject(text)
         else:
-            new_text_obj = TextMobject("\\textbf{{\\underline{{{}}}}}: {}".format(theorem_type, new_text))
+            return TextMobject("\\textbf{{\\underline{{{}}}}}: {}".format(theorem_type, text))
+
+    def refine_text(self, old_text_obj, new_text, theorem_type=None, position=UP + LEFT):
+        new_text_obj = self.theorem_text(new_text, theorem_type=theorem_type)
 
         new_text_obj.to_corner(position)
         self.play(Transform(old_text_obj, new_text_obj))
         self.wait()
 
+    def write_theorem(self, text, theorem_type="Theorem"):
+        thm = self.theorem_text(text, theorem_type=theorem_type)
+        thm.to_corner(UP + LEFT)
+        self.play(Write(thm))
+        self.wait()
+
+        return thm
+
     def introduce_theorem(self, text, theorem_type="Theorem"):
-        thm = TextMobject("\\textbf{{\\underline{{{}}}}}: {}".format(theorem_type, text))
+        thm = self.theorem_text(text, theorem_type=theorem_type)
         self.play(Write(thm))
         self.wait()
 
