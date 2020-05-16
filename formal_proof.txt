@@ -1,0 +1,40 @@
+\frac{
+    \frac{
+    } { \emptyset \vdash \exists X. X = X }
+    ~
+    \frac{
+        \frac{
+        }{ \{ X = X \} \vdash \forall A. \exists Z. \forall y. y \in Z \Leftrightarrow y \in A \land y \neq y }
+        ~
+        \frac{
+            \frac{
+                \frac{
+                    \frac{
+                        \frac{
+                            \frac{
+                                \frac{
+                                } { \Delta \vdash y \in Z \Leftrightarrow y \in X \land y \neq y, y \in Z }
+                                ~
+                                \frac{
+                                } { \Delta \cup \{ y \in Z \Rightarrow y \in X \land y \neq y, y \in Z \} \vdash y \in Z \Rightarrow y \in X \land y \neq y, y \in Z }
+                            }{ \Delta \vdash y \in Z \Rightarrow y \in X \land y \neq y, y \in Z }
+                            ~
+                            \frac{
+                            } { \Delta \vdash y \in Z }
+                            \frac{
+                                \frac{
+                                } { \Delta \cup \{ y \in X \land y \neq y \} \vdash y \in X \land y \neq y }
+                                ~
+                                \frac{
+                                } { \Delta \cup \{ y \neq y \} \vdash y \neq y }
+                            } { \Delta \cup \{y \in X \land y \neq y \} \vdash y \neq y }
+                        }{ \Delta \vdash y \neq y}
+                        ~
+                        \frac{
+                        }{ \Delta \vdash y = y}
+                    } { \Gamma \cup \{ y \in Z \} \vdash \textbf{False} }
+                } { \Gamma \vdash \lnot (y \in Z) }
+            }{ \Gamma \vdash \vdash \forall y. \lnot (y \in Z) }
+        }{ \{ \exists Z. \forall y. y \in Z \Leftrightarrow y \in X \} \vdash \exists X. \forall y. \lnot (y \in Z) }
+    } { \{ X = X \} \vdash \exists X. \forall y. \lnot (y \in X) }
+}{ \emptyset \vdash \exists X. \forall y. \lnot (y \in X) }
