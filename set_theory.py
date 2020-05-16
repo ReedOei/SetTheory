@@ -52,6 +52,8 @@ class Element(SmallDot):
         return self
 
     def reposition(self, angle=None):
+        self.update_radii()
+
         if angle is None:
             offset_angle = random.uniform(0, 2*PI)
             offset_radius = random.uniform(0, 1) * 0.95 # Make sure we don't end up outside self.parent
@@ -59,7 +61,6 @@ class Element(SmallDot):
             offset_angle = angle
             offset_radius = 0.5
 
-        # Use 2.2 so we don't get too close to the boundary.
         return np.array([offset_radius * math.cos(offset_angle) * self.radii[0] + self.parent.get_x(),
                          offset_radius * math.sin(offset_angle) * self.radii[1] + self.parent.get_y(), 0])
 
@@ -84,7 +85,7 @@ class Element(SmallDot):
             pt = np.array([new_x, new_y, 0])
 
             t = (pt - self.parent.get_center()) / self.radii
-            return np.dot(t, t) < 0.98**2
+            return np.dot(t, t) < 0.99**2
 
 class Set(VGroup):
     def __init__(self, shape=None, name=None, color=None):
@@ -300,27 +301,28 @@ class Set(VGroup):
 
 class SetTheoryAxioms(Scene):
     def construct(self):
-        title = TextMobject("Set Theory")
-        self.play(Write(title))
-        self.wait()
-        self.play(FadeOut(title))
+        # title = TextMobject("Set Theory")
+        # self.play(Write(title))
+        # self.wait()
+        # self.play(FadeOut(title))
 
-        self.show_axiom_existence()
-        self.show_axiom_extensionality()
-        self.show_axiom_pairing()
-        self.show_axiom_union()
-        self.show_axiom_powerset()
+        # self.show_axiom_existence()
+        # self.show_axiom_extensionality()
+        # self.show_axiom_pairing()
+        # self.show_axiom_union()
+        # self.show_axiom_powerset()
 
-        # TODO: Weird stuff happens here
         self.show_axiom_comprehension()
 
         # self.prove_empty_set_exists()
         # self.prove_empty_set_exists_formal()
         # self.prove_union_two_sets()
+
+        # TODO: Fading issues (here and in general, things don't fade smoothly).
         self.prove_singleton_exists()
 
         self.define_ordered_pairs()
-        self.define_cartesian_product()
+        # self.define_cartesian_product()
 
     def define_ordered_pairs(self):
         pair_def = self.introduce_theorem("$(x,y) := \\{\\{x\\}, \\{x,y\\}\\}$", theorem_type="Definition")
@@ -330,15 +332,15 @@ class SetTheoryAxioms(Scene):
 
         self.play(*set_a.conjure(lambda s: s.move_to(RIGHT), element_num=60))
         self.play(*set_b.conjure(lambda s: s.move_to(3.5*RIGHT), element_num=3))
-        set_a.update_radii()
-        set_b.update_radii()
+        self.play(*set_a.reposition_elements())
+        self.play(*set_b.reposition_elements())
 
         pair_right = self.pair([set_a, set_b], name='\\{A,B\\}')
         self.wait()
 
         set_a_cpy = Set(color=RED)
         self.play(*set_a_cpy.conjure(lambda s: s.move_to(3.5*LEFT), element_num=60))
-        set_a_cpy.update_radii()
+        self.play(*set_a_cpy.reposition_elements())
         self.wait()
 
         pair_left = self.pair([set_a_cpy], name='\\{A\\}', width_padding=0)
@@ -347,8 +349,7 @@ class SetTheoryAxioms(Scene):
         ordered_pair = self.pair([pair_left, pair_right], name='(A,B)', height_padding=2.75)
         self.wait()
 
-        self.play(FadeOutAndShift(pair_def, UP),
-                  FadeOut(set_a_cpy), FadeOut(set_a), FadeOut(set_b), FadeOut(pair_right), FadeOut(pair_left), FadeOut(ordered_pair))
+        self.play(FadeOutAndShift(pair_def, UP), FadeOut(ordered_pair))
         self.wait()
 
     def define_cartesian_product(self):
@@ -360,7 +361,6 @@ class SetTheoryAxioms(Scene):
         self.refine_text(cart_prod_def, "$$X \\times Y := $$ $$\\{z \\in \\mathcal{P}(\\mathcal{P}(X \\cup Y)) : \\exists x. x \\in X \\land \\exists y. y \\in Y \\land z = (x,y)\\}$$", theorem_type="Definition")
         self.refine_text(cart_prod_def, "$$X \\times Y := \\{z \\in \\mathcal{P}(\\mathcal{P}(X \\cup Y)) : \\exists x \\in X. \\exists y \\in Y. z = (x,y)\\}$$", theorem_type="Definition")
         self.refine_text(cart_prod_def, "$$X \\times Y := \\{z \\in \\mathcal{P}(\\mathcal{P}(X \\cup Y)) : \\exists x \\in X, y \\in Y. z = (x,y)\\}$$", theorem_type="Definition")
-        self.refine_text(cart_prod_def, "$$X \\times Y := \\{z \\in \\mathcal{P}(\\mathcal{P}(X \\cup Y)) : \\exists x \\in X, y \\in Y. z = (x,y)\\}$$", theorem_type=None)
         self.play(FadeOutAndShift(cart_prod_def, UP))
         self.wait()
 
@@ -368,9 +368,9 @@ class SetTheoryAxioms(Scene):
         set_b = Set()
 
         self.play(*set_a.conjure(lambda s: s.move_to(0.1*LEFT).scale(0.25), element_colors=[RED]))
-        set_a.update_radii()
+        self.play(*set_a.reposition_elements())
         self.play(*set_b.conjure(lambda s: s.move_to(0.1*RIGHT).scale(0.25), element_colors=[GREEN, BLUE]))
-        set_b.update_radii()
+        self.play(*set_b.reposition_elements())
 
         set_u = self.union([set_a, set_b], height_padding=0.1, width_padding=0.1)
         self.wait()
@@ -428,9 +428,9 @@ class SetTheoryAxioms(Scene):
         set_a_cpy = Set(color=RED)
 
         self.play(*set_a.conjure(lambda s: s.move_to(1.5*LEFT), element_num=45))
-        set_a.update_radii()
+        self.play(*set_a.reposition_elements())
         self.play(*set_a_cpy.conjure(lambda s: s.move_to(1.5*RIGHT), element_num=45))
-        set_a_cpy.update_radii()
+        self.play(*set_a_cpy.reposition_elements())
 
         paired = self.pair([set_a, set_a_cpy], name='\\{A\\}')
         self.wait()
@@ -448,8 +448,7 @@ class SetTheoryAxioms(Scene):
         self.play(FadeOut(set_a_cpy))
         self.wait()
 
-        self.play(FadeOutAndShift(singletons, UP),
-                  FadeOut(set_a), FadeOut(paired))
+        self.play(FadeOutAndShift(singletons, UP), FadeOut(paired))
         self.wait()
 
     def prove_union_two_sets(self):
@@ -458,16 +457,15 @@ class SetTheoryAxioms(Scene):
         set_b = Set(color=BLUE)
 
         self.play(*set_a.conjure(lambda s: s.move_to(1.5*LEFT), element_num=45))
-        set_a.update_radii()
+        self.play(*set_a.reposition_elements())
         self.play(*set_b.conjure(lambda s: s.move_to(1.5*RIGHT), element_num=80))
-        set_b.update_radii()
+        self.play(*set_b.reposition_elements())
 
         unioned = self.pair([set_a, set_b], name='\\{A, B\\}', height_padding=1.5)
         self.union_col(unioned, new_name='A \\cup B')
         self.wait()
 
-        self.play(FadeOutAndShift(union_two, UP),
-                  FadeOut(set_a), FadeOut(set_b), FadeOut(unioned))
+        self.play(FadeOutAndShift(union_two, UP), FadeOut(unioned))
         self.wait()
 
     def prove_empty_set_exists(self):
@@ -513,7 +511,7 @@ class SetTheoryAxioms(Scene):
 
         set_x = Set(shape=Circle(radius=2.5, color=WHITE), color=WHITE, name='X')
         self.play(*set_x.conjure(element_num=20))
-        set_x.update_radii()
+        self.play(*set_x.reposition_elements())
         self.wait()
 
         self.comprehension(set_x, lambda elem: random.choice([True, False]), new_name='Y')
@@ -532,13 +530,13 @@ class SetTheoryAxioms(Scene):
         set_d = Set(color=PURPLE)
 
         self.play(*set_a.conjure(lambda s: s.move_to(1.1*UP), element_num=5))
-        set_a.update_radii()
+        self.play(*set_a.reposition_elements())
         self.play(*set_b.conjure(lambda s: s.move_to(2*RIGHT), element_num=20))
-        set_b.update_radii()
+        self.play(*set_b.reposition_elements())
         self.play(*set_c.conjure(lambda s: s.move_to(1.1*DOWN), element_num=60))
-        set_c.update_radii()
+        self.play(*set_c.reposition_elements())
         self.play(*set_d.conjure(lambda s: s.move_to(2*LEFT), element_num=25))
-        set_d.update_radii()
+        self.play(*set_d.reposition_elements())
 
         unioned = self.pair([set_a, set_b, set_c, set_d], name='\\mathcal{C}')
         self.union_col(unioned, new_name='U')
@@ -554,7 +552,7 @@ class SetTheoryAxioms(Scene):
 
         set_x = Set(shape=Circle(radius=0.8, color=WHITE), color=WHITE, name='X')
         self.play(*set_x.conjure(element_colors=[RED,GREEN,BLUE,PURPLE]))
-        set_x.update_radii()
+        self.play(*set_x.reposition_elements())
         self.wait()
 
         new_sets = self.powerset(set_x, slow_anim=True)
@@ -564,10 +562,7 @@ class SetTheoryAxioms(Scene):
         self.refine_text(axiom_four, "$\\forall X. \\exists P. \\forall A. A \\in P \\Leftrightarrow A \\subseteq X$", position=UP+RIGHT)
         self.refine_text(axiom_four, "$\\forall X. \\exists P. P = \\mathcal{P}(X)$", position=UP+RIGHT)
 
-        self.play(FadeOutAndShift(axiom_four, UP), FadeOutAndShift(name, UP),
-                  FadeOut(pset_set),
-                  *[FadeOut(s) for s in new_sets],
-                  FadeOut(set_x))
+        self.play(FadeOutAndShift(axiom_four, UP), FadeOutAndShift(name, UP), FadeOut(pset_set))
         self.wait()
 
     def powerset(self, set_x, slow_anim=False, r=2, rad_scale=1):
@@ -603,7 +598,7 @@ class SetTheoryAxioms(Scene):
                 anims = new_set.conjure(adjustment=lambda s: s.shift(set_x.get_shape().get_center() - s.get_center() + offset), elements=es, use_scaling=False)
                 anims.extend(new_set.reposition_elements(evenly=0.7))
                 self.play(*anims)
-                new_set.update_radii()
+                self.play(*new_set.reposition_elements())
             else:
                 anims.extend(new_set.conjure(adjustment=lambda s: s.shift(set_x.get_shape().get_center() - s.get_center() + offset), elements=es, use_scaling=False))
                 anims.extend(new_set.reposition_elements(evenly=0.7))
@@ -613,8 +608,11 @@ class SetTheoryAxioms(Scene):
         if not slow_anim:
             self.play(*anims)
 
+            anims = []
             for s in new_sets:
-                s.update_radii()
+                anims.extend(s.reposition_elements())
+
+            self.play(*anims)
 
         new_sets.append(set_x)
         return new_sets
@@ -638,8 +636,8 @@ class SetTheoryAxioms(Scene):
         set_y = Set(name="Y")
         self.play(*(set_x.conjure(lambda s: s.move_to(3*LEFT), element_colors=colors) +
                     set_y.conjure(lambda s: s.move_to(3*RIGHT), element_colors=colors)))
-        set_x.update_radii()
-        set_y.update_radii()
+        self.play(*set_x.reposition_elements())
+        self.play(*set_y.reposition_elements())
 
         to_fade = []
         gs = []
@@ -715,7 +713,7 @@ class SetTheoryAxioms(Scene):
 
         paired = Set(shape=Ellipse(width=width + width_padding, height=height + height_padding, color=WHITE), color=WHITE, name=name)
         self.play(*paired.conjure_shape(adjustment=lambda s: s.move_to(center_of_mass), use_scaling=False))
-        paired.update_radii()
+        self.play(*paired.reposition_elements())
 
         paired.take_elements(sets)
 
@@ -728,8 +726,8 @@ class SetTheoryAxioms(Scene):
         set_y = Set(color=BLUE)
         self.play(*(set_x.conjure(lambda s: s.move_to(2*LEFT), element_num=10) +
                     set_y.conjure(lambda s: s.move_to(2*RIGHT), element_num=50)))
-        set_x.update_radii()
-        set_y.update_radii()
+        self.play(*set_x.reposition_elements())
+        self.play(*set_y.reposition_elements())
         self.wait()
 
         paired = self.pair([set_x, set_y], name="Z")
@@ -765,7 +763,7 @@ class SetTheoryAxioms(Scene):
     def set_exists(self, rad=1):
         ax0_set = Set(shape=Circle(radius=rad, color=WHITE))
         self.play(*ax0_set.conjure(element_num=20))
-        ax0_set.update_radii()
+        self.play(*ax0_set.reposition_elements())
         return ax0_set
 
     def comprehension(self, set_x, pred, new_name=None):
