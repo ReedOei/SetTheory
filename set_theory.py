@@ -10,6 +10,88 @@ def powerset(iterable):
     s = list(iterable)
     return list(it.chain.from_iterable(it.combinations(s, r) for r in range(len(s)+1)))
 
+class OrderedPair(VGroup):
+    def __init__(self, items):
+        self.items = []
+        self.objs = []
+        self.objs.append(TexMobject("("))
+
+        for i, item in enumerate(items):
+            self.items.append(copy.deepcopy(item))
+            self.objs.append(self.items[-1])
+            if i + 1 < len(items):
+                self.objs.append(TexMobject(","))
+
+        self.objs.append(TexMobject(")"))
+
+        super().__init__(*self.objs)
+
+        self.original_positions = []
+        self.parent = None
+        for item in self.items:
+            self.original_positions.append(item.get_center())
+            item.ready(False)
+            item.anchor_to(self)
+
+        self.arrange(RIGHT)
+
+    def create(self):
+        anims = []
+        i = 0
+        for obj in self.objs:
+            if obj in self.items:
+                new_position = obj.get_center()
+                obj.move_to(self.original_positions[i])
+                anims.append(ApplyMethod(obj.move_to, new_position))
+                i += 1
+            else:
+                anims.append(Write(obj))
+
+        return anims
+
+    def scale_elements_only(self, amount):
+        for item in self.items:
+            item.scale(amount)
+
+        return self
+
+    def get_item(self, idx):
+        return self.items[idx]
+
+    def ready(self, is_ready=True):
+        return self
+
+    def anchor_to(self, parent):
+        self.parent = parent
+        self.update_radii()
+        return self
+
+    def update_radii(self):
+        center = self.parent.get_center()
+        radius_x = (self.parent.get_width() - self.get_width()) / 2.0
+        radius_y = (self.parent.get_height() - self.get_height()) / 2.0
+        self.radii = np.array([radius_x, radius_y, 1])
+
+        return self
+
+    def reposition(self, angle=None, offset_radius=0.5):
+        self.update_radii()
+
+        if angle is None:
+            offset_angle = random.uniform(0, 2*PI)
+            offset_radius = random.uniform(0, 1) * 0.95 # Make sure we don't end up outside self.parent
+        else:
+            offset_angle = angle
+
+        return np.array([offset_radius * math.cos(offset_angle) * self.radii[0] + self.parent.get_x(),
+                         offset_radius * math.sin(offset_angle) * self.radii[1] + self.parent.get_y(), 0])
+
+    def get_shape(self):
+        return self
+
+    def to_fade(self):
+        return self
+
 class Element(SmallDot):
     def __init__(self, parent, color):
         super().__init__()
@@ -51,7 +133,7 @@ class Element(SmallDot):
 
         return self
 
-    def reposition(self, angle=None):
+    def reposition(self, angle=None, offset_radius=0.5):
         self.update_radii()
 
         if angle is None:
@@ -59,7 +141,6 @@ class Element(SmallDot):
             offset_radius = random.uniform(0, 1) * 0.95 # Make sure we don't end up outside self.parent
         else:
             offset_angle = angle
-            offset_radius = 0.5
 
         return np.array([offset_radius * math.cos(offset_angle) * self.radii[0] + self.parent.get_x(),
                          offset_radius * math.sin(offset_angle) * self.radii[1] + self.parent.get_y(), 0])
@@ -274,13 +355,7 @@ class Set(VGroup):
         anims = []
 
         for i, e in enumerate(self.elements):
-            if isinstance(e, Element):
-                if evenly:
-                    new_pos = e.reposition(angle=2*PI*float(i)/len(self.elements))
-                else:
-                    new_pos = e.reposition()
-                anims.append(ApplyMethod(e.move_to, new_pos))
-            elif isinstance(e, Set):
+            if isinstance(e, Set):
                 orig_pos = e.get_shape().get_center()
 
                 if evenly is not None:
@@ -297,8 +372,40 @@ class Set(VGroup):
                 anims.extend(e.reposition_elements(evenly=evenly))
                 e.get_shape().move_to(orig_pos)
                 anims.append(ApplyMethod(e.get_shape().move_to, new_pos))
+            else:
+                if evenly is not None:
+                    new_pos = e.reposition(angle=2*PI*float(i)/len(self.elements), offset_radius=evenly)
+                else:
+                    new_pos = e.reposition()
+                anims.append(ApplyMethod(e.move_to, new_pos))
 
         return anims
+
+    # A version of reposition_elements that doesn't generate animations and just does the repositioning.
+    def do_reposition_elements(self, evenly=None):
+        for i, e in enumerate(self.elements):
+            if isinstance(e, Set):
+                orig_pos = e.get_shape().get_center()
+
+                if evenly is not None:
+                    offset_angle = 2*PI*float(i) / len(self.elements)
+                    offset_radius = evenly
+                else:
+                    offset_angle = random.uniform(0, 2*PI)
+                    offset_radius = random.uniform(0, 1)
+
+                new_pos = np.array([offset_radius * math.cos(offset_angle) * (self.shape.get_width() - e.get_shape().get_width()) / 2 + self.shape.get_x(),
+                                    offset_radius * math.sin(offset_angle) * (self.shape.get_height() - e.get_shape().get_height()) / 2 + self.shape.get_y(), 0])
+
+                e.get_shape().move_to(new_pos)
+            else:
+                if evenly is not None:
+                    new_pos = e.reposition(angle=2*PI*float(i)/len(self.elements), offset_radius=evenly)
+                else:
+                    new_pos = e.reposition()
+                e.move_to(new_pos)
+
+        return self
 
 class SetTheoryAxioms(Scene):
     def construct(self):
@@ -311,7 +418,7 @@ class SetTheoryAxioms(Scene):
         # self.show_axiom_extensionality()
         # self.show_axiom_pairing()
         # self.show_axiom_union()
-        self.show_axiom_powerset()
+        # self.show_axiom_powerset()
 
         # self.show_axiom_comprehension()
 
@@ -319,11 +426,165 @@ class SetTheoryAxioms(Scene):
         # self.prove_empty_set_exists_formal()
         # self.prove_union_two_sets()
 
-        # # TODO: Fading issues (here and in general, things don't fade smoothly).
         # self.prove_singleton_exists()
 
         # self.define_ordered_pairs()
         # self.define_cartesian_product()
+
+        # TODO: DEFINE SUBSETS
+
+        self.define_relation()
+        self.relation_example_equality()
+
+    def define_relation(self):
+        rel_def = self.introduce_theorem("A relation $R$ between sets $X$ and $Y$ is a subset \\\\ of the product $X \\times Y$.", theorem_type="Definition")
+        self.refine_text(rel_def, "A relation $R$ between sets $X$ and $Y$ is a subset of $X \\times Y$.", theorem_type=None)
+
+        set_a = Set(name="X")
+        set_b = Set(name="Y")
+
+        self.play(*set_a.conjure(lambda s: s.move_to(1.5*LEFT), element_colors=[RED,GREEN,BLUE]))
+        self.play(*set_b.conjure(lambda s: s.move_to(1.5*RIGHT), element_colors=[PURPLE,YELLOW,ORANGE]))
+        self.play(*set_a.reposition_elements())
+        self.play(*set_b.reposition_elements())
+        self.wait()
+
+        self.play(ApplyMethod(set_a.shift, 4.5*LEFT), ApplyMethod(set_b.shift, 4.5*RIGHT))
+        set_a.scale_elements_only(1/0.3)
+        set_b.scale_elements_only(1/0.3)
+        self.play(ApplyMethod(set_a.scale, 0.3), ApplyMethod(set_b.scale, 0.3))
+        self.play(*set_a.reposition_elements(), *set_b.reposition_elements())
+        self.wait()
+
+        prod = self.build_cartesian_product([set_a, set_b], name="X \\times Y", slow_anim=True)
+        self.wait()
+
+        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
+        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
+        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
+        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
+        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
+        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
+        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
+        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
+        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
+        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
+        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
+        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
+        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
+        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
+        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
+        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
+        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
+        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
+        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
+        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
+        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
+        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
+        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
+        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
+
+        self.play(FadeOutAndShift(rel_def), FadeOut(prod.to_fade()),
+                  FadeOut(set_a.to_fade()), FadeOut(set_b.to_fade()))
+        self.wait()
+
+    def relation_example_equality(self):
+        rel_ex = self.introduce_theorem("Let $R$ be $\\{ (x,y) \\in X \\times X : x = y \\}$.", theorem_type="Example")
+
+        set_a = Set(name="X")
+        set_b = Set(name="X")
+
+        self.play(*set_a.conjure(lambda s: s.move_to(1.5*LEFT), element_colors=[RED,GREEN,BLUE,PURPLE]))
+        self.play(*set_b.conjure(lambda s: s.move_to(1.5*RIGHT), element_colors=[RED,GREEN,BLUE,PURPLE]))
+        self.play(*set_a.reposition_elements())
+        self.play(*set_b.reposition_elements())
+        self.wait()
+
+        self.play(ApplyMethod(set_a.shift, 4.5*LEFT), ApplyMethod(set_b.shift, 4.5*RIGHT))
+        set_a.scale_elements_only(1/0.3)
+        set_b.scale_elements_only(1/0.3)
+        self.play(ApplyMethod(set_a.scale, 0.3), ApplyMethod(set_b.scale, 0.3))
+        self.play(*set_a.reposition_elements(), *set_b.reposition_elements())
+        self.wait()
+
+        prod = self.build_cartesian_product([set_a, set_b], name="X \\times X", slow_anim=True)
+        self.wait()
+
+        self.comprehension(prod, lambda pair: pair.get_item(0).color == pair.get_item(1).color, new_name="R")
+        self.wait()
+
+        self.play(FadeOutAndShift(rel_ex, UP), FadeOut(prod.to_fade()),
+                  FadeOut(set_a.to_fade()), FadeOut(set_b.to_fade()))
+        self.wait()
+
+    def build_cartesian_product(self, sets, name=None, slow_anim=False):
+        tuples = []
+        # TODO: Add a slow_anim version that builds them and sends the elements flying into the ordered pairs
+        for items in it.product(*[s.get_elements() for s in sets]):
+            pair = OrderedPair(items)
+            tuples.append(pair)
+
+        prod = self.pair(tuples, name=name, height_padding=6, width_padding=7)
+        scaling = PI*np.mean([prod.get_width(), prod.get_height()]) / (1.8 * tuples[0].get_width() * len(tuples))
+        for pair in tuples:
+            pair.scale_elements_only(1/scaling)
+            pair.scale(scaling)
+        prod.do_reposition_elements(evenly=0.8)
+
+        anims = []
+        for pair in tuples:
+            if slow_anim:
+                self.play(*pair.create())
+            else:
+                anims.extend(pair.create())
+
+        if not slow_anim:
+            self.play(*anims)
+
+        return prod
 
     def define_ordered_pairs(self):
         pair_def = self.introduce_theorem("$(x,y) := \\{\\{x\\}, \\{x,y\\}\\}$", theorem_type="Definition")
@@ -706,7 +967,6 @@ class SetTheoryAxioms(Scene):
 
         paired = Set(shape=Ellipse(width=width + width_padding, height=height + height_padding, color=WHITE), color=WHITE, name=name)
         self.play(*paired.conjure_shape(adjustment=lambda s: s.move_to(center_of_mass), use_scaling=False))
-        self.play(*paired.reposition_elements())
 
         paired.take_elements(sets)
 
@@ -795,7 +1055,9 @@ class SetTheoryAxioms(Scene):
         for elem in to_remove:
             set_x.remove_element(elem)
 
-        self.play(*[FadeOut(o.to_fade()) for o in to_fade + to_remove])
+        anims = [FadeOut(o) for o in to_fade]
+        anims.extend([FadeOut(o.to_fade()) for o in to_remove])
+        self.play(*anims)
         if new_name is not None:
             self.play(*set_x.change_name(new_name))
         self.wait()
