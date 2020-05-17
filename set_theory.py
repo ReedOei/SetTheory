@@ -25,7 +25,7 @@ class Element(SmallDot):
         self.anchor_to(self.parent)
         self.move_to(self.reposition())
 
-        self.speed = 0.7*np.mean(self.radii)
+        self.speed = 0.9*np.mean(self.radii)
         self.dir = random.uniform(0, 2*PI)
         self.is_ready = True
 
@@ -87,6 +87,9 @@ class Element(SmallDot):
             t = (pt - self.parent.get_center()) / self.radii
             return np.dot(t, t) < 0.99**2
 
+    def to_fade(self):
+        return self
+
 class Set(VGroup):
     def __init__(self, shape=None, name=None, color=None):
         self.shape = shape
@@ -104,13 +107,11 @@ class Set(VGroup):
         # NOTE: Currently unused.
         self.parent = None
 
-    def fade(self, *args, **kwargs):
+    def to_fade(self):
         if self.name_obj is not None:
-            super().__init__(self.shape, self.name_obj, *self.elements)
+            return VGroup(self.name_obj, self.shape, *[e.to_fade() for e in self.elements])
         else:
-            super().__init__(self.shape, *self.elements)
-
-        return super().fade(*args, **kwargs)
+            return self
 
     def get_shape(self):
         return self.shape
@@ -310,18 +311,18 @@ class SetTheoryAxioms(Scene):
         # self.show_axiom_extensionality()
         # self.show_axiom_pairing()
         # self.show_axiom_union()
-        # self.show_axiom_powerset()
+        self.show_axiom_powerset()
 
-        self.show_axiom_comprehension()
+        # self.show_axiom_comprehension()
 
         # self.prove_empty_set_exists()
         # self.prove_empty_set_exists_formal()
         # self.prove_union_two_sets()
 
-        # TODO: Fading issues (here and in general, things don't fade smoothly).
-        self.prove_singleton_exists()
+        # # TODO: Fading issues (here and in general, things don't fade smoothly).
+        # self.prove_singleton_exists()
 
-        self.define_ordered_pairs()
+        # self.define_ordered_pairs()
         # self.define_cartesian_product()
 
     def define_ordered_pairs(self):
@@ -349,7 +350,7 @@ class SetTheoryAxioms(Scene):
         ordered_pair = self.pair([pair_left, pair_right], name='(A,B)', height_padding=2.75)
         self.wait()
 
-        self.play(FadeOutAndShift(pair_def, UP), FadeOut(ordered_pair))
+        self.play(FadeOutAndShift(pair_def, UP), FadeOut(ordered_pair.to_fade()))
         self.wait()
 
     def define_cartesian_product(self):
@@ -368,9 +369,8 @@ class SetTheoryAxioms(Scene):
         set_b = Set()
 
         self.play(*set_a.conjure(lambda s: s.move_to(0.1*LEFT).scale(0.25), element_colors=[RED]))
-        self.play(*set_a.reposition_elements())
         self.play(*set_b.conjure(lambda s: s.move_to(0.1*RIGHT).scale(0.25), element_colors=[GREEN, BLUE]))
-        self.play(*set_b.reposition_elements())
+        self.play(*(set_a.reposition_elements() + set_b.reposition_elements()))
 
         set_u = self.union([set_a, set_b], height_padding=0.1, width_padding=0.1)
         self.wait()
@@ -419,7 +419,7 @@ class SetTheoryAxioms(Scene):
         cart_prod_def = self.write_theorem("$$X \\times Y := \\{z \\in \\mathcal{P}(\\mathcal{P}(X \\cup Y)) : \\exists x \\in X, y \\in Y. z = (x,y)\\}$$", theorem_type=None)
         self.wait()
 
-        self.play(FadeOutAndShift(cart_prod_def, UP), FadeOut(pset2))
+        self.play(FadeOutAndShift(cart_prod_def, UP), FadeOut(pset2.to_fade()))
         self.wait()
 
     def prove_singleton_exists(self):
@@ -445,10 +445,10 @@ class SetTheoryAxioms(Scene):
         anims.extend(set_a_cpy.reposition_elements())
         self.play(*anims)
 
-        self.play(FadeOut(set_a_cpy))
+        self.play(FadeOut(set_a_cpy.to_fade()))
         self.wait()
 
-        self.play(FadeOutAndShift(singletons, UP), FadeOut(paired))
+        self.play(FadeOutAndShift(singletons, UP), FadeOut(paired.to_fade()))
         self.wait()
 
     def prove_union_two_sets(self):
@@ -465,7 +465,7 @@ class SetTheoryAxioms(Scene):
         self.union_col(unioned, new_name='A \\cup B')
         self.wait()
 
-        self.play(FadeOutAndShift(union_two, UP), FadeOut(unioned))
+        self.play(FadeOutAndShift(union_two, UP), FadeOut(unioned.to_fade()))
         self.wait()
 
     def prove_empty_set_exists(self):
@@ -486,7 +486,7 @@ class SetTheoryAxioms(Scene):
 
         self.play(FadeOutAndShift(empty_set_exists, UP),
                   FadeOutAndShift(def_varphi, LEFT),
-                  FadeOut(set_x))
+                  FadeOut(set_x.to_fade()))
         self.wait()
 
     def prove_empty_set_exists_formal(self):
@@ -518,7 +518,7 @@ class SetTheoryAxioms(Scene):
         self.wait(3)
 
         self.play(FadeOutAndShift(name, UP), FadeOutAndShift(axiom_compr, UP),
-                  FadeOut(set_x))
+                  FadeOut(set_x.to_fade()))
         self.wait()
 
     def show_axiom_union(self):
@@ -544,7 +544,7 @@ class SetTheoryAxioms(Scene):
         self.refine_text(axiom_three, "$\\forall \\mathcal{C}. \\exists U. U = \\bigcup \\mathcal{C}$", position=UP+RIGHT)
 
         self.play(FadeOutAndShift(name, UP), FadeOutAndShift(axiom_three, UP),
-                  FadeOut(unioned))
+                  FadeOut(unioned.to_fade()))
         self.wait()
 
     def show_axiom_powerset(self):
@@ -562,7 +562,7 @@ class SetTheoryAxioms(Scene):
         self.refine_text(axiom_four, "$\\forall X. \\exists P. \\forall A. A \\in P \\Leftrightarrow A \\subseteq X$", position=UP+RIGHT)
         self.refine_text(axiom_four, "$\\forall X. \\exists P. P = \\mathcal{P}(X)$", position=UP+RIGHT)
 
-        self.play(FadeOutAndShift(axiom_four, UP), FadeOutAndShift(name, UP), FadeOut(pset_set))
+        self.play(FadeOutAndShift(axiom_four, UP), FadeOutAndShift(name, UP), FadeOut(pset_set.to_fade()))
         self.wait()
 
     def powerset(self, set_x, slow_anim=False, r=2, rad_scale=1):
@@ -598,7 +598,6 @@ class SetTheoryAxioms(Scene):
                 anims = new_set.conjure(adjustment=lambda s: s.shift(set_x.get_shape().get_center() - s.get_center() + offset), elements=es, use_scaling=False)
                 anims.extend(new_set.reposition_elements(evenly=0.7))
                 self.play(*anims)
-                self.play(*new_set.reposition_elements())
             else:
                 anims.extend(new_set.conjure(adjustment=lambda s: s.shift(set_x.get_shape().get_center() - s.get_center() + offset), elements=es, use_scaling=False))
                 anims.extend(new_set.reposition_elements(evenly=0.7))
@@ -606,12 +605,6 @@ class SetTheoryAxioms(Scene):
             new_sets.append(new_set)
 
         if not slow_anim:
-            self.play(*anims)
-
-            anims = []
-            for s in new_sets:
-                anims.extend(s.reposition_elements())
-
             self.play(*anims)
 
         new_sets.append(set_x)
@@ -625,7 +618,7 @@ class SetTheoryAxioms(Scene):
 
         self.play(FadeOutAndShift(axiom_zero, UP),
                   FadeOutAndShift(name, UP),
-                  FadeOut(ax0_set))
+                  FadeOut(ax0_set.to_fade()))
         self.wait()
 
     def show_axiom_extensionality(self):
@@ -676,8 +669,8 @@ class SetTheoryAxioms(Scene):
         self.play(FadeOutAndShift(equality, DOWN), FadeOutAndShift(implies, DOWN),
                   FadeOutAndShift(axiom_one, UP), FadeOutAndShift(name, UP),
                   *[FadeOut(e) for e in to_fade],
-                  FadeOut(set_x),
-                  FadeOut(set_y))
+                  FadeOut(set_x.to_fade()),
+                  FadeOut(set_y.to_fade()))
         self.wait()
 
     def calculate_size(self, sets):
@@ -736,7 +729,7 @@ class SetTheoryAxioms(Scene):
         self.refine_text(axiom_two, "$\\forall X. \\forall Y. \\exists Z. Z = \{X, Y\}$", position=UP+RIGHT)
 
         self.play(FadeOutAndShift(name, UP), FadeOutAndShift(axiom_two, UP),
-                  FadeOut(paired), FadeOut(set_x), FadeOut(set_y))
+                  FadeOut(paired.to_fade()))
         self.wait()
 
     def union_col(self, col, new_name=None):
@@ -747,7 +740,7 @@ class SetTheoryAxioms(Scene):
             # TODO: What to do with elements? Do we even need to worry about this?
             if isinstance(s, Set):
                 col.take_elements(s.clear_elements())
-                anims.append(FadeOut(s))
+                anims.append(FadeOut(s.to_fade()))
 
         self.play(*anims)
 
@@ -802,7 +795,7 @@ class SetTheoryAxioms(Scene):
         for elem in to_remove:
             set_x.remove_element(elem)
 
-        self.play(*[FadeOut(o) for o in to_fade + to_remove])
+        self.play(*[FadeOut(o.to_fade()) for o in to_fade + to_remove])
         if new_name is not None:
             self.play(*set_x.change_name(new_name))
         self.wait()
