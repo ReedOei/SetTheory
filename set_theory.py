@@ -192,7 +192,7 @@ class Set(VGroup):
         if self.name_obj is not None:
             return VGroup(self.name_obj, self.shape, *[e.to_fade() for e in self.elements])
         else:
-            return self
+            return VGroup(self.shape, *[e.to_fade() for e in self.elements])
 
     def get_shape(self):
         return self.shape
@@ -409,32 +409,349 @@ class Set(VGroup):
 
 class SetTheoryAxioms(Scene):
     def construct(self):
-        # title = TextMobject("Set Theory")
-        # self.play(Write(title))
-        # self.wait()
-        # self.play(FadeOut(title))
+        # TODO: Look into better transformations between text so that only the changing things look like they change.
+        title = TextMobject("Set Theory")
+        self.play(Write(title))
+        self.wait()
+        self.play(FadeOut(title))
 
-        # self.show_axiom_existence()
-        # self.show_axiom_extensionality()
-        # self.show_axiom_pairing()
-        # self.show_axiom_union()
-        # self.show_axiom_powerset()
+        # TODO: Add some text highlighting stuff
+        self.show_axiom_existence()
+        self.show_axiom_extensionality()
+        self.show_axiom_pairing()
+        self.show_axiom_union()
+        self.show_axiom_powerset()
 
-        # self.show_axiom_comprehension()
+        self.show_axiom_comprehension()
 
-        # self.prove_empty_set_exists()
-        # self.prove_empty_set_exists_formal()
-        # self.prove_union_two_sets()
+        self.prove_empty_set_exists()
+        self.prove_empty_set_exists_formal()
+        self.prove_union_two_sets()
 
-        # self.prove_singleton_exists()
+        self.prove_singleton_exists()
 
-        # self.define_ordered_pairs()
-        # self.define_cartesian_product()
+        self.define_ordered_pairs()
+        self.define_cartesian_product()
 
-        # TODO: DEFINE SUBSETS
+        self.define_subsets()
 
         self.define_relation()
         self.relation_example_equality()
+
+    def define_subsets(self):
+        subset_def = self.introduce_theorem("$$X \\subseteq Y :\\Leftrightarrow \\forall z. z \\in X \\Rightarrow z \\in Y$$", theorem_type="Definition")
+        self.wait()
+        self.refine_text(subset_def, "A set $X$ is a subset of $Y$, written $X \\subseteq Y$, \\\\ if every element of $X$ is an element of $Y$, that is, $$\\forall z. z \\in X \\Rightarrow z \\in Y$$", theorem_type="Definition")
+        self.wait()
+        self.refine_text(subset_def, "$X$ is a subset of $Y$ if and only if $\\forall z. z \\in X \\Rightarrow z \\in Y$")
+        self.wait()
+
+        set_x = Set(name="X")
+        set_y = Set(name="Y")
+
+        self.play(*(set_x.conjure(lambda s: s.move_to(1.5*LEFT), element_colors=[RED,GREEN,BLUE]) +
+                    set_y.conjure(lambda s: s.move_to(1.5*RIGHT), element_colors=[RED,GREEN,BLUE,YELLOW,PURPLE,ORANGE])))
+        self.play(*(set_x.reposition_elements() + set_y.reposition_elements()))
+        self.wait()
+
+        self.play(ApplyMethod(set_x.shift, 4.5*LEFT), ApplyMethod(set_y.shift, 4.5*RIGHT))
+        self.wait()
+
+        groups = []
+
+        for elem_x in set_x.get_elements():
+            for elem_y in set_y.get_elements():
+                if elem_x.color == elem_y.color:
+                    new_elem_x = copy.deepcopy(elem_x)
+                    new_elem_y = copy.deepcopy(elem_y)
+
+                    new_elem_x.ready(False)
+                    new_elem_y.ready(False)
+
+                    self.add(new_elem_x, new_elem_y)
+                    contain_x = TextMobject("$\\in X$")
+                    contain_x.move_to(LEFT)
+                    implies_tex = TextMobject("$\\Rightarrow$")
+                    contain_y = TextMobject("$\\in Y$")
+                    contain_y.move_to(RIGHT)
+
+                    self.play(Write(contain_x), Write(implies_tex), Write(contain_y),
+                              ApplyMethod(new_elem_x.next_to, contain_x, LEFT), ApplyMethod(new_elem_y.next_to, contain_y, LEFT))
+
+                    groups.append(VGroup(new_elem_x, contain_x, implies_tex, new_elem_y, contain_y))
+                    self.play(*[ApplyMethod(group.shift, 0.5*UP) for group in groups])
+
+                    break
+
+        implies = TexMobject("\\Rightarrow")
+
+        subset = TexMobject("X \\subseteq Y")
+        subset.move_to(0.5*DOWN)
+        self.play(Write(implies), Write(subset))
+        self.wait()
+
+        self.play(FadeOutAndShift(subset_def, UP), FadeOutAndShift(implies, DOWN), FadeOutAndShift(subset, DOWN),
+                  FadeOut(set_x.to_fade()), FadeOut(set_y.to_fade()), *[FadeOut(group) for group in groups])
+        self.wait()
+
+        alt_subset_def = self.introduce_theorem("A set $X$ is a subset of $Y$, written $X \\subseteq Y$, \\\\ if $X \\cup Y = Y$.", theorem_type="Definition")
+        self.wait()
+
+        set_x = Set(name="X")
+        set_y = Set(name="Y")
+
+        self.play(*set_x.conjure(lambda s: s.move_to(1.5*LEFT), element_colors=[RED,GREEN,BLUE]),
+                  *set_y.conjure(lambda s: s.move_to(1.5*RIGHT), element_colors=[RED,GREEN,BLUE,YELLOW,PURPLE,ORANGE]))
+        self.play(*set_x.reposition_elements(), *set_y.reposition_elements())
+        self.wait()
+
+        unioned = self.union([set_x, set_y], height_padding=1, name='X \\cup Y')
+        self.wait()
+
+        self.play(ApplyMethod(unioned.shift, 2*LEFT))
+        unioned.scale_elements_only(1/0.5)
+        self.play(ApplyMethod(unioned.scale, 0.5))
+        self.play(*unioned.reposition_elements())
+        self.wait()
+
+        set_y = Set(name="Y")
+        self.play(*set_y.conjure(lambda s: s.move_to(1.5*RIGHT), element_colors=[RED,GREEN,BLUE,YELLOW,PURPLE,ORANGE]))
+        self.play(*set_y.reposition_elements())
+        self.wait()
+
+        to_remove_colors = [RED,GREEN,BLUE]
+        anims = []
+        for elem in unioned.get_elements():
+            if elem.color in to_remove_colors:
+                unioned.remove_element(elem)
+                anims.append(FadeOut(elem))
+                to_remove_colors.remove(elem.color)
+        self.play(*anims)
+        self.wait()
+
+        equality = TexMobject("=")
+        self.play(Write(equality),
+                  ApplyMethod(unioned.next_to, equality, 2*LEFT),
+                  ApplyMethod(set_y.next_to, equality, RIGHT))
+        self.wait()
+
+        self.play(FadeOutAndShift(alt_subset_def, UP), FadeOutAndShift(equality, DOWN),
+                  FadeOut(unioned.to_fade()), FadeOut(set_y.to_fade()))
+        self.wait()
+
+        equiv_prop = self.introduce_theorem("The previous definitions are equivalent; \\\\$\\forall z. z \\in X \\Rightarrow z \\in Y$ if and only if $X \\cup Y = Y$", theorem_type="Proposition")
+        self.wait()
+
+        forward = TextMobject("($\\Rightarrow$): Suppose $\\forall z. z \\in X \\Rightarrow z \\in Y$.")
+        forward = TextMobject("($\\Rightarrow$): Suppose $\\forall z.$", "$z \\in X$", "$\\Rightarrow$", "$z \\in Y$.")
+        forward.next_to(equiv_prop, DOWN)
+        forward.shift(2.8*LEFT)
+        self.play(Write(forward))
+        self.wait()
+
+        set_x = Set(name="X")
+        set_y = Set(name="Y")
+
+        self.play(*set_x.conjure(lambda s: s.move_to(1.5*LEFT), element_colors=[RED,RED,RED,RED,RED]),
+                  *set_y.conjure(lambda s: s.move_to(1.5*RIGHT), element_colors=[BLUE,BLUE,BLUE,RED,RED,RED,RED,RED]))
+        self.play(*set_x.reposition_elements(), *set_y.reposition_elements())
+        self.wait()
+
+        self.play(ApplyMethod(set_x.shift, 4.5*LEFT), ApplyMethod(set_y.shift, 4.5*RIGHT))
+        set_x.scale_elements_only(1/0.3)
+        set_y.scale_elements_only(1/0.3)
+        self.play(ApplyMethod(set_x.scale, 0.3), ApplyMethod(set_y.scale, 0.3))
+        self.play(*set_x.reposition_elements(), *set_y.reposition_elements())
+        self.wait()
+
+        set_x_copy = self.copy_set(set_x)
+        set_y_copy = self.copy_set(set_y)
+
+        self.play(ApplyMethod(set_x_copy.shift, 5.5*RIGHT), ApplyMethod(set_y_copy.shift, 5.5*LEFT))
+        self.wait()
+
+        unioned = self.pair([set_x_copy, set_y_copy], name='X \\cup Y', height_padding=2)
+        # NOTE: Unclear why, it seems we need to re-add these elements...
+        for elem in set_x_copy.get_elements() + set_y_copy.get_elements():
+            self.add(elem)
+        self.wait()
+        self.union_col(unioned)
+        self.wait()
+
+        to_remove_colors = [RED,RED,RED,RED,RED]
+        anims = []
+        for elem in unioned.get_elements():
+            if elem.color in to_remove_colors:
+                unioned.remove_element(elem)
+                anims.append(FadeOut(elem))
+                to_remove_colors.remove(elem.color)
+        self.play(*anims)
+        self.wait()
+
+        take_elem_text = TextMobject("Take an element from $X \\cup Y$:")
+        take_elem_text.to_corner(DOWN + LEFT)
+        self.play(Write(take_elem_text))
+        self.wait()
+
+        x_dummy_elem = set_x.get_elements()[0]
+        if_in_x_text = self.write_text_with_element(lambda it: it.next_to(take_elem_text, 0.25*UP + RIGHT), "if", x_dummy_elem, "$\\in X$\\relax")
+        self.wait()
+
+        forward_highlighted = TextMobject("($\\Rightarrow$): Suppose $\\forall z.$", "$\\mathbf{z \\in X}$", "$\\Rightarrow$", "$\\mathbf{z \\in Y}$.")
+        forward_highlighted[1].set_color(RED)
+        forward_highlighted[3].set_color(BLUE)
+        forward_highlighted.move_to(forward)
+        self.play(Transform(forward, forward_highlighted))
+        self.wait()
+
+        then_x_text = self.write_text_with_element(lambda it: it.next_to(if_in_x_text, RIGHT), ", then", x_dummy_elem, "$\\in Y$")
+        self.wait()
+
+        forward_original = TextMobject("($\\Rightarrow$): Suppose $\\forall z.$", "$\\mathbf{z \\in X}$", "$\\Rightarrow$", "$\\mathbf{z \\in Y}$.")
+        forward_original.move_to(forward)
+        self.play(Transform(forward, forward_original))
+        self.wait()
+
+        # Pick some arbitrary non-red element from Y to display
+        y_dummy_elem = [elem for elem in set_y.get_elements() if elem.color != RED][0]
+        if_in_y_text = self.write_text_with_element(lambda it: it.next_to(take_elem_text, RIGHT), "if", y_dummy_elem, "$\\in Y$")
+        self.wait()
+        then_y_text = self.write_text_with_element(lambda it: it.next_to(if_in_y_text, RIGHT), ", then", y_dummy_elem, "$\\in Y$")
+        self.wait()
+
+        cases_group = VGroup(if_in_x_text, if_in_y_text, then_y_text, then_x_text)
+
+        then_done = TextMobject("it is in $Y$, so $X \\cup Y = Y$.")
+        then_done.next_to(take_elem_text, RIGHT)
+        self.play(Transform(cases_group, then_done))
+        self.wait()
+
+        self.play(FadeOutAndShift(forward, LEFT),
+                  FadeOutAndShift(take_elem_text, DOWN),
+                  FadeOutAndShift(cases_group, DOWN),
+                  FadeOut(set_x.to_fade()), FadeOut(set_y.to_fade()), FadeOut(unioned.to_fade()))
+        self.wait()
+
+        backward = TextMobject("($\\Leftarrow$): Suppose $X \\cup Y = Y$.")
+        backward.next_to(equiv_prop, DOWN)
+        backward.shift(2.8*LEFT)
+        self.play(Write(backward))
+        self.wait()
+
+        set_x = Set(name="X")
+        set_y = Set(name="Y")
+
+        self.play(*set_x.conjure(lambda s: s.move_to(1.5*LEFT), element_colors=[RED,GREEN,BLUE]),
+                  *set_y.conjure(lambda s: s.move_to(1.5*RIGHT), element_colors=[RED,GREEN,BLUE,YELLOW,PURPLE,ORANGE]))
+        self.play(*set_x.reposition_elements(), *set_y.reposition_elements())
+        self.wait()
+
+        unioned = self.union([set_x, set_y], height_padding=1, name='X \\cup Y')
+        self.wait()
+
+        to_remove_colors = [RED,GREEN,BLUE]
+        anims = []
+        for elem in unioned.get_elements():
+            if elem.color in to_remove_colors:
+                unioned.remove_element(elem)
+                anims.append(FadeOut(elem))
+                to_remove_colors.remove(elem.color)
+        self.play(*anims)
+        self.wait()
+
+        take_elem_x = TextMobject("Take an element from $X$.")
+        take_elem_x.to_corner(DOWN+LEFT)
+        self.play(Write(take_elem_x))
+        self.wait()
+
+        x_dummy_elem = [elem for elem in unioned.get_elements() if elem.color in [RED,GREEN,BLUE]][0]
+        in_x_text = self.write_text_with_element(lambda it: it.next_to(take_elem_x, RIGHT), "if", x_dummy_elem, "$\\in X$")
+        self.wait()
+
+        then_in_union = self.write_text_with_element(lambda it: it.next_to(in_x_text, RIGHT), ", then", x_dummy_elem, "$\\in X \\cup Y$")
+        self.wait()
+
+        new_then_in = TextMobject("$\\in Y$")
+        new_then_in.next_to(then_in_union[-2], RIGHT)
+
+        self.play(Transform(then_in_union[-1], new_then_in))
+        self.wait()
+
+        self.play(FadeOutAndShift(backward, LEFT), FadeOutAndShift(take_elem_x, DOWN),
+                  FadeOutAndShift(in_x_text, DOWN), FadeOutAndShift(then_in_union, DOWN),
+                  FadeOut(unioned.to_fade()))
+        self.wait()
+
+        qed = TextMobject("\\large $\\square$")
+        qed.move_to(equiv_prop.get_corner(DOWN + RIGHT))
+        qed.shift(DOWN)
+        self.play(Write(qed))
+        self.wait()
+
+        self.play(FadeOutAndShift(equiv_prop, UP), FadeOutAndShift(qed, RIGHT))
+        self.wait()
+
+    def write_text_with_element(self, position_first, *items):
+        anims = []
+
+        res_items = []
+        prev_item = None
+        old_pos = None
+        new_pos = None
+
+        for item_content in items:
+            if isinstance(item_content, str):
+                item = TextMobject(item_content)
+            else:
+                item = copy.deepcopy(item_content)
+
+                if isinstance(item_content, Element):
+                    item.ready(False)
+
+            old_pos = item.get_center()
+            if prev_item is None:
+                position_first(item)
+            else:
+                item.next_to(prev_item, RIGHT)
+
+                if isinstance(prev_item, TextMobject):
+                    anims.append(Write(prev_item))
+                else:
+                    prev_item.move_to(old_pos)
+                    anims.append(ApplyMethod(prev_item.move_to, new_pos))
+
+            new_pos = item.get_center()
+            prev_item = item
+            res_items.append(item)
+
+        # If there were no items.
+        if prev_item is None:
+            return VGroup()
+
+        # Add the animation for the last item in the group.
+        if isinstance(prev_item, TextMobject):
+            anims.append(Write(prev_item))
+        else:
+            prev_item.move_to(old_pos)
+            anims.append(ApplyMethod(prev_item.move_to, new_pos))
+
+        self.play(*anims)
+
+        return VGroup(*res_items)
+
+    def copy_set(self, to_copy):
+        new_set = copy.deepcopy(to_copy)
+        if new_set.name_obj is not None:
+            new_set.name_obj.clear_updaters()
+            new_set.name_obj.add_updater(lambda nm: nm.next_to(new_set.shape, DOWN))
+            self.add(new_set.name_obj)
+
+        old_elems = new_set.clear_elements()
+        for elem in old_elems:
+            new_set.take_elements([elem])
+            self.add(elem)
+
+        return new_set
 
     def define_relation(self):
         rel_def = self.introduce_theorem("A relation $R$ between sets $X$ and $Y$ is a subset \\\\ of the product $X \\times Y$.", theorem_type="Definition")
@@ -458,74 +775,6 @@ class SetTheoryAxioms(Scene):
 
         prod = self.build_cartesian_product([set_a, set_b], name="X \\times Y", slow_anim=True)
         self.wait()
-
-        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
-        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
-        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
-        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
-        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
-        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
-        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
-        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
-        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
-        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
-        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
-        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
-        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
-        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
-        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
-        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
-        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
-        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
-        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
-        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
-        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
-        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
-        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
-        # TODO: SHOW BUILDING OF THE PRODUCTS TOO
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
-        # TODO: Show picking subsets of these elements (by highlighting or circling or something)
 
         self.play(FadeOutAndShift(rel_def), FadeOut(prod.to_fade()),
                   FadeOut(set_a.to_fade()), FadeOut(set_b.to_fade()))
@@ -905,10 +1154,10 @@ class SetTheoryAxioms(Scene):
             self.add(new_ex)
             self.add(new_ey)
 
-            contain_x = TexMobject("\\in X")
+            contain_x = TextMobject("$\\in X$")
             contain_x.move_to(LEFT)
-            and_tex = TexMobject("\\land")
-            contain_y = TexMobject("\\in Y")
+            and_tex = TextMobject("$\\land$")
+            contain_y = TextMobject("$\\in Y$")
             contain_y.move_to(RIGHT)
             self.play(Write(contain_x), Write(and_tex), Write(contain_y),
                       ApplyMethod(new_ex.next_to, contain_x, LEFT), ApplyMethod(new_ey.next_to, contain_y, LEFT))
@@ -977,8 +1226,8 @@ class SetTheoryAxioms(Scene):
 
         set_x = Set(color=RED)
         set_y = Set(color=BLUE)
-        self.play(*(set_x.conjure(lambda s: s.move_to(2*LEFT), element_num=10) +
-                    set_y.conjure(lambda s: s.move_to(2*RIGHT), element_num=50)))
+        self.play(*(set_x.conjure(lambda s: s.move_to(1.5*LEFT), element_num=10) +
+                    set_y.conjure(lambda s: s.move_to(1.5*RIGHT), element_num=50)))
         self.play(*set_x.reposition_elements())
         self.play(*set_y.reposition_elements())
         self.wait()
@@ -997,7 +1246,7 @@ class SetTheoryAxioms(Scene):
 
         old_elems = col.clear_elements()
         for s in old_elems:
-            # TODO: What to do with elements? Do we even need to worry about this?
+            # TODO: What to do with elements and pairs? Do we even need to worry about this?
             if isinstance(s, Set):
                 col.take_elements(s.clear_elements())
                 anims.append(FadeOut(s.to_fade()))
