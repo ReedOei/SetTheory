@@ -51,7 +51,7 @@ class OrderedPair(VGroup):
 
     def scale_elements_only(self, amount):
         for item in self.items:
-            item.scale(amount)
+            item.scale_elements_only(amount)
 
         return self
 
@@ -138,7 +138,7 @@ class Element(SmallDot):
 
         if angle is None:
             offset_angle = random.uniform(0, 2*PI)
-            offset_radius = random.uniform(0, 1) * 0.95 # Make sure we don't end up outside self.parent
+            offset_radius = random.uniform(0, 1) * 0.9 # Make sure we don't end up outside self.parent
         else:
             offset_angle = angle
 
@@ -170,6 +170,9 @@ class Element(SmallDot):
 
     def to_fade(self):
         return self
+
+    def scale_elements_only(self, amount):
+        return self.scale(amount)
 
 class Set(VGroup):
     def __init__(self, shape=None, name=None, color=None):
@@ -205,6 +208,8 @@ class Set(VGroup):
             if isinstance(e, Element):
                 e.scale(amount)
             elif isinstance(e, Set):
+                e.scale_elements_only(amount)
+            elif isinstance(e, OrderedPair):
                 e.scale_elements_only(amount)
 
         return self
@@ -410,33 +415,119 @@ class Set(VGroup):
 class SetTheoryAxioms(Scene):
     def construct(self):
         # TODO: Look into better transformations between text so that only the changing things look like they change.
-        title = TextMobject("Set Theory")
-        self.play(Write(title))
-        self.wait()
-        self.play(FadeOut(title))
+        # title = TextMobject("Set Theory")
+        # self.play(Write(title))
+        # self.wait()
+        # self.play(FadeOut(title))
 
         # TODO: Add some text highlighting stuff
-        self.show_axiom_existence()
-        self.show_axiom_extensionality()
-        self.show_axiom_pairing()
-        self.show_axiom_union()
-        self.show_axiom_powerset()
+        # self.show_axiom_existence()
+        # self.show_axiom_extensionality()
+        # self.show_axiom_pairing()
+        # self.show_axiom_union()
+        # self.show_axiom_powerset()
 
-        self.show_axiom_comprehension()
+        # self.show_axiom_comprehension()
 
-        self.prove_empty_set_exists()
-        self.prove_empty_set_exists_formal()
-        self.prove_union_two_sets()
+        # self.prove_empty_set_exists()
+        # self.prove_empty_set_exists_formal()
+        # self.prove_union_two_sets()
 
-        self.prove_singleton_exists()
+        # self.prove_singleton_exists()
 
-        self.define_ordered_pairs()
-        self.define_cartesian_product()
+        # self.define_ordered_pairs()
+        # self.define_cartesian_product()
 
-        self.define_subsets()
+        # self.define_subsets()
 
-        self.define_relation()
-        self.relation_example_equality()
+        # self.define_relation()
+        # self.relation_example_equality()
+
+        # self.define_functions()
+        self.prove_set_of_functions_exists()
+
+    def prove_set_of_functions_exists(self):
+        func_set_def = self.introduce_theorem("$Y^X$ is the set of functions from $X$ to $Y$.", theorem_type="Definition")
+        func_set_formal_def = TextMobject("$$Y^X := \\{ f \\in \\mathcal{P}(X \\times Y) : f \\text{ is a function} \\}$$")
+        func_set_formal_def.next_to(func_set_def, DOWN)
+        self.play(Write(func_set_formal_def))
+        self.wait()
+
+        self.refine_text(func_set_formal_def, "$$Y^X := \\{ f \\in \\mathcal{P}(X \\times Y) : \\forall x \\in X. \\exists! y \\in Y. (x,y) \\in f \\}$$", theorem_type=None, position=None)
+        self.wait()
+
+        self.refine_text(func_set_formal_def, "$$Y^X := \\{ f \\in \\mathcal{P}(X \\times Y) : f \\text{ is a function} \\}$$", theorem_type=None, position=None)
+        self.wait()
+
+    def define_functions(self):
+        func_def = self.introduce_theorem("A relation $f$ between $X$ and $Y$ is called \\\\ a \\emph{function}, written $f : X \\to Y$, when every \\\\ $x \\in X$ is related (by $f$) to exactly one $y \\in Y$.", theorem_type="Definition")
+        self.wait()
+        clarification_text = TextMobject("That is, $f$ is a function from $X$ to $Y$ if")
+        clarification_def = TextMobject("$$\\forall x \\in X. \\exists y \\in Y. (x,y) \\in f \\land \\forall z \\in Y. (x,z) \\in f \\Rightarrow y = z$$")
+        clarification_def.next_to(clarification_text, DOWN)
+        self.play(Write(clarification_text), Write(clarification_def))
+        self.wait()
+        self.refine_text(clarification_def, "$$\\forall x \\in X. \\exists y \\in Y. f(x) = y \\land \\forall z \\in Y. f(x) = z \\Rightarrow y = z$$", theorem_type=None, position=None)
+        self.wait()
+        self.refine_text(clarification_def, "$$\\forall x \\in X. \\exists! y \\in Y. f(x) = y$$", theorem_type=None, position=None)
+        self.wait()
+
+        self.play(FadeOutAndShift(clarification_text, LEFT), FadeOutAndShift(clarification_def, RIGHT))
+        self.wait()
+
+        self.refine_text(func_def, "$f$ is a function from $X$ to $Y$ when $\\forall x \\in X. \\exists! y \\in Y. f(x) = y$", theorem_type=None)
+        self.wait()
+
+        set_x = Set(name="X")
+        set_y = Set(name="Y")
+
+        self.play(*set_x.conjure(lambda s: s.move_to(1.5*LEFT), element_colors=[RED,GREEN,BLUE]), *set_y.conjure(lambda s: s.move_to(1.5*RIGHT), element_colors=[YELLOW,PURPLE,WHITE,ORANGE]))
+        self.play(*set_x.reposition_elements(), *set_y.reposition_elements())
+        self.wait()
+
+        self.play(ApplyMethod(set_x.shift, 4.5*LEFT), ApplyMethod(set_y.shift, 4.5*RIGHT))
+        set_x.scale_elements_only(1/0.3)
+        set_y.scale_elements_only(1/0.3)
+        self.play(ApplyMethod(set_x.scale, 0.3), ApplyMethod(set_y.scale, 0.3))
+        self.play(*set_x.reposition_elements(), *set_y.reposition_elements())
+        self.wait()
+
+        prod = self.build_cartesian_product([set_x, set_y], name="X \\times Y", slow_anim=False)
+        self.wait()
+
+        func = []
+        func_elems = {}
+        for elem_x in set_x.get_elements():
+            elem_y = random.choice(set_y.get_elements())
+            func.append((elem_x.color, elem_y.color))
+            func_elems[(elem_x.color, elem_y.color)] = (elem_x, elem_y)
+
+        self.comprehension(prod, lambda pair: (pair.get_item(0).color, pair.get_item(1).color) in func, animate_choices=False, new_name='f')
+        self.wait()
+
+        for item in prod.get_elements():
+            item.scale_elements_only(1/0.3)
+            item.scale(1/0.8)
+            item.scale_elements_only(0.8)
+
+        self.play(ApplyMethod(prod.scale, 0.3))
+        self.wait()
+
+        texts = []
+        for pair in func:
+            elem_x, elem_y = func_elems[pair]
+
+            if len(texts) == 0:
+                texts.append(self.write_text_with_element(lambda s: s.to_corner(DOWN + LEFT).shift(0.5*UP), "$f($", elem_x, ") = ", elem_y, positioning=0.3*RIGHT))
+            else:
+                texts.append(self.write_text_with_element(lambda s: s.next_to(texts[-1], RIGHT).shift(2*RIGHT), "$f($", elem_x, ") = ", elem_y, positioning=0.3*RIGHT))
+
+        self.wait()
+
+        self.play(FadeOutAndShift(func_def, UP), FadeOut(prod.to_fade()),
+                  FadeOut(set_x.to_fade()), FadeOut(set_y.to_fade()),
+                  *[FadeOut(text) for text in texts])
+        self.wait()
 
     def define_subsets(self):
         subset_def = self.introduce_theorem("$$X \\subseteq Y :\\Leftrightarrow \\forall z. z \\in X \\Rightarrow z \\in Y$$", theorem_type="Definition")
@@ -607,7 +698,7 @@ class SetTheoryAxioms(Scene):
         then_x_text = self.write_text_with_element(lambda it: it.next_to(if_in_x_text, RIGHT), ", then", x_dummy_elem, "$\\in Y$")
         self.wait()
 
-        forward_original = TextMobject("($\\Rightarrow$): Suppose $\\forall z.$", "$\\mathbf{z \\in X}$", "$\\Rightarrow$", "$\\mathbf{z \\in Y}$.")
+        forward_original = TextMobject("($\\Rightarrow$): Suppose $\\forall z.$", "$z \\in X$", "$\\Rightarrow$", "$z \\in Y$.")
         forward_original.move_to(forward)
         self.play(Transform(forward, forward_original))
         self.wait()
@@ -665,7 +756,7 @@ class SetTheoryAxioms(Scene):
         self.wait()
 
         x_dummy_elem = [elem for elem in unioned.get_elements() if elem.color in [RED,GREEN,BLUE]][0]
-        in_x_text = self.write_text_with_element(lambda it: it.next_to(take_elem_x, RIGHT), "if", x_dummy_elem, "$\\in X$")
+        in_x_text = self.write_text_with_element(lambda it: it.next_to(take_elem_x, RIGHT), "If", x_dummy_elem, "$\\in X$")
         self.wait()
 
         then_in_union = self.write_text_with_element(lambda it: it.next_to(in_x_text, RIGHT), ", then", x_dummy_elem, "$\\in X \\cup Y$")
@@ -691,7 +782,7 @@ class SetTheoryAxioms(Scene):
         self.play(FadeOutAndShift(equiv_prop, UP), FadeOutAndShift(qed, RIGHT))
         self.wait()
 
-    def write_text_with_element(self, position_first, *items):
+    def write_text_with_element(self, position_first, *items, positioning=RIGHT):
         anims = []
 
         res_items = []
@@ -708,19 +799,24 @@ class SetTheoryAxioms(Scene):
                 if isinstance(item_content, Element):
                     item.ready(False)
 
-            old_pos = item.get_center()
             if prev_item is None:
+                old_pos = item.get_center()
                 position_first(item)
             else:
-                item.next_to(prev_item, RIGHT)
-
                 if isinstance(prev_item, TextMobject):
+                    old_pos = item.get_center()
+                    item.next_to(prev_item, positioning)
                     anims.append(Write(prev_item))
                 else:
-                    prev_item.move_to(old_pos)
+                    new_pos = prev_item.get_center()
+                    old_old_pos = old_pos
+
+                    old_pos = item.get_center()
+                    item.next_to(prev_item, positioning)
+
+                    prev_item.move_to(old_old_pos)
                     anims.append(ApplyMethod(prev_item.move_to, new_pos))
 
-            new_pos = item.get_center()
             prev_item = item
             res_items.append(item)
 
@@ -732,6 +828,7 @@ class SetTheoryAxioms(Scene):
         if isinstance(prev_item, TextMobject):
             anims.append(Write(prev_item))
         else:
+            new_pos = prev_item.get_center()
             prev_item.move_to(old_pos)
             anims.append(ApplyMethod(prev_item.move_to, new_pos))
 
@@ -867,11 +964,14 @@ class SetTheoryAxioms(Scene):
         cart_prod_def = self.introduce_theorem("$$X \\times Y := \\{(x,y) : x \\in X \\land y \\in Y\\}$$", theorem_type="Definition")
         self.refine_text(cart_prod_def, "$$X \\times Y := $$ $$\\{(x,y) : x \\in X, y \\in Y\\}$$", theorem_type="Definition")
         self.refine_text(cart_prod_def, "$$X \\times Y := $$ $$\\{(x,y) : x \\in X, y \\in Y\\}$$???", theorem_type="Definition")
+        self.wait()
         self.refine_text(cart_prod_def, "$$X \\times Y := $$ $$\\{z \\in \\mathcal{P}(\\mathcal{P}(X \\cup Y)) : \\exists x. x \\in X \\land \\exists y. y \\in Y \\land z = (x, y)\\}$$", theorem_type="Definition")
         self.refine_text(cart_prod_def, "$$X \\times Y := $$ $$\\{z \\in \\mathcal{P}(\\mathcal{P}(X \\cup Y)) : \\exists x. x \\in X \\land \\exists y. y \\in Y \\land z = \\{\\{x\\}, \\{x,y\\}\\}\\}$$", theorem_type="Definition")
         self.refine_text(cart_prod_def, "$$X \\times Y := $$ $$\\{z \\in \\mathcal{P}(\\mathcal{P}(X \\cup Y)) : \\exists x. x \\in X \\land \\exists y. y \\in Y \\land z = (x,y)\\}$$", theorem_type="Definition")
+        self.wait()
         self.refine_text(cart_prod_def, "$$X \\times Y := \\{z \\in \\mathcal{P}(\\mathcal{P}(X \\cup Y)) : \\exists x \\in X. \\exists y \\in Y. z = (x,y)\\}$$", theorem_type="Definition")
         self.refine_text(cart_prod_def, "$$X \\times Y := \\{z \\in \\mathcal{P}(\\mathcal{P}(X \\cup Y)) : \\exists x \\in X, y \\in Y. z = (x,y)\\}$$", theorem_type="Definition")
+        self.wait()
         self.play(FadeOutAndShift(cart_prod_def, UP))
         self.wait()
 
@@ -924,6 +1024,7 @@ class SetTheoryAxioms(Scene):
 
         pset2.scale_elements_only(2)
         self.play(ApplyMethod(pset2.scale, 0.5))
+        self.play(*pset2.reposition_elements())
         self.wait()
 
         cart_prod_def = self.write_theorem("$$X \\times Y := \\{z \\in \\mathcal{P}(\\mathcal{P}(X \\cup Y)) : \\exists x \\in X, y \\in Y. z = (x,y)\\}$$", theorem_type=None)
@@ -962,7 +1063,7 @@ class SetTheoryAxioms(Scene):
         self.wait()
 
     def prove_union_two_sets(self):
-        union_two = self.introduce_theorem("The union of any two sets $A$ and $B$, written $A \\cup B$, \\\\ is a set.")
+        union_two = self.introduce_theorem("The union of any two sets $A$ and $B$, $A \\cup B$, \\\\ is a set.")
         set_a = Set(color=RED)
         set_b = Set(color=BLUE)
 
@@ -1003,7 +1104,7 @@ class SetTheoryAxioms(Scene):
         with open('formal_proof.txt') as f:
             contents = f.read()
 
-        empty_set_exists = self.introduce_theorem("The empty set exists; that is, $\\exists X. \\forall y. \\lnot(y \\in x)$")
+        empty_set_exists = self.introduce_theorem("The empty set exists.")
         self.wait()
 
         t = TexMobject(contents)
@@ -1268,7 +1369,7 @@ class SetTheoryAxioms(Scene):
         self.play(*ax0_set.reposition_elements())
         return ax0_set
 
-    def comprehension(self, set_x, pred, new_name=None):
+    def comprehension(self, set_x, pred, new_name=None, animate_choices=True):
         anims = []
         to_fade = []
         to_remove = []
@@ -1281,9 +1382,6 @@ class SetTheoryAxioms(Scene):
             varphi = TexMobject("\\varphi(")
             close_paren = TexMobject(")")
 
-            to_fade.append(varphi)
-            to_fade.append(close_paren)
-
             varphi.next_to(elem, 0.1*LEFT)
             close_paren.next_to(elem, 0.1*RIGHT)
 
@@ -1295,11 +1393,16 @@ class SetTheoryAxioms(Scene):
                 close_paren.set_color(RED)
                 to_remove.append(elem)
 
-            anims.append(Write(varphi))
-            anims.append(Write(close_paren))
+            if animate_choices:
+                to_fade.append(varphi)
+                to_fade.append(close_paren)
 
-        self.play(*anims)
-        self.wait()
+                anims.append(Write(varphi))
+                anims.append(Write(close_paren))
+
+        if animate_choices:
+            self.play(*anims)
+            self.wait()
 
         for elem in to_remove:
             set_x.remove_element(elem)
@@ -1312,7 +1415,6 @@ class SetTheoryAxioms(Scene):
         self.wait()
 
         self.play(*set_x.reposition_elements(evenly=0.7))
-
         set_x.ready_elements()
 
     def theorem_text(self, text, theorem_type="Theorem"):
@@ -1324,7 +1426,11 @@ class SetTheoryAxioms(Scene):
     def refine_text(self, old_text_obj, new_text, theorem_type=None, position=UP + LEFT):
         new_text_obj = self.theorem_text(new_text, theorem_type=theorem_type)
 
-        new_text_obj.to_corner(position)
+        if position is not None:
+            new_text_obj.to_corner(position)
+        else:
+            new_text_obj.move_to(old_text_obj)
+
         self.play(Transform(old_text_obj, new_text_obj))
         self.wait()
 
