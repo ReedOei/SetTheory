@@ -3,12 +3,23 @@
 from manimlib.imports import *
 
 import itertools as it
+import uuid
+
+LAVENDER_ISH = '#ADA6FF'
 
 # From: https://stackoverflow.com/a/1482316/1498618
 def powerset(iterable):
     "powerset([1,2,3]) --> () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"
     s = list(iterable)
     return list(it.chain.from_iterable(it.combinations(s, r) for r in range(len(s)+1)))
+
+# From: https://stackoverflow.com/a/5656097/1498618
+def intersperse(delim, iterable):
+    it = iter(iterable)
+    yield next(it)
+    for x in it:
+        yield delim
+        yield x
 
 class OrderedPair(VGroup):
     def __init__(self, items):
@@ -34,6 +45,8 @@ class OrderedPair(VGroup):
             item.anchor_to(self)
 
         self.arrange(RIGHT)
+
+        self.uuid = str(uuid.uuid4())
 
     def create(self):
         anims = []
@@ -110,6 +123,8 @@ class Element(SmallDot):
         self.speed = 0.9*np.mean(self.radii)
         self.dir = random.uniform(0, 2*PI)
         self.is_ready = True
+
+        self.uuid = str(uuid.uuid4())
 
     def ready(self, val=True):
         self.is_ready = val
@@ -191,6 +206,8 @@ class Set(VGroup):
         # NOTE: Currently unused.
         self.parent = None
 
+        self.uuid = str(uuid.uuid4())
+
     def to_fade(self):
         if self.name_obj is not None:
             return VGroup(self.name_obj, self.shape, *[e.to_fade() for e in self.elements])
@@ -216,19 +233,25 @@ class Set(VGroup):
 
     def change_name(self, new_name):
         anims = []
-        self.name_str = new_name
 
-        if self.name_obj is None:
-            self.name_obj = TexMobject(self.name_str)
-            self.name_obj.add_updater(lambda nm: nm.next_to(self.shape, DOWN))
-            self.name_obj.set_color(self.color)
-            anims.append(Write(self.name_obj))
+        if new_name is None:
+            if self.name_obj is not None:
+                anims.append(FadeOut(self.name_obj))
+                self.name_obj = None
         else:
-            new_name_obj = TexMobject(self.name_str)
-            new_name_obj.set_color(self.color)
-            new_name_obj.next_to(self.shape, DOWN)
+            self.name_str = new_name
 
-            anims.append(Transform(self.name_obj, new_name_obj))
+            if self.name_obj is None:
+                self.name_obj = TexMobject(self.name_str)
+                self.name_obj.add_updater(lambda nm: nm.next_to(self.shape, DOWN))
+                self.name_obj.set_color(self.color)
+                anims.append(Write(self.name_obj))
+            else:
+                new_name_obj = TexMobject(self.name_str)
+                new_name_obj.set_color(self.color)
+                new_name_obj.next_to(self.shape, DOWN)
+
+                anims.append(Transform(self.name_obj, new_name_obj))
 
         return anims
 
@@ -239,14 +262,7 @@ class Set(VGroup):
 
         if use_scaling:
             self.shape.scale(0.0005)
-
-            bigger_shape = copy.deepcopy(self.shape)
-            bigger_shape.scale(1 / 0.0005)
-
-            if adjustment is not None:
-                adjustment(bigger_shape)
-
-            anims.append(Transform(self.shape, bigger_shape))
+            anims.append(ApplyMethod(self.shape.scale, 1/0.0005))
         else:
             anims.append(ShowCreation(self.shape))
 
@@ -412,15 +428,79 @@ class Set(VGroup):
 
         return self
 
+    def __getitem__(self, key):
+        for e in self.get_elements():
+            if e.uuid == key:
+                return e
+
+        return None
+
+class Function:
+    def __init__(self, dom, codom, mapping, arrows=None):
+        self.dom = dom
+        self.codom = codom
+
+        if isinstance(mapping, dict):
+            self.mapping = mapping
+        else:
+            self.mapping = {}
+
+            for x in self.dom.get_elements():
+                self.mapping[x.uuid] = mapping(x).uuid
+
+        self.arrows = [] if arrows is None else arrows
+
+    def visualize_function(self, scene, slow_anim=False):
+        anims = []
+
+        arrows = []
+        for elem_x in self.dom.get_elements():
+            elem_y = self.codom[self.mapping[elem_x.uuid]]
+            arr = Arrow(elem_x, elem_y, stroke_width=2, tip_length=0.15)
+
+            # Need to do this because Python's scoping is absolute nonsense...
+            def f(x, y):
+                def g(self):
+                    return self.put_start_and_end_on(x.get_center(),y.get_center())
+                return g
+
+            arr.add_updater(f(elem_x, elem_y))
+            arrows.append(arr)
+
+            if slow_anim:
+                scene.play(ShowCreation(arr))
+            else:
+                anims.append(ShowCreation(arr))
+
+        if not slow_anim:
+            scene.play(*anims)
+
+        self.arrows = arrows
+
+        return self
+
+    def __getitem__(self, elem):
+        return self.codom[self.mapping[elem.uuid]]
+
+    def preimage_elem(self, elem):
+        for xid, yid in self.mapping.items():
+            if yid == elem.uuid:
+                return self.dom[xid]
+
+        return None
+
+    def to_fade(self):
+        return VGroup(*self.arrows)
+
 class SetTheoryAxioms(Scene):
     def construct(self):
-        # TODO: Look into better transformations between text so that only the changing things look like they change.
+        # # TODO: Look into better transformations between text so that only the changing things look like they change.
         # title = TextMobject("Set Theory")
         # self.play(Write(title))
         # self.wait()
         # self.play(FadeOut(title))
 
-        # TODO: Add some text highlighting stuff
+        # # TODO: Add some text highlighting stuff
         # self.show_axiom_existence()
         # self.show_axiom_extensionality()
         # self.show_axiom_pairing()
@@ -444,7 +524,125 @@ class SetTheoryAxioms(Scene):
         # self.relation_example_equality()
 
         # self.define_functions()
-        self.prove_set_of_functions_exists()
+        # self.function_examples()
+        # self.prove_set_of_functions_exists()
+
+        self.define_image()
+
+        # # TODO: Not sure when these actually need to be defined, it's sort of just extra terminology with no need for the moment.
+        # self.define_dom_codom()
+
+    def define_image(self):
+        image_def = self.introduce_theorem("The \\emph{image} of $f : X \\to Y$ on $A \\subseteq X$ is $$f(A) := \\{y \\in Y : \\exists a \\in A. f(a) = y \\}$$", theorem_type="Definition")
+        self.wait()
+
+        self.refine_text(image_def, "$f(A) := \\{y \\in Y : \\exists a \\in A. f(a) = y \\}$", theorem_type="Definition")
+        self.wait()
+
+        set_x = Set(name="X", color=GREEN)
+        set_y = Set(name="Y", color=WHITE)
+
+        self.play(*set_x.conjure(lambda s: s.move_to(2.5*LEFT).scale(2), element_num=8), *set_y.conjure(lambda s: s.move_to(2.5*RIGHT).scale(2), element_num=20))
+        self.play(*set_x.reposition_elements(), *set_y.reposition_elements())
+        self.wait()
+
+        func = self.arbitrary_function(set_x, set_y)
+        self.wait()
+
+        subset = random.sample(set_x.get_elements(), 4)
+        self.highlight_subset(subset, color=LAVENDER_ISH)
+
+        subset_im = [func[e] for e in subset]
+        self.highlight_subset(subset_im, color=YELLOW)
+
+        # NOTE: Have to include a phantom end curly bracket } for some reason. Unclear why....
+        dom_set = self.write_text_with_element(lambda it: it.to_corner(DOWN + LEFT), "$A = \\left\\{\\phantom{\\}}$", *intersperse("$,$", subset), "$\\phantom{\\{}\\right\\}$")
+        self.wait()
+
+        im_set = self.write_text_with_element(lambda it: it.to_corner(DOWN + RIGHT).shift(3*LEFT), "$f(A) = \\left\\{\\phantom{\\}}$", *intersperse("$,$", subset_im), "$\\phantom{\\{}\\right\\}$")
+        self.wait()
+
+        self.play(FadeOutAndShift(image_def, UP),
+                  FadeOut(set_x.to_fade()), FadeOut(set_y.to_fade()),
+                  FadeOutAndShift(dom_set, LEFT), FadeOutAndShift(im_set, RIGHT),
+                  FadeOut(func.to_fade()))
+        self.wait()
+
+        image_def = self.introduce_theorem("The \\emph{image} of $f : X \\to Y$ is $\\text{im}(f) := f(X)$", theorem_type="Definition")
+        self.wait()
+
+        set_x = Set(name="X", color=GREEN)
+        set_y = Set(name="Y", color=WHITE)
+
+        self.play(*set_x.conjure(lambda s: s.move_to(2.5*LEFT).scale(2), element_num=8), *set_y.conjure(lambda s: s.move_to(2.5*RIGHT).scale(2), element_num=20))
+        self.play(*set_x.reposition_elements(), *set_y.reposition_elements())
+        self.wait()
+
+        func = self.arbitrary_function(set_x, set_y)
+        self.wait()
+
+        subset = set_x.get_elements()
+        self.highlight_subset(subset, color=LAVENDER_ISH)
+
+        subset_im = [func[e] for e in subset]
+        self.highlight_subset(subset_im, color=YELLOW)
+
+        im_set = self.write_text_with_element(lambda it: it.to_edge(DOWN).shift(4*LEFT), "$\\text{im}(f) = f(X) = \\left\\{\\phantom{\\}}$", *intersperse("$,$", subset_im), "$\\phantom{\\{}\\right\\}$")
+        self.wait()
+
+        self.play(FadeOutAndShift(image_def, UP),
+                  FadeOut(set_x.to_fade()), FadeOut(set_y.to_fade()),
+                  FadeOutAndShift(im_set, DOWN),
+                  FadeOut(func.to_fade()))
+        self.wait()
+
+    def highlight_subset(self, subset, color=None):
+        anims = []
+        for elem in subset:
+            anims.append(ApplyMethod(elem.scale, 2))
+            elem.update_radii()
+        self.play(*anims)
+        self.wait()
+
+        if color is not None:
+            anims = []
+            for elem in subset:
+                anims.append(ApplyMethod(elem.set_color, color))
+            self.play(*anims)
+            self.wait()
+
+    def define_dom_codom(self):
+        dom_codom_def = self.introduce_theorem("Let $f$ be a function $X \\to Y$. \\\\ The set $X$ is the \\emph{domain} of $f$, and $Y$ is the \\emph{codomain} of $f$.", theorem_type="Definition")
+
+        set_x = Set(name="X", color=GREEN)
+        set_y = Set(name="Y", color=LAVENDER_ISH)
+
+        self.play(*set_x.conjure(lambda s: s.move_to(1.5*LEFT), element_num=20), *set_y.conjure(lambda s: s.move_to(1.5*RIGHT), element_num=6))
+        self.play(*set_x.reposition_elements(), *set_y.reposition_elements())
+        self.wait()
+
+        func = self.arbitrary_function(set_x, set_y)
+        self.wait()
+
+        dom_t = TextMobject("dom$(f) = $", "$X$")
+        dom_t[1].set_color(GREEN)
+        dom_t.next_to(set_x, DOWN)
+        dom_t.shift(DOWN + LEFT)
+        self.play(Write(dom_t))
+        self.wait()
+
+        codom_t = TextMobject("codom$(f) = $", "$Y$")
+        codom_t[1].set_color(LAVENDER_ISH)
+        codom_t.next_to(set_y, DOWN)
+        codom_t.shift(DOWN + RIGHT)
+        self.play(Write(codom_t))
+        self.wait()
+
+        self.play(FadeOutAndShift(dom_codom_def, UP),
+                  FadeOutAndShift(dom_t, LEFT), FadeOutAndShift(codom_t, RIGHT),
+                  FadeOut(set_x.to_fade()), FadeOut(set_y.to_fade()),
+                  FadeOut(func.to_fade()))
+        self.wait()
 
     def prove_set_of_functions_exists(self):
         func_set_def = self.introduce_theorem("$Y^X$ is the set of functions from $X$ to $Y$.", theorem_type="Definition")
@@ -458,6 +656,150 @@ class SetTheoryAxioms(Scene):
 
         self.refine_text(func_set_formal_def, "$$Y^X := \\{ f \\in \\mathcal{P}(X \\times Y) : f \\text{ is a function} \\}$$", theorem_type=None, position=None)
         self.wait()
+
+        self.play(FadeOutAndShift(func_set_def, UP), FadeOutAndShift(func_set_formal_def, LEFT))
+        self.wait()
+
+        set_x = Set(name="X", color=GREEN)
+        set_y = Set(name="Y", color=WHITE)
+
+        self.play(*set_x.conjure(lambda s: s.move_to(1.5*LEFT).scale(0.16), element_num=2), *set_y.conjure(lambda s: s.move_to(1.5*RIGHT).scale(0.16), element_num=4))
+        self.play(*set_x.reposition_elements(), *set_y.reposition_elements())
+        self.wait()
+
+        self.play(ApplyMethod(set_x.shift, 4.5*LEFT), ApplyMethod(set_y.shift, 4.5*RIGHT))
+        self.wait()
+
+        arrows = []
+        all_sets = []
+
+        output_tuples = list(it.product(*[set_y.get_elements() for i in set_x.get_elements()]))
+        for i, output in enumerate(output_tuples):
+            new_set_x = self.copy_set(set_x)
+            new_set_y = self.copy_set(set_y)
+
+            r = 2.7
+            theta = i * 2*PI / len(output_tuples)
+
+            pos = r * np.array([math.cos(theta), math.sin(theta), 0])
+
+            self.play(ApplyMethod(new_set_x.move_to, pos + 0.3*LEFT),
+                      ApplyMethod(new_set_y.move_to, pos + 0.3*RIGHT),
+                      *new_set_x.change_name(None),
+                      *new_set_y.change_name(None))
+
+            func = Function(new_set_x, new_set_y, lambda x: new_set_y[output[new_set_x.get_elements().index(x)].uuid]).visualize_function(self)
+            arrows.extend(func.to_fade())
+            all_sets.append(new_set_x)
+            all_sets.append(new_set_y)
+        self.wait()
+
+        func_set = self.pair(all_sets, name="Y^X")
+        self.wait()
+
+        self.play(FadeOut(func_set.to_fade()), FadeOut(set_x.to_fade()), FadeOut(set_y.to_fade()),
+                  *[FadeOut(arr) for arr in arrows])
+        self.wait()
+
+    def function_examples(self):
+        id_function_example = self.introduce_theorem("The \\emph{identity function on $X$}, $\\mathbf{1}_X : X \\to X$, is \\\\ defined by $x \\mapsto x$", theorem_type="Example")
+        self.wait()
+
+        set_x = Set(name="X")
+        set_y = Set(name="X")
+
+        self.play(*set_x.conjure(lambda s: s.move_to(1.5*LEFT), element_colors=[RED,GREEN,BLUE,PURPLE]), *set_y.conjure(lambda s: s.move_to(1.5*RIGHT), element_colors=[RED,GREEN,BLUE,PURPLE]))
+        self.play(*set_x.reposition_elements(), *set_y.reposition_elements())
+        self.wait()
+
+        self.play(ApplyMethod(set_x.shift, 4.5*LEFT), ApplyMethod(set_y.shift, 4.5*RIGHT))
+        set_x.scale_elements_only(1/0.3)
+        set_y.scale_elements_only(1/0.3)
+        self.play(ApplyMethod(set_x.scale, 0.3), ApplyMethod(set_y.scale, 0.3))
+        self.play(*set_x.reposition_elements(), *set_y.reposition_elements())
+        self.wait()
+
+        prod = self.build_cartesian_product([set_x, set_y], name="X \\times X", slow_anim=False, width=5, height=3.8)
+        self.wait()
+
+        self.comprehension(prod, lambda pair: pair.get_item(0).color == pair.get_item(1).color, new_name="\\mathbf{1}_X", animate_choices=False)
+        self.wait()
+
+        self.play(FadeOut(prod.to_fade()))
+        self.wait()
+
+        set_x.ready_elements()
+        set_y.ready_elements()
+
+        self.play(ApplyMethod(set_x.shift, 4.5*RIGHT), ApplyMethod(set_y.shift, 4.5*LEFT))
+        set_x.scale_elements_only(0.3)
+        set_y.scale_elements_only(0.3)
+        self.play(ApplyMethod(set_x.scale, 1/0.3), ApplyMethod(set_y.scale, 1/0.3))
+        set_x.update_radii()
+        set_y.update_radii()
+        self.wait()
+
+        func = Function(set_x, set_y, lambda x: [elem for elem in set_y.get_elements() if elem.color == x.color][0]).visualize_function(self, slow_anim=True)
+        self.wait()
+
+        self.play(FadeOutAndShift(id_function_example, UP),
+                  FadeOut(set_x.to_fade()), FadeOut(set_y.to_fade()),
+                  FadeOut(func.to_fade()))
+        self.wait()
+
+        constant_func_def = self.introduce_theorem("A \\emph{constant function} is a function mapping every \\\\ element to the same output.", theorem_type="Definition")
+        self.wait()
+
+        self.play(FadeOutAndShift(constant_func_def, UP))
+        self.wait()
+
+        constant_func_ex = self.introduce_theorem("Let $x_0 \\in X$, and let $f : X \\to X$ be the constant \\\\ function given by $x \\mapsto x_0$", theorem_type="Example")
+        self.wait()
+
+        set_x = Set(name="X")
+        set_y = Set(name="X")
+
+        self.play(*set_x.conjure(lambda s: s.move_to(1.5*LEFT), element_colors=[WHITE,WHITE,WHITE,WHITE,WHITE,WHITE,GREEN]),
+                  *set_y.conjure(lambda s: s.move_to(1.5*RIGHT), element_colors=[WHITE,WHITE,WHITE,WHITE,WHITE,WHITE,GREEN]))
+        self.play(*set_x.reposition_elements(), *set_y.reposition_elements())
+        self.wait()
+
+        func = Function(set_x, set_y, lambda x: [elem for elem in set_y.get_elements() if elem.color == GREEN][0]).visualize_function(self, slow_anim=True)
+        self.wait()
+
+        self.play(FadeOutAndShift(constant_func_ex, UP), FadeOut(set_x.to_fade()), FadeOut(set_y.to_fade()),
+                  FadeOut(func.to_fade()))
+        self.wait()
+
+    def arbitrary_function(self, dom, codom, is_injective=False, is_surjective=False):
+        func = {}
+        # Copy so we don't accidentally modify codom's elements.
+        available = list(codom.get_elements())
+
+        for x in dom.get_elements():
+            # NOTE: We also take this path when the function is bijective
+            if is_injective:
+                if len(available) == 0:
+                    raise Exception('Cannot build injective function from {} to {}: not enough elements in the codomain'.format(dom.get_elements(), codom.get_elements()))
+
+                y = random.choice(available)
+                available.remove(y)
+            elif is_surjective:
+                if len(available) == 0:
+                    y = random.choice(codom.get_elements())
+                else:
+                    y = random.choice(available)
+
+                available.remove(y)
+            else:
+                y = random.choice(codom.get_elements())
+
+            func[x.uuid] = y.uuid
+
+        if is_surjective and len(available) > 0:
+            raise Exception('Cannot build surjective function from {} to {}: not enough elements in the domain'.format(dom.get_elements(), codom.get_elements()))
+
+        return Function(dom, codom, func).visualize_function(self)
 
     def define_functions(self):
         func_def = self.introduce_theorem("A relation $f$ between $X$ and $Y$ is called \\\\ a \\emph{function}, written $f : X \\to Y$, when every \\\\ $x \\in X$ is related (by $f$) to exactly one $y \\in Y$.", theorem_type="Definition")
@@ -906,14 +1248,14 @@ class SetTheoryAxioms(Scene):
                   FadeOut(set_a.to_fade()), FadeOut(set_b.to_fade()))
         self.wait()
 
-    def build_cartesian_product(self, sets, name=None, slow_anim=False):
+    def build_cartesian_product(self, sets, name=None, slow_anim=False, width=7, height=6):
         tuples = []
         # TODO: Add a slow_anim version that builds them and sends the elements flying into the ordered pairs
         for items in it.product(*[s.get_elements() for s in sets]):
             pair = OrderedPair(items)
             tuples.append(pair)
 
-        prod = self.pair(tuples, name=name, height_padding=6, width_padding=7)
+        prod = self.pair(tuples, name=name, height_padding=height, width_padding=width)
         scaling = PI*np.mean([prod.get_width(), prod.get_height()]) / (1.8 * tuples[0].get_width() * len(tuples))
         for pair in tuples:
             pair.scale_elements_only(1/scaling)
@@ -1421,7 +1763,7 @@ class SetTheoryAxioms(Scene):
         if theorem_type is None:
             return TextMobject(text)
         else:
-            return TextMobject("\\textbf{{\\underline{{{}}}}}: {}".format(theorem_type, text))
+            return TextMobject("\\textbf{{\\underline{{{}}}}}: ".format(theorem_type), text)
 
     def refine_text(self, old_text_obj, new_text, theorem_type=None, position=UP + LEFT):
         new_text_obj = self.theorem_text(new_text, theorem_type=theorem_type)
