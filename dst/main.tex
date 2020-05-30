@@ -1,0 +1,105 @@
+\documentclass[10pt]{article}
+
+\usepackage{amsmath}
+\usepackage{sagetex}
+\usepackage{hyperref}
+\usepackage{tikz-cd}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{bm}
+\usepackage{listings}
+\usepackage{bbm}
+\usepackage{multicol}
+\usepackage{mathtools}
+\usepackage{mathpartir}
+\usepackage{float}
+\usepackage{enumitem}
+\usepackage[margin=1.25in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{kpfonts}
+
+\input{../../../Reed/School/LaTeX/macros.tex}
+\input{../../../Reed/School/LaTeX/lemmas.tex}
+
+\begin{document}
+
+\begin{itemize}
+    \item[] Reed Oei
+    \item[] reedoei2
+\end{itemize}
+
+We write $A \subseteq_c B$ and $B \supseteq_c A$ to mean that $\closure{A} \subseteq B$.
+
+Define the \emph{Banach-Mazur} game $G^{**}(A)$ as follows for a subset $A$ of a Polish space $X$.
+Let $\mathcal{W}$ be a countable weak basis for $X$, i.e., a countable collection of nonempty open sets such that every nonempty open set $U \subseteq X$ contains at least one $W \in \mathcal{W}$.
+The a run of the Banach-Mazur game is a sequence $(U_0, V_0, U_1, V_1, \ldots)$ such that:
+\begin{enumerate}[label=(\roman*)]
+    \item $U_n, V_n \in \mathcal{W}$ for all $n$
+    \item $\diam{U_n} < 1/n$ and $\diam{W_n} < 1/n$ for all $n$
+    \item $U_0 \supseteq_c V_0 \supseteq_c U_1 \supseteq_c U_1 \supseteq_c V_1 \supseteq_c \ldots$
+\end{enumerate}
+Let $x \in X$ be such that $\curlys{x} = \bigcap_n \overline{U_n} = \bigcap_n \overline{V_n}$.
+Then Player I wins if and only if $x \in A$.
+
+\begin{proposition}\label{prop:forces-baire-meas}
+    Let $X$ be a Baire space, and let $U \subseteq X$ be a nonempty open set.
+    Let $A$ and $B$ be subsets of $X$.
+    If $U \forces A$, and $A \forces B$, then $U \forces B$.
+\end{proposition}
+\begin{proof}
+    We have both $U \setminus A$ and $A \setminus B$ are meager.
+    Suppose that $U \setminus B$ is not meager.
+    Then by the Baire alternative, there is some nonempty open set $V \subseteq X$ such that $V \forces (U \setminus B)$.
+    So then $V \setminus (U \setminus B) = (V \setminus U) \cup (V \cap B)$ is meager, so in particular, $V \cap B$ is meager.
+    But then $B$ is meager, so $A$ must also be meager (recall $A \setminus B$ is meager), and similarly $U$ must be meager.
+
+    But $X$ is a Baire space, and $U$ is a nonempty open set, so $U$ is nonmeager, and this is a contradiction.
+    So then $U \setminus B$ must be meager, and $U \forces B$, as desired.
+\end{proof}
+
+\begin{proposition}\label{prop:weak-basis-forces}
+    Let $X$ be a Baire space, let $A_n \subseteq X$ be Baire measurable sets, and let $U \subseteq X$ be some nonempty open set.
+    Then
+    \[
+        U \forces \bigcup_n A_n \iff \forall V \subseteq U \exists W \subseteq V \exists n (W \forces A_n)
+    \]
+    where $V$ and $W$ vary over some weak basis $\mathcal{W}$ for $X$.
+\end{proposition}
+\begin{proof}
+    $(\implies):$ Suppose that $U \forces \bigcup_n A_n$.
+    Let $V \subseteq U$ such that $V \in \mathcal{W}$.
+    Because each $A_n$ is Baire measurable, there is some open set $U_n$ such that $A_n =^* U_n$.
+    Because $V \subseteq U$, we have $V \forces \bigcup_n A_n$, and so then $V \forces \bigcup_n U_n$ by Proposition~\ref{prop:forces-baire-meas}.
+    That is, $V \setminus (\bigcup_n U_n)$ is meager.
+    But $V$ is a nonempty open set in a Baire space, so it is nonmeager.
+    So then for some $U_n$, we must have $V \cap U_n \neq \emptyset$.
+    Taking this $U_n$, because $V \cap U_n$ is nonempty and open, there is some $W \in \mathcal{W}$ such that $W \subseteq V \cap U_n$ and $W \forces A_n$, as required.
+
+    ($\impliedby$): \reed{TODO, but actually I only need the one direction sufficient for it's use below}
+\end{proof}
+
+\begin{proposition}[Exercise 79]
+    Let $X$ be a Polish space, $F \subseteq X \times \N^{\N}$ a closed set, and $A = \proj{X}(F)$.
+        If Player II has a winning strategy in the Banach-Mazur game $G^{**}(F,X)$, then $A$ is meager.
+\end{proposition}
+\begin{proof}
+    First, note that $A$ is analytic, and so it is universally measurable, and in particular, Baire measurable.
+
+    Suppose that Player II has a winning strategy, but $A$ is not meager.
+    Then because $X$ is a Polish space, it is also a Baire space, so there is some nonempty open set $U \subseteq X$ such that $U \forces A$.
+
+    Let $U_0 \subseteq U$ be some nonempty open set in $\mathcal{W}$.
+    Then $U_0 \forces A$ as well.
+    Player II will pick some set $V_0 \subseteq_c U_0$.
+    But because $U_0 \forces A$ and $V_0 \subseteq U_0$, we know that there is some set $U_1 \subseteq V_0$ such that $U_1 \forces A$ by Proposition~\ref{prop:weak-basis-forces}.
+    Clearly we can pick $U_1 \subseteq V_0$ such that $\diam{U_1} < 1/n$ and $U_1 \subseteq_c V_0$, because $X$ is metrizable.
+    Then simply repeat this process to build the whole run of the game.
+
+    Each $U_i$ is nonempty and open, so they are all nonmeager because $X$ is a Baire space.
+    Then because each $U_i \forces A$, that is, $U_i \setminus A$ is meager, we must have $U_i \cap A \neq \emptyset$ (in fact, it must be nonmeager), so then the $x \in X$ such that $\curlys{x} = \bigcap_n \overline{U_n}$ must also be $x \in A$.
+    But then Player I wins, contradicting that Player II has a winning strategy.
+    So it must be that $A$ is meager.
+\end{proof}
+
+\end{document}
+
