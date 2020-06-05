@@ -482,12 +482,13 @@ class Function:
     def __getitem__(self, elem):
         return self.codom[self.mapping[elem.uuid]]
 
-    def preimage_elem(self, elem):
+    def preimage(self, elem):
+        res = []
         for xid, yid in self.mapping.items():
             if yid == elem.uuid:
-                return self.dom[xid]
+                res.append(self.dom[xid])
 
-        return None
+        return res
 
     def to_fade(self):
         return VGroup(*self.arrows)
@@ -527,10 +528,125 @@ class SetTheoryAxioms(Scene):
         # self.function_examples()
         # self.prove_set_of_functions_exists()
 
-        self.define_image()
+        # self.define_image()
 
-        # # TODO: Not sure when these actually need to be defined, it's sort of just extra terminology with no need for the moment.
+        # self.define_onto()
+        # self.define_one_to_one()
+
+        # self.define_bijective()
+
+        # TODO: Some animations looking at comparing the sizes of finite sets (because we don't even know if infinite sets exist yet)
+
+        # TODO: Should we use theorem_type="Definition" or theorem_type=None by default for definitions?
+
+        self.define_successor()
+
+        # self.axiom_infinity()
+
+        # TODO: Not sure when these actually need to be defined, it's sort of just extra terminology with no need for the moment.
         # self.define_dom_codom()
+
+    def define_successor(self):
+        successor_def = self.introduce_theorem("The \\emph{successor} of a set $X$ is $\\mathcal{S}(X) := X \\cup \\{ X \\}$", theorem_type="Def.")
+        self.wait()
+
+    def define_onto(self):
+        onto_def = self.introduce_theorem("$f : X \\to Y$ is \\emph{onto} if its image is $Y$.", theorem_type="Definition")
+        self.wait()
+
+        set_x = Set(name="X", color=GREEN)
+        set_y = Set(name="Y", color=WHITE)
+
+        self.play(*set_x.conjure(lambda s: s.move_to(2.5*LEFT).scale(2), element_num=10), *set_y.conjure(lambda s: s.move_to(2.5*RIGHT).scale(2), element_num=6))
+        self.play(*set_x.reposition_elements(), *set_y.reposition_elements())
+        self.wait()
+
+        func = self.arbitrary_function(set_x, set_y, is_onto=True)
+        self.wait(2)
+
+        for y in set_y.get_elements():
+            xs = func.preimage(y)
+            self.play(*[ApplyMethod(x.scale, 3) for x in xs], ApplyMethod(y.scale, 3))
+            for x in xs:
+                x.update_radii()
+            y.update_radii()
+            self.play(*[ApplyMethod(x.set_color, LAVENDER_ISH) for x in xs], ApplyMethod(y.set_color, YELLOW))
+            self.wait()
+
+            self.play(*[ApplyMethod(x.set_color, GREEN) for x in xs], ApplyMethod(y.set_color, WHITE))
+            self.play(*[ApplyMethod(x.scale, 1/3) for x in xs], ApplyMethod(y.scale, 1/3))
+            for x in xs:
+                x.update_radii()
+            y.update_radii()
+
+        self.play(FadeOutAndShift(onto_def, UP),
+                  FadeOut(set_x.to_fade()), FadeOut(set_y.to_fade()),
+                  FadeOut(func.to_fade()))
+        self.wait()
+
+    def define_one_to_one(self):
+        one_to_one_def = self.introduce_theorem("$f : X \\to Y$ is \\emph{one-to-one} if distinct elements are \\\\ mapped to distinct elements.", theorem_type="Definition")
+        self.wait()
+
+        self.refine_text(one_to_one_def, "$f : X \\to Y$ is \\emph{one-to-one} if whenever $x \\neq y$, \\\\ then $f(x) \\neq f(y)$.", theorem_type="Definition")
+        self.wait()
+
+        self.refine_text(one_to_one_def, "$f : X \\to Y$ is \\emph{one-to-one} if $f(x) = f(y)$ only when $x = y$.", theorem_type=None)
+        self.wait()
+
+        set_x = Set(name="X", color=GREEN)
+        set_y = Set(name="Y", color=WHITE)
+
+        self.play(*set_x.conjure(lambda s: s.move_to(2.5*LEFT).scale(2), element_num=3), *set_y.conjure(lambda s: s.move_to(2.5*RIGHT).scale(2), element_num=6))
+        self.play(*set_x.reposition_elements(), *set_y.reposition_elements())
+        self.wait()
+
+        func = self.arbitrary_function(set_x, set_y, is_one_to_one=True)
+        self.wait()
+
+        self.play(FadeOutAndShift(one_to_one_def, UP),
+                  FadeOut(set_x.to_fade()), FadeOut(set_y.to_fade()),
+                  FadeOut(func.to_fade()))
+        self.wait()
+
+    def define_bijective(self):
+        bij_def = self.introduce_theorem("$f : X \\to Y$ is \\emph{bijective} if it is one-to-one and onto.", theorem_type="Definition")
+        self.wait()
+
+        set_x = Set(name="X", color=GREEN)
+        set_y = Set(name="Y", color=WHITE)
+
+        self.play(*set_x.conjure(lambda s: s.move_to(2.5*LEFT).scale(2), element_num=6), *set_y.conjure(lambda s: s.move_to(2.5*RIGHT).scale(2), element_num=6))
+        self.play(*set_x.reposition_elements(), *set_y.reposition_elements())
+        self.wait()
+
+        func = self.arbitrary_function(set_x, set_y, is_one_to_one=True, is_onto=True)
+        self.wait(2)
+
+        set_x.unready_elements()
+        set_y.unready_elements()
+        self.play(*set_x.reposition_elements(evenly=0.7), *set_y.reposition_elements(evenly=0.7))
+        self.wait()
+
+        for y in set_y.get_elements():
+            xs = func.preimage(y)
+            self.play(*[ApplyMethod(x.scale, 3) for x in xs], ApplyMethod(y.scale, 3))
+            for x in xs:
+                x.update_radii()
+            y.update_radii()
+            self.play(*[ApplyMethod(x.set_color, LAVENDER_ISH) for x in xs], ApplyMethod(y.set_color, YELLOW))
+            self.wait()
+
+            self.play(*[ApplyMethod(x.set_color, GREEN) for x in xs], ApplyMethod(y.set_color, WHITE))
+            self.play(*[ApplyMethod(x.scale, 1/3) for x in xs], ApplyMethod(y.scale, 1/3))
+            for x in xs:
+                x.update_radii()
+            y.update_radii()
+
+        self.play(FadeOutAndShift(bij_def, UP),
+                  FadeOut(set_x.to_fade()), FadeOut(set_y.to_fade()),
+                  FadeOut(func.to_fade()))
+        self.wait()
 
     def define_image(self):
         image_def = self.introduce_theorem("The \\emph{image} of $f : X \\to Y$ on $A \\subseteq X$ is $$f(A) := \\{y \\in Y : \\exists a \\in A. f(a) = y \\}$$", theorem_type="Definition")
@@ -771,33 +887,32 @@ class SetTheoryAxioms(Scene):
                   FadeOut(func.to_fade()))
         self.wait()
 
-    def arbitrary_function(self, dom, codom, is_injective=False, is_surjective=False):
+    def arbitrary_function(self, dom, codom, is_one_to_one=False, is_onto=False):
         func = {}
         # Copy so we don't accidentally modify codom's elements.
         available = list(codom.get_elements())
 
         for x in dom.get_elements():
             # NOTE: We also take this path when the function is bijective
-            if is_injective:
+            if is_one_to_one:
                 if len(available) == 0:
-                    raise Exception('Cannot build injective function from {} to {}: not enough elements in the codomain'.format(dom.get_elements(), codom.get_elements()))
+                    raise Exception('Cannot build one-to-one function from {} to {}: not enough elements in the codomain'.format(dom.get_elements(), codom.get_elements()))
 
                 y = random.choice(available)
                 available.remove(y)
-            elif is_surjective:
+            elif is_onto:
                 if len(available) == 0:
                     y = random.choice(codom.get_elements())
                 else:
                     y = random.choice(available)
-
-                available.remove(y)
+                    available.remove(y)
             else:
                 y = random.choice(codom.get_elements())
 
             func[x.uuid] = y.uuid
 
-        if is_surjective and len(available) > 0:
-            raise Exception('Cannot build surjective function from {} to {}: not enough elements in the domain'.format(dom.get_elements(), codom.get_elements()))
+        if is_onto and len(available) > 0:
+            raise Exception('Cannot build onto function from {} to {}: not enough elements in the domain'.format(dom.get_elements(), codom.get_elements()))
 
         return Function(dom, codom, func).visualize_function(self)
 

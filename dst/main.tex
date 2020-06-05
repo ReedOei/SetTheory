@@ -28,6 +28,82 @@
     \item[] reedoei2
 \end{itemize}
 
+\begin{definition}
+    Let $\alpha$ and $\gamma$ be ordinals.
+    A sequence of sets $(A_{\alpha})_{\alpha < \gamma}$ is called \emph{monotone} if it is increasing (i.e., if $\alpha < \beta$, then $A_{\alpha} \subseteq A_{\beta}$ for all $\alpha, \beta < \gamma$) or decreasing; it is called \emph{strictly monontone} if it is strictly increasing or strictly decreasing.
+\end{definition}
+
+\begin{proposition}[Exercise 1]
+    Let $X$ be a second-countable topological space and let $\alpha$ and $\gamma$ be ordinals.
+    Then
+    \begin{enumerate}[label=(\alph*)]
+        \item $X$ has at most continuum-many open (resp. closed) sets.
+        \item Any strictly monotone sequence $(U_{\alpha})_{\alpha < \gamma}$ of open (resp. closed) subsets of $X$ has countable length; that is, $\gamma$ is countable.
+        \item Every montone sequence $(U_\alpha)_{\alpha < \omega_1}$ of open (resp. closed) subsets of $X$ eventually stabilizes; that is, there is some $\gamma < \omega_1$ such that for all ordinals $\alpha$ with $\gamma \leq \alpha < \omega_1$, we have $U_{\alpha} = U_{\gamma}$.
+    \end{enumerate}
+\end{proposition}
+\begin{proof}
+    Let $\mathcal{T}$ be the topology of $X$; because $X$ is second-countable, it has a countable basis $\mathcal{B}$.
+    Then $\mathcal{T} \subseteq \setbuild{\bigcup A}{A \subseteq \mathcal{B}}$, so $|\mathcal{T}| \leq |2^{\mathcal{B}}| \leq |2^{\N}|$, as desired.
+    Similarly, because each closed set is the complement of an open set (a bijection), there are at most continuum-many closed sets.
+
+    Now let $(U_{\alpha})_{\alpha < \gamma}$ be a strictly monotone sequence of open subsets of $X$.
+    Then every $U_{\alpha} = \bigcup A_{\alpha}$ for some $A_{\alpha} \subseteq \mathcal{B}$.
+    Because $(U_{\alpha})_{\alpha < \gamma}$ is a strictly monotone, we must have either $U_{\alpha} \subsetneq U_{\beta}$ or $U_{\beta} \subsetneq U_{\alpha}$ for all $\alpha < \beta < \gamma$.
+    We only consider the first case, because the second is very similar.
+    Let $\alpha < \beta < \gamma$, so then we have $|A_{\alpha}| < |A_{\beta}|$.
+    But because $\mathcal{B}$ is countable, we can only have countably many increases in the size of $A_{\alpha}$.
+    But because these sets are in a bijection with the sets $U_{\alpha}$, there must only be countably many sets in the sequence $(U_{\alpha})_{\alpha < \gamma}$, as desired.
+    Similarly, any strictly montone sequence of closed sets $(F_{\alpha})_{\alpha < \gamma}$ would give us a corresponding strictly monotone sequence of open sets $(F_{\alpha}^c)_{\alpha < \gamma}$, which must be of countable length by the previous argument.
+
+    Finally, let $(V_{\alpha})_{\alpha < \omega_1}$ be a monotone sequence of open subsets of $X$.
+    Again, we only consider the increasing case, because the decreasing case is very similar.
+    Let $B_{\alpha} \subseteq \mathcal{B}$ such that $V_{\alpha} = \bigcup B_{\alpha}$; similarly, the sequence $(B_{\alpha})_{\alpha < \omega_1}$ must only increase in size countably many times.
+    Then let $\gamma = \sup \setbuild{\alpha < \omega_1}{\exists \beta < \omega_1. B_{\alpha} \subsetneq B_{\beta}}$ be the supremum of such indexes where the sequence increases, which is countable by the regularity of $\omega_1$.
+    Then for any $\alpha$ with $\gamma \leq \alpha < \omega_1$, we have
+    \[
+        U_{\alpha} = \bigcup B_{\alpha} = \bigcup B_{\gamma} = U_{\beta}
+    \]
+    Then considering a similar monotone sequence of closed subsets of $X$, we again construct a monotone sequence of open sets and apply the above argument.
+\end{proof}
+
+\begin{proposition}[Exercise 2 Remark]
+    Any first-countable separable Hausdorff topological space  $X$ has cardinality at most continuum, but this fails when we drop the requirement that $X$ be first-countable.
+\end{proposition}
+\begin{proof}
+    \reed{TODO}
+\end{proof}
+
+\begin{proposition}[Exercise 3]
+    Let $X$ be a topological space.
+    Consider the following statements
+    \begin{enumerate}
+        \item $X$ is a totally bounded metric space.
+        \item $X$ is a separable metric space.
+        \item $X$ is second countable.
+        \item $X$ is Lindel\"of; i.e., every open cover has a countable subcover.
+    \end{enumerate}
+    Then have (1) $\implies$ (2) $\implies$ (3) $\implies$ (4).
+\end{proposition}
+\begin{proof}
+    (1) $\implies$ (2): As $X$ totally bounded, let $F_{\epsilon}$ be a finite $\epsilon$-net of $X$.
+    Then define $\mathcal{D} := \bigcup_{n \in \N} F_{1/n}$, which is a countable set.
+    We wish to show it is dense, so let $U$ be a nonempty open subset of $X$.
+    Let $n \in \N$ be such that $\frac{1}{n} < \diam{U}$.
+    Then because $X \subseteq B(F_{1/n}, 1/n)$ there must be some $x \in F_{1/n}$ such that $B(x, 1/n) \cap U \neq \emptyset$.
+    But then $x \in U$, so $\mathcal{D}$ is a countable dense subset, as required.
+
+    (2) $\implies$ (3): Let $\mathcal{D} \subseteq X$ be a countable dense subset of $X$.
+    Define $\mathcal{B} := \setbuild{B(x, 1/n)}{x \in \mathcal{D}, n \in \N}$.
+    Now, suppose that $U \subseteq X$ is an open set.
+    Then for every $x \in U$, there is some $n_x \in \N$ so that $B(x,1/n) \subseteq U$, and therefore $U = \bigcup_{x \in U} B(x, 1/n_x)$ and each $B(x, 1/n_x) \in \mathcal{B}$.
+    So then $\mathcal{B}$ is a countable basis, as desired.
+
+    (3) $\implies$ (4): Let $\mathcal{B}$ be a countable basis for $X$.
+    Let $\mathcal{V}$ be an open cover of $X$, so $X = \bigcup \mathcal{V}$.
+    For each $U \in \mathcal{B}$, pick some $V_U$ such that $U \subseteq V_U$, and define $\mathcal{U} := \setbuild{V_U}{U \in \mathcal{B}}$, which is a countable subcover of $\mathcal{V}$, as desired.
+\end{proof}
+
 We write $A \subseteq_c B$ and $B \supseteq_c A$ to mean that $\closure{A} \subseteq B$.
 
 Define the \emph{Banach-Mazur} game $G^{**}(A)$ as follows for a subset $A$ of a Polish space $X$.
@@ -99,6 +175,44 @@ Then Player I wins if and only if $x \in A$.
     Then because each $U_i \forces A$, that is, $U_i \setminus A$ is meager, we must have $U_i \cap A \neq \emptyset$ (in fact, it must be nonmeager), so then the $x \in X$ such that $\curlys{x} = \bigcap_n \overline{U_n}$ must also be $x \in A$.
     But then Player I wins, contradicting that Player II has a winning strategy.
     So it must be that $A$ is meager.
+\end{proof}
+
+\begin{lemma}
+    Let $X$ and $Y$ be Polish spaces.
+    If $f : X \to Y$ is universally measurable and $B \subseteq Y$ is Borel, then $f^{-1}(B)$ is universally measurable.
+\end{lemma}
+\begin{proof}
+    This is obviously true for open sets, by the definition of a universally measurable function.
+    If the $f$-preimage of some subset $A$ of $X$ is universally measurable, then the $f$-preimage of $A^c$ will also be universally measurable because universally measurable sets form a $\sigma$-algebra.
+    Similarly, for a family of subsets $A_n$ of $X$ such that $f^{-1}(A_n)$ is universally measurable, the preimage $f^{-1}\parens{\bigcup_n A_n} = \bigcup_n f^{-1}(A_n)$ will also be universally measurable.
+    So then the sets for which $f^{-1}(A)$ is universally measurable is a $\sigma$-algebra containing the open sets, and so contains every Borel set.
+\end{proof}
+
+\begin{lemma}
+    Let $X$ and $Y$ be Polish spaces.
+    If $f : X \to Y$ is universally measurable and $\mu$ is a $\sigma$-finite Borel measure on $X$, then the pushforward measure $f_* \mu$ is a $\sigma$-finite Borel measure on $Y$.
+\end{lemma}
+\begin{proof}
+    Because $\mu$ is $\sigma$-finite, we have $X = \bigcup_n X_n$ where $\mu(X_n) < \infty$ for each $n$.
+    To show that $f_*\mu$ is also $\sigma$-finite, let $Y_{n+1} = f(X_n)$, and let $Y_0 = Y \setminus \bigcup_n Y_n$, so $Y = \bigcup_n Y_n$, and $f_*\mu(Y_n) = \mu(X_n) < \infty$ for $n > 0$, and finally $f_*\mu(Y_0) = \mu(f^{-1}(Y_0)) = \mu(\emptyset) = 0 < \infty$.
+\end{proof}
+
+\begin{proposition}[Exercise 95]
+    The composition of two universally measurable functions on Polish spaces is universally measurable.
+\end{proposition}
+\begin{proof}
+    Let $X$, $Y$, and $Z$ be Polish spaces and let $f : X \to Y$ and $g : Y \to Z$ be universally measurable.
+    Let $U \subseteq Z$ be an open set.
+
+    By the universally measurability of $g$, we know that $g^{-1}(U)$ is universally measurable.
+    Let $\mu$ be a $\sigma$-finite measure on $X$, and consider the pushforward measure $f_{*}\mu$ on $Y$, which is also $\sigma$-finite.
+    Then $g^{-1}(U) =_{f_*\mu} B$ for some Borel $B \subseteq Y$.
+    But $f^{-1}(B)$ is universally measurable, so then $f^{-1}(B) =_\mu C$ for some Borel $C \subseteq X$.
+    Then
+    \[
+        \mu(C) = \mu(f^{-1}(B)) = f_*\mu(B) = f_*\mu(g^{-1}(U)) = \mu(f^{-1}(g^{-1}(U)))
+    \]
+    That is, $(g \after f)^{-1}(U) =_\mu C$, a Borel set, so $(g \after f)^{-1}(U)$ is universally measurable.
 \end{proof}
 
 \end{document}
