@@ -24,31 +24,85 @@ def intersperse(delim, iterable):
 class GamesDetermined(Scene):
     def construct(self):
         # TODO: Look into better transformations between text so that only the changing things look like they change.
-        title = TextMobject("Who wins in Chess?")
-        self.play(Write(title))
-        self.wait()
+        # title = TextMobject("Who wins in Chess?")
+        # self.play(Write(title))
+        # self.wait()
 
-        subtitle = TextMobject("why all finite games are determined")
-        subtitle.scale(0.5)
-        subtitle.next_to(title, DOWN)
-        self.play(Write(subtitle))
-        self.wait()
+        # subtitle = TextMobject("why all finite games are determined")
+        # subtitle.scale(0.5)
+        # subtitle.next_to(title, DOWN)
+        # self.play(Write(subtitle))
+        # self.wait()
 
-        self.play(FadeOut(title), FadeOut(subtitle))
+        # self.play(FadeOut(title), FadeOut(subtitle))
+        # self.wait()
 
         self.show_proof()
 
     def show_proof(self):
-        func_def = self.introduce_theorem("A relation $f$ between $X$ and $Y$ is called \\\\ a \\emph{function}, written $f : X \\to Y$, when every \\\\ $x \\in X$ is related (by $f$) to exactly one $y \\in Y$.", theorem_type="Definition")
-        self.wait()
-        clarification_text = TextMobject("That is, $f$ is a function from $X$ to $Y$ if")
-        clarification_def = TextMobject("$$\\forall x \\in X. \\exists y \\in Y. (x,y) \\in f \\land \\forall z \\in Y. (x,z) \\in f \\Rightarrow y = z$$")
-        clarification_def.next_to(clarification_text, DOWN)
-        self.play(Write(clarification_text), Write(clarification_def))
+        starting_position = Circle(color=WHITE)
+        starting_position.scale(0.5)
+        starting_position.shift(3*UP)
+        self.play(ShowCreation(starting_position))
         self.wait()
 
-        self.play(FadeOutAndShift(clarification_text, LEFT), FadeOutAndShift(clarification_def, RIGHT))
+        anims = []
+        second_layer, anims = self.draw_position_layer(starting_position, 2, spacing=3.5)
+        self.play(*anims)
         self.wait()
+
+        anims = []
+        third_layer = []
+        for pos in second_layer:
+            new_positions, new_anims = self.draw_position_layer(pos, 3, spacing=2.5)
+            third_layer.extend(new_positions)
+            anims.extend(new_anims)
+        self.play(*anims)
+        self.wait()
+
+        anims = []
+        fourth_layer = []
+        for pos in third_layer:
+            new_positions, new_anims = self.draw_position_layer(pos, 3, spacing=0.9, shape_gen=lambda size: TextMobject("\\vdots"))
+            fourth_layer.extend(new_positions)
+            anims.extend(new_anims)
+        self.play(*anims)
+        self.wait()
+
+        anims = []
+        final_layer = []
+        for pos in fourth_layer:
+            new_position, new_anims = self.draw_position_layer(pos, 2, spacing=0.8)
+            final_layer.extend(new_positions)
+            anims.extend(new_anims)
+        self.play(*anims)
+        self.wait()
+
+        self.wait()
+
+    def radius_of(self, obj):
+        return 0.5 * 0.5 * (obj.get_width() + obj.get_height())
+
+    def draw_position_layer(self, parent, num, spacing=1.5, shape_gen=lambda size: Circle(color=WHITE).scale(size)):
+        # Half of the radius of the parent
+        layer_width = self.radius_of(parent) * 4 * spacing
+        radius = min(self.radius_of(parent) * 0.9, 0.5 * layer_width / (1.5 * (num - 1)))
+
+        anims = []
+        new_positions = []
+        for i in range(num):
+            pos = shape_gen(radius)
+            pos.next_to(parent, 1.3*DOWN)
+            pos.shift(0.5*layer_width*LEFT)
+            pos.shift(layer_width/(num - 1)*i*RIGHT)
+            anims.append(ShowCreation(pos))
+
+            new_positions.append(pos)
+
+            move = Line(parent, pos)
+            anims.append(ShowCreation(move))
+
+        return new_positions, anims
 
     def write_text_with_element(self, position_first, *items, positioning=RIGHT):
         anims = []

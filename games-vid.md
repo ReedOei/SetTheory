@@ -136,24 +136,6 @@ There are many ways to split up questions, but one of the ways I like to split u
 Probably not all problems fit well into this, but I'm the most interested in problems in the first class.
 Notably, this video explores the question of "is there someone always wins in chess, or do we always tie?" is a possibility problem, in the sense that we know it has an answer (specifically, "yes"?)
 
-### Unsolvable vs. Provable vs. Computable vs. "Practically Computable"
-
-REED: PROBABLY CUT THIS
-
-There are many ways to split up questions, but I like to split up problems like this.
-First, some problems have provable solutions, and some don't.
-For example, the Continuum Hypothesis is famously a problem which has no solution, and in the case of the Continuum Hypothesis, it's because there's not enough information to answer the question in the first place.
-It's like if I asked the question "suppose n is 3k + 1 for some integer k, is n even or odd?"
-You'd reasonably say something like, "well it could be, or it could not be, but I need more information" (e.g., "what's k?").
-Maybe I'll make another video about that, but the short of it is that there's no proof of the Continuum Hypothesis **or** the negation of the Continuum Hypothesis.
-
-This is very different from other questions, which have definite proofs of truth or falsehood.
-We're much more used to questions that have provable answers, because that's the easiest thing to wrap our heads around: "is 4 even" is a question that has a provable answer.
-Among the questions that do have provable answers, there are still several subsets of these questions:
-1. Those with provable answers (i.e., all of them)
-2. Those with computable answers (i.e., decidable problems)
-3. "Practically computable" questions: questions whose answer is not only computable, but within some "reasonable" amount of time (e.g., a lifetime).
-
 ### Rant about categorization
 
 Side-note: I would like to point out that this is a *well-defined* categorization.
