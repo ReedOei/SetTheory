@@ -21,9 +21,79 @@ def intersperse(delim, iterable):
         yield delim
         yield x
 
+def radius_of(obj):
+    return 0.5 * 0.5 * (obj.get_width() + obj.get_height())
+
+class GameTreePosition(VGroup):
+    def __init__(self, shape, parent):
+        super().__init__(shape)
+        self.shape = shape
+        self.parent = parent
+        self.children = []
+
+    def add_child(self, child):
+        self.children.append(child)
+
+    def creation_anims(self):
+        if self.parent is None:
+            self.parent_edge = None
+            return [ ShowCreation(self.shape) ]
+        else:
+            self.parent_edge = Line(self.parent.shape, self.shape)
+            return [ ShowCreation(self.shape), ShowCreation(self.parent_edge) ]
+
+class GameTree:
+    def __init__(self, depth):
+        self.layers = []
+
+        self.starting_position = GameTreePosition(Circle(color=WHITE), None)
+        self.starting_position.scale(0.5)
+        self.starting_position.shift(3*UP)
+
+        self.layers.append([self.starting_position])
+
+        layer_widths = [7.5]
+        for i in range(depth):
+            new_layer = []
+            for pos in self.layers[-1]:
+                layer_width = layer_widths.pop(0)
+                child_num = random.randint(1, 3)
+                new_layer += self.draw_position_layer(pos, child_num, layer_width=layer_width)
+                for j in range(child_num):
+                    layer_widths.append(layer_width / (child_num + 0.5))
+            self.layers.append(new_layer)
+
+    def draw_position_layer(self, parent, num, layer_width=6, shape_gen=lambda size: Circle(color=WHITE).scale(size)):
+        if num == 1:
+            radius = radius_of(parent) * 0.8
+        else:
+            radius = min(radius_of(parent) * 0.8, 0.5 * layer_width / (1.5 * (num - 1)))
+
+        new_positions = []
+        for i in range(num):
+            pos = GameTreePosition(shape_gen(radius), parent)
+            parent.add_child(pos)
+            pos.next_to(parent, 1.3*DOWN)
+            if num > 1:
+                pos.shift(0.5*layer_width*LEFT)
+                pos.shift(layer_width/(num - 1)*i*RIGHT)
+
+            new_positions.append(pos)
+
+        return new_positions
+
+    def show_creation(self, scene):
+        for layer in self.layers:
+            anims = []
+
+            for pos in layer:
+                anims += pos.creation_anims()
+
+            scene.play(*anims)
+            scene.wait()
+
 class GamesDetermined(Scene):
     def construct(self):
-        # TODO: Look into better transformations between text so that only the changing things look like they change.
         # title = TextMobject("Who wins in Chess?")
         # self.play(Write(title))
         # self.wait()
@@ -40,69 +110,44 @@ class GamesDetermined(Scene):
         self.show_proof()
 
     def show_proof(self):
-        starting_position = Circle(color=WHITE)
-        starting_position.scale(0.5)
-        starting_position.shift(3*UP)
-        self.play(ShowCreation(starting_position))
-        self.wait()
+        # Construct game tree
+        game_tree = GameTree(4)
+        starting_position = game_tree.starting_position
+
+        game_tree.show_creation(self)
+
+        # Randomly partition the ending positions
+        winning_for_p1 = []
+        winning_for_p2 = []
 
         anims = []
-        second_layer, anims = self.draw_position_layer(starting_position, 2, spacing=3.5)
+        for pos in game_tree.layers[-1]:
+            if random.random() < 0.5:
+                winning_for_p1.append(pos)
+                anims.append(ApplyMethod(pos.set_color, RED))
+            else:
+                winning_for_p2.append(pos)
+                anims.append(ApplyMethod(pos.set_color, BLUE))
+
         self.play(*anims)
         self.wait()
 
-        anims = []
-        third_layer = []
-        for pos in second_layer:
-            new_positions, new_anims = self.draw_position_layer(pos, 3, spacing=2.5)
-            third_layer.extend(new_positions)
-            anims.extend(new_anims)
-        self.play(*anims)
+        # Introduce winning positions
+
+        # First, what it means to be a winning position for RED
+        self.play(ApplyMethod(starting_position.set_color, RED))
         self.wait()
 
-        anims = []
-        fourth_layer = []
-        for pos in third_layer:
-            new_positions, new_anims = self.draw_position_layer(pos, 3, spacing=0.9, shape_gen=lambda size: TextMobject("\\vdots"))
-            fourth_layer.extend(new_positions)
-            anims.extend(new_anims)
-        self.play(*anims)
+        self.play(ApplyMethod(starting_position.set_color, WHITE))
         self.wait()
 
-        anims = []
-        final_layer = []
-        for pos in fourth_layer:
-            new_position, new_anims = self.draw_position_layer(pos, 2, spacing=0.8)
-            final_layer.extend(new_positions)
-            anims.extend(new_anims)
-        self.play(*anims)
+        self.play(ApplyMethod(starting_position.set_color, BLUE))
+        self.wait()
+
+        self.play(ApplyMethod(starting_position.set_color, WHITE))
         self.wait()
 
         self.wait()
-
-    def radius_of(self, obj):
-        return 0.5 * 0.5 * (obj.get_width() + obj.get_height())
-
-    def draw_position_layer(self, parent, num, spacing=1.5, shape_gen=lambda size: Circle(color=WHITE).scale(size)):
-        # Half of the radius of the parent
-        layer_width = self.radius_of(parent) * 4 * spacing
-        radius = min(self.radius_of(parent) * 0.9, 0.5 * layer_width / (1.5 * (num - 1)))
-
-        anims = []
-        new_positions = []
-        for i in range(num):
-            pos = shape_gen(radius)
-            pos.next_to(parent, 1.3*DOWN)
-            pos.shift(0.5*layer_width*LEFT)
-            pos.shift(layer_width/(num - 1)*i*RIGHT)
-            anims.append(ShowCreation(pos))
-
-            new_positions.append(pos)
-
-            move = Line(parent, pos)
-            anims.append(ShowCreation(move))
-
-        return new_positions, anims
 
     def write_text_with_element(self, position_first, *items, positioning=RIGHT):
         anims = []
