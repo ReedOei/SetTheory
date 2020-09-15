@@ -104,6 +104,16 @@
     For each $U \in \mathcal{B}$, pick some $V_U$ such that $U \subseteq V_U$, and define $\mathcal{U} := \setbuild{V_U}{U \in \mathcal{B}}$, which is a countable subcover of $\mathcal{V}$, as desired.
 \end{proof}
 
+
+\begin{proposition}[Exercise 42]
+    Let $\mathcal{G}$ be the Hamming graph on the Cantor space $\mathcal{C}$; that is, for $x,y \in \mathcal{C}$, there is an edge between $x$ and $y$ when $x$ and $y$ differ by exactly one bit.
+    Then
+    \begin{enumerate}
+        \item (AC) $\mathcal{G}$ has no odd cycles and therefore is bipartite.
+        \item Let $c : \mathcal{C} \to 2$ of $\mathcal{G}$ and let $A_i := c^{-1}(i)$ for $i \in \curlys{0,1}$.
+    \end{enumerate}
+\end{proposition}
+
 We write $A \subseteq_c B$ and $B \supseteq_c A$ to mean that $\closure{A} \subseteq B$.
 
 Define the \emph{Banach-Mazur} game $G^{**}(A)$ as follows for a subset $A$ of a Polish space $X$.

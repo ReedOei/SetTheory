@@ -539,16 +539,41 @@ class SetTheoryAxioms(Scene):
 
         # TODO: Should we use theorem_type="Definition" or theorem_type=None by default for definitions?
 
-        self.define_successor()
+        # self.define_successor()
 
-        # self.axiom_infinity()
+        self.show_axiom_infinity()
 
         # TODO: Not sure when these actually need to be defined, it's sort of just extra terminology with no need for the moment.
         # self.define_dom_codom()
 
+    def show_axiom_infinity(self):
+        name, axiom_inf = self.introduce_statement("Infinity", "$\\exists $")
+
+        self.play(FadeOutAndShift(name, UP), FadeOutAndShift(axiom_inf, UP))
+        self.wait()
+
     def define_successor(self):
         successor_def = self.introduce_theorem("The \\emph{successor} of a set $X$ is $\\mathcal{S}(X) := X \\cup \\{ X \\}$", theorem_type="Def.")
         self.wait()
+
+        set_x = Set(name="X", color=GREEN)
+        self.play(*set_x.conjure(lambda s: s.scale(0.5), element_num=100))
+        self.play(*set_x.reposition_elements())
+        self.wait()
+
+        set_x_copy = self.copy_set(set_x)
+        self.play(ApplyMethod(set_x_copy.shift, RIGHT), ApplyMethod(set_x.shift, LEFT))
+        self.play(*set_x.reposition_elements(), *set_x_copy.reposition_elements())
+        self.play(*set_x.change_name(None), *set_x_copy.change_name(None))
+        self.wait()
+
+        singleton = self.pair([set_x_copy])
+        self.wait()
+
+        succ = self.union([set_x, singleton])
+        self.wait()
+
+        # TODO: Finish this
 
     def define_onto(self):
         onto_def = self.introduce_theorem("$f : X \\to Y$ is \\emph{onto} if its image is $Y$.", theorem_type="Definition")
