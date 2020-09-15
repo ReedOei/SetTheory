@@ -519,7 +519,7 @@ class SetTheoryAxioms(Scene):
         # self.define_ordered_pairs()
         # self.define_cartesian_product()
 
-        # self.define_subsets()
+        self.define_subsets()
 
         # self.define_relation()
         # self.relation_example_equality()
@@ -553,6 +553,10 @@ class SetTheoryAxioms(Scene):
         self.wait()
 
     def define_successor(self):
+        # TODO: FINISH THIS
+        # NOTE: The motivation for the successor is, at first, that we want to have a function that gives a different answer every time we apply it (i.e., never loops), and also works on arbitrary sets, because that's all we have.
+        #       So then the reason we pick this function is that we know that a set will never be an element of itself, and we "remember" allt he previous sets by sticking them in there (i.e., the right operand of the union)
+        #       Later, we'll see it plays nicely with ordinals too.
         successor_def = self.introduce_theorem("The \\emph{successor} of a set $X$ is $\\mathcal{S}(X) := X \\cup \\{ X \\}$", theorem_type="Def.")
         self.wait()
 
@@ -1028,6 +1032,10 @@ class SetTheoryAxioms(Scene):
         self.wait()
 
         self.play(ApplyMethod(set_x.shift, 4.5*LEFT), ApplyMethod(set_y.shift, 4.5*RIGHT))
+        self.wait()
+
+        set_x_2 = Set(name="X")
+        self.play(*set_x_2.conjure(lambda s: s.move_to(5.5*RIGHT).scale(0.5), element_colors=[]))
         self.wait()
 
         groups = []
