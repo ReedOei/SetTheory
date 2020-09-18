@@ -201,10 +201,7 @@ proof
   assume xa: "x \<in> A"
   show "\<exists>!C \<in> quotient_by_rel A E. x \<in> C"
   proof -
-    let ?C = "[x]\<^sub>E"
-
-    (* For some reason I can't simplify this in any way... *)
-    from xa and eq_rel have "x \<in> ?C \<and> ?C \<in> quotient_by_rel A E"
+    from xa and eq_rel have "x \<in> ([x]\<^sub>E) \<and> ([x]\<^sub>E) \<in> quotient_by_rel A E"
       by (auto simp: equiv_class_def quotient_by_rel_def equiv_rel_refl)
 
     then obtain C where c: "C \<in> quotient_by_rel A E \<and> x \<in> C" by auto
@@ -221,7 +218,93 @@ proof
   qed
 qed
 
-definition quotient_struct :: "('a, 'b) struct \<Rightarrow> ('b \<times> 'b) set \<Rightarrow> ('a, 'b set) struct" ("_/_") where
-  "\<A> / \<sim> \<equiv> t"
+lemma not_all_has_false:
+  fixes l
+  assumes "\<not> foldr (\<and>) l True"
+  shows "\<exists>p s. l = p @ (False # s)"
+  using assms
+proof(induction l)
+  case Nil
+  then show ?case by simp
+next
+  case (Cons a l)
+  then have IH: "\<not> foldr (\<and>) l True \<Longrightarrow> \<exists>p s. l = p @ False # s" and
+             p: "\<not> foldr (\<and>) (a # l) True" by auto
+  then show ?case
+  proof(cases a)
+    case True
+    from this have a: "a" by simp
+    from IH and p and a have "\<exists>p s. l = p @ False # s" by simp
+    then obtain p where "\<exists>s. l = p @ False # s" ..
+    then obtain s where eq: "l = p @ False # s" ..
+    from a and eq show ?thesis
+      apply simp
+      apply (rule exI[where x = "True # p"])
+      apply (rule exI[where x = "s"])
+      by auto
+  next
+    case False
+    then show ?thesis 
+      apply simp
+      apply (rule exI[where x = "[]"])
+      apply (rule exI[where x = "l"])
+      by auto
+  qed
+qed
+
+lemma 
+  fixes l :: "'b set list"
+  assumes "l \<noteq> []"
+  shows "(\<exists>k :: 'b list. length k = length l \<and> all (zipWith (\<lambda>(x, y). x \<in> y) k l)) \<or> {} \<in> list.set l"
+  using assms
+proof(clarsimp, induction l)
+  case Nil
+  then show ?case by auto
+next
+  case (Cons a l)
+  then have IH: "\<lbrakk>l \<noteq> []; {} \<notin> set l\<rbrakk> \<Longrightarrow> \<exists>k. length k = length l \<and> foldr (\<and>) (zipWith (\<lambda>(a, b). a \<in> b) k l) True" 
+        and ne: "{} \<notin> set (a # l)" 
+        and nea: "{} \<noteq> a" by auto
+  then obtain x where xa: "x \<in> a" by auto
+  from IH and ne show ?case 
+    apply clarsimp
+    apply (cases l)
+  proof(simp)
+    assume "l = []"
+    show "\<exists>k. length k = Suc 0 \<and> foldr (\<and>) (zipWith (\<lambda>(x, y). x \<in> y) k [a]) True"
+    proof(rule exI[where x = "[x]"], auto simp: zipWith_def)
+      from xa show "x \<in> a" by auto
+    qed
+  next
+    fix b k
+    assume l: "l = b # k"
+    from l and ne and IH have "\<exists>k. length k = length l \<and> foldr (\<and>) (zipWith (\<lambda>(a, b). a \<in> b) k l) True" by auto
+    then obtain kl where kl: "length kl = length l \<and> foldr (\<and>) (zipWith (\<lambda>(a, b). a \<in> b) kl l) True" ..
+    show "\<exists>k. length k = Suc (length l) \<and> foldr (\<and>) (zipWith (\<lambda>(x, y). x \<in> y) k (a # l)) True"
+    proof(rule exI[where x = "x # kl"], auto)
+      from kl show "length kl = length l" by auto
+      from xa and kl show "foldr (\<and>) (zipWith (\<lambda>(x, y). x \<in> y) (x # kl) (a # l)) True" by (auto simp: zipWith_def)
+    qed
+  qed
+qed
+
+definition quotient_rel_interp :: "'b list set \<Rightarrow> ('b \<times> 'b) set \<Rightarrow> 'b set list set" where
+  "quotient_rel_interp r E \<equiv> { elems. (map (\<lambda>a. (SOME x. x \<in> a)) elems) \<in> r }"
+
+definition quotient_fun_interp :: "('b list \<Rightarrow> 'b) \<Rightarrow> ('b \<times> 'b) set \<Rightarrow> 'b set list \<Rightarrow> 'b set" where
+  "quotient_fun_interp f E elems \<equiv> [ f (map (\<lambda>a. (SOME x. x \<in> a)) elems) ]\<^sub>E"
+
+definition quotient_struct :: "('a, 'b) struct \<Rightarrow> ('b \<times> 'b) set \<Rightarrow> ('a, 'b set) struct" where
+  "quotient_struct \<A> E \<equiv> \<lparr> lang = lang \<A>, underlying = quotient_by_rel (\<A>\<^sup>U) E,
+                            rel_interp = \<lambda>r. quotient_rel_interp (rel_interp \<A> r) E,
+                            fun_interp = \<lambda>f. quotient_fun_interp (fun_interp \<A> f) E \<rparr>"
+
+lemma
+  fixes \<A> and E
+  shows "is_struct (lang \<A>) (quotient_struct A E)"
+
+lemma 
+  fixes \<A> and E
+  shows "(\<lambda>a. [a]\<^sub>E) \<in> strong_hom \<A> (quotient_struct \<A> E)"
 
 end
