@@ -333,14 +333,36 @@ class Chessboard(VGroup):
 
 class GamesDetermined(Scene):
     def construct(self):
+        self.show_logo()
         self.introduction()
         self.define_game()
         self.show_outline(1)
+        # TODO: In the definition sections, put some arrows pointing to the various things and words
         self.define_determined()
         self.show_outline(2)
         self.prove_finite_games_determined()
         self.show_outline(3)
-        # TODO: Final part
+        self.final_part()
+
+    def final_part(self):
+        chessboard = Chessboard()
+        chessboard.scale(0.7)
+        chessboard.shift(3*LEFT)
+        self.play(FadeIn(chessboard))
+
+        texts = self.build_outline(chessboard,
+                [ "$\\square$ Chess has stalemates!",
+                  "$\\square$ What if chess wasn't finite?",
+                  "$\\square$ Next part: Infinite games."], None)
+        self.wait(30)
+
+    def show_logo(self):
+        img = ImageMobject("./sun.png")
+        self.play(FadeIn(img))
+        self.wait()
+
+        self.play(FadeOut(img))
+        self.wait()
 
     def introduction(self):
         title = TextMobject("Who wins in Chess?")
@@ -370,7 +392,7 @@ class GamesDetermined(Scene):
                   "$\\square$ When is a game \\textit{determined}?",
                   "$\\square$ All finite games are determined (+ proof).",
                   "$\\square$ Infinite games and more."], 0, slow_anim=True)
-        self.wait()
+        self.wait(30)
 
         self.play(FadeOut(chessboard), FadeOut(subtitle), FadeOut(title), *[ FadeOut(text) for text in texts ])
         self.wait()
@@ -414,7 +436,8 @@ class GamesDetermined(Scene):
             self.play(*anims)
             self.wait()
 
-        self.play(ApplyMethod(topic_texts[cur_topic_idx].set_color, MY_GREEN))
+        if cur_topic_idx is not None:
+            self.play(ApplyMethod(topic_texts[cur_topic_idx].set_color, MY_GREEN))
 
         return topic_texts
 
@@ -433,6 +456,7 @@ class GamesDetermined(Scene):
         game_tree.show_creation(self)
 
         # Discuss how neither player has a winning strategy.
+        self.wait(20)
 
         # Color the next layer
         for pos in game_tree.layers[1]:
@@ -528,6 +552,7 @@ class GamesDetermined(Scene):
         self.play(FadeOut(game_tree), FadeOut(turn_counter))
         self.wait()
 
+        self.play(FadeOut(theorem), FadeOut(contradict), FadeOut(contradict_finish))
         self.wait()
 
     def define_game(self):
@@ -543,15 +568,22 @@ class GamesDetermined(Scene):
             chessboard.move_to(pos.shape)
             self.play(FadeIn(chessboard))
             chessboards.append(chessboard)
+        self.wait(5)
 
         turn_labels = game_tree.show_player_turns(self, slow_anim=True)
-        self.wait(20)
+        self.wait(30)
 
         self.play(*[ FadeOut(board) for board in chessboards ])
         self.wait(2)
 
         position_labels = game_tree.label_positions(self, slow_anim=True)
-        self.wait(10)
+        self.wait(30)
+
+        for pos in game_tree.layers[-1]:
+            pos.with_player1_wins(random.random() < 0.5)
+
+        self.play(*[ anim for pos in game_tree.layers[-1] for anim in pos.winner_anims()])
+        self.wait()
 
         self.play(FadeOut(game_tree), *[ FadeOut(label) for label in turn_labels ], *[ FadeOut(label) for label in position_labels])
         self.wait()
@@ -570,7 +602,7 @@ class GamesDetermined(Scene):
             pos.with_player1_wins(random.random() < 0.5)
 
         self.play(*[ anim for pos in game_tree.layers[-1] for anim in pos.winner_anims()])
-        self.wait()
+        self.wait(30)
 
         # Introduce winning positions
         # First, what it means to be a winning position for player 1

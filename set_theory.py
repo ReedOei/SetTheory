@@ -495,56 +495,55 @@ class Function:
 
 class SetTheoryAxioms(Scene):
     def construct(self):
-        # # TODO: Look into better transformations between text so that only the changing things look like they change.
-        # title = TextMobject("Set Theory")
-        # self.play(Write(title))
-        # self.wait()
-        # self.play(FadeOut(title))
+        # TODO: Look into better transformations between text so that only the changing things look like they change.
+        title = TextMobject("Set Theory")
+        self.play(Write(title))
+        self.wait()
+        self.play(FadeOut(title))
 
-        # # TODO: Add some text highlighting stuff
-        # self.show_axiom_existence()
-        # self.show_axiom_extensionality()
-        # self.show_axiom_pairing()
-        # self.show_axiom_union()
-        # self.show_axiom_powerset()
+        # TODO: Add some text highlighting stuff
+        self.show_axiom_existence()
+        self.show_axiom_extensionality()
+        self.show_axiom_pairing()
+        self.show_axiom_union()
+        self.show_axiom_powerset()
 
-        # self.show_axiom_comprehension()
+        self.show_axiom_comprehension()
 
-        # self.prove_empty_set_exists()
-        # self.prove_empty_set_exists_formal()
-        # self.prove_union_two_sets()
+        self.prove_empty_set_exists()
+        self.prove_empty_set_exists_formal()
+        self.prove_union_two_sets()
 
-        # self.prove_singleton_exists()
+        self.prove_singleton_exists()
 
-        # self.define_ordered_pairs()
-        # self.define_cartesian_product()
+        self.define_ordered_pairs()
+        self.define_cartesian_product()
 
         self.define_subsets()
 
-        # self.define_relation()
-        # self.relation_example_equality()
+        self.define_relation()
+        self.relation_example_equality()
 
-        # self.define_functions()
-        # self.function_examples()
-        # self.prove_set_of_functions_exists()
+        self.define_functions()
+        self.function_examples()
+        self.prove_set_of_functions_exists()
 
-        # self.define_image()
+        self.define_image()
 
-        # self.define_onto()
-        # self.define_one_to_one()
+        self.define_onto()
+        self.define_one_to_one()
 
-        # self.define_bijective()
+        self.define_bijective()
 
         # TODO: Some animations looking at comparing the sizes of finite sets (because we don't even know if infinite sets exist yet)
 
         # TODO: Should we use theorem_type="Definition" or theorem_type=None by default for definitions?
-
-        # self.define_successor()
+        self.define_successor()
 
         self.show_axiom_infinity()
 
         # TODO: Not sure when these actually need to be defined, it's sort of just extra terminology with no need for the moment.
-        # self.define_dom_codom()
+        self.define_dom_codom()
 
     def show_axiom_infinity(self):
         name, axiom_inf = self.introduce_statement("Infinity", "$\\exists $")
