@@ -6,6 +6,7 @@ import itertools as it
 import uuid
 
 BORDER_FACTOR = 0.98
+COLLISION_TOLERANCE = 0.99
 
 # From: https://stackoverflow.com/a/1482316/1498618
 def powerset(iterable):
@@ -42,23 +43,38 @@ class Value(Resolvable):
     def display_object(self):
         return self.obj
 
+    def latex(self):
+        raise NotImplementedError()
+
 class IntValue(Value):
     def __init__(self, value):
-        super().__init__(TextMobject(str(value)))
         self.value = value
-
+        super().__init__(TexMobject(self.latex()))
         self.obj.scale(0.5)
 
+    def latex(self):
+        return str(self.value)
+
+class SetValue(Value):
+    def __init__(self, elements):
+        self.elements = elements
+        super().__init__(TexMobject(self.latex()))
+        self.obj.scale(0.5)
+
+    def latex(self):
+        return '\\left\\{' + ', '.join([e.value.latex() for e in self.elements]) + '\\right\\}'
+
 class Element(Resolvable):
-    def __init__(self, elements, value=None, data=None, obj_gen=SmallDot):
+    def __init__(self, elements, value=None, data=None, obj_gen=SmallDot, moving=True, parent=None):
         super().__init__()
 
-        self.parent = None
+        self.parent = parent
 
-        self.is_ready = False
+        self.moving = False
         self.radii = None
 
         self.drawn = False
+        self.home_pos = np.array([0.0,0.0,0.0])
 
         self.elements = elements
         if data is None:
@@ -69,28 +85,62 @@ class Element(Resolvable):
 
         self.obj = obj_gen()
 
+        for e in self.elements:
+            e.set_parent(self.object())
+
         if self.value is not None:
             self.display_obj = VGroup(self.object(), self.value.object())
             self.value.object().add_updater(lambda obj, dt: obj.next_to(self.object(), UP))
         else:
             self.display_obj = self.obj
 
-        self.anchor_to(self.parent)
-        self.object().move_to(self.reposition())
+        self.set_parent(self.parent)
 
         self.speed = 0.9*np.mean(self.radii)
         self.dir = random.uniform(0, 2*PI)
 
         self.uuid = str(uuid.uuid4())
-        self.collision_tolerance = 0.99
 
-        self.ready()
+        self.move(moving)
+
+    # TODO: This assumes circles...
+    def overlaps_with(self, other):
+        # Divide by 4 because average of the two and they are diameters
+        r1 = (self.object().get_width() + self.object().get_height()) / 4
+        r2 = (other.object().get_width() + other.object().get_height()) / 4
+
+        diff = self.object().get_center() - other.object().get_center()
+
+        return np.dot(diff, diff) < (r1 + r2)**2
+
+    def overlaps_with_any(self, elements):
+        return any(map(lambda e2: self.overlaps_with(e2) and self is not e2, elements))
+
+    def scale(self, amount, recursive=True):
+        self.display_object().scale(amount)
+        if recursive:
+            for e in self.elements:
+                e.scale(amount, recursive=recursive)
+        return self.update_radii()
+
+    def scale_object(self, amount, recursive=True):
+        self.object().scale(amount)
+        if recursive:
+            for e in self.elements:
+                e.scale_object(amount, recursive=recursive)
+        return self.update_radii()
 
     def object(self):
         return self.obj
 
     def display_object(self):
         return self.display_obj
+
+    def set_parent(self, new_parent):
+        self.anchor_to(new_parent)
+
+        if not self.in_parent(self.object().get_x(), self.object().get_y()):
+            return self.reposition()
 
     def anchor_to(self, new_parent):
         self.parent = new_parent
@@ -104,16 +154,25 @@ class Element(Resolvable):
     def update_radii(self):
         # NOTE: This will only work for circles or ellipses.
         if self.parent is not None:
-            center = self.parent.get_center()
-            radius_x = (self.parent.get_width() - self.get_width()) / 2.0
-            radius_y = (self.parent.get_height() - self.get_height()) / 2.0
+            radius_x = (self.parent.get_width() - self.object().get_width()) / 2.0
+            radius_y = (self.parent.get_height() - self.object().get_height()) / 2.0
             self.radii = np.array([radius_x, radius_y, 1])
         else:
             self.radii = np.array([0,0,1])
 
+        for e in self.elements:
+            e.update_radii()
+
         return self
 
+    def freeze_at_home(self):
+        return [ApplyMethod(self.object().move_to, self.home_pos)] + [ anim for e in self.elements for anim in e.freeze_at_home() ]
+
     def reposition(self, angle=None, offset_radius=0.5):
+        self.home_pos = self.get_new_position(angle=angle, offset_radius=offset_radius)
+        return self.move_to(self.home_pos[0], self.home_pos[1])
+
+    def get_new_position(self, angle=None, offset_radius=0.5):
         self.update_radii()
 
         if self.parent is not None:
@@ -128,8 +187,8 @@ class Element(Resolvable):
         else:
             return np.array([self.object().get_x(), self.object().get_y(), 0])
 
-    def ready(self, val=True):
-        self.is_ready = val
+    def move(self, val=True):
+        self.moving = val
         return self
 
     def draw(self):
@@ -137,33 +196,53 @@ class Element(Resolvable):
             return []
         else:
             self.drawn = True
-            return [ShowCreation(self.display_object())]
+            return [ShowCreation(self.display_object())] + [anim for e in self.elements for anim in e.draw()]
 
-    def fade(self):
+    def fade_value(self):
+        return [FadeOut(self.value.object())]
+
+    def fade(self, recursive=True):
+        anims = []
         if self.drawn:
             self.drawn = False
-            return [FadeOut(self.display_object())]
-        else:
-            return []
+            anims.append(FadeOut(self.display_object()))
+
+        if recursive:
+            anims.extend([anim for e in self.elements for anim in e.fade()])
+
+        return anims
 
     def update_position(self, dt):
-        if self.is_ready:
+        if self.moving:
             for i in range(3):
-                new_x = self.object().get_x() + dt*self.speed*math.cos(self.dir)
-                new_y = self.object().get_y() + dt*self.speed*math.sin(self.dir)
+                dx = dt*self.speed*math.cos(self.dir)
+                dy = dt*self.speed*math.sin(self.dir)
+                new_x = self.object().get_x() + dx
+                new_y = self.object().get_y() + dy
 
-                if self.in_parent(new_x, new_y) and self.in_bounds():
-                    self.object().move_to(np.array([new_x, new_y, 0]))
+                if self.in_parent(new_x, new_y) and self.in_bounds(new_x, new_y):
+                    self.shift(dx, dy)
                     return self
 
                 self.dir = random.uniform(0, 2*PI)
 
         return self
 
-    def in_bounds(self):
+    def shift(self, dx, dy):
+        for e in self.elements:
+            e.shift(dx, dy)
+        self.object().shift(np.array([dx, dy, 0]))
+        return self
+
+    def move_to(self, x, y):
+        dx = x - self.object().get_x()
+        dy = y - self.object().get_y()
+        return self.shift(dx, dy)
+
+    def in_bounds(self, new_x, new_y):
         w = BORDER_FACTOR*FRAME_WIDTH/2
         h = BORDER_FACTOR*FRAME_HEIGHT/2
-        return new_x < w and new_y < h and new_x > -w and new_y > -h
+        return new_x + self.object().get_width() / 2.0 < w and new_y + self.object().get_height() / 2.0 < h and new_x - self.object().get_width() / 2.0 > -w and new_y - self.object().get_height() / 2.0 > -h
 
     def in_parent(self, new_x, new_y):
         if self.radii[0] == 0 or self.radii[1] == 0:
@@ -171,20 +250,143 @@ class Element(Resolvable):
         else:
             pt = np.array([new_x, new_y, 0])
             t = (pt - self.parent.get_center()) / self.radii
-            return np.dot(t, t) < self.collision_tolerance**2
+            return np.dot(t, t) < COLLISION_TOLERANCE**2
+
+    def equality_test(self, other):
+        result = True
+        anims = []
+
+        self.move(False)
+        other.move(False)
+
+        for e1 in self.elements:
+            match = None
+            for e2 in other.elements:
+                b, new_anims = e1.equality_test(e2)
+                anims.extend(new_anims)
+                if b:
+                    match = e2
+
+            if match is None:
+                result = False
+
+        return result, anims
+
+    def remove_elements(self, to_remove=None):
+        removed = []
+        if to_remove is None:
+            removed = self.elements
+        else:
+            removed = to_remove
+
+        self.elements = [e for e in self.elements if e not in removed]
+
+        return removed
+
+    def add_elements(self, new_elements):
+        self.elements.extend(new_elements)
+        for e in new_elements:
+            e.set_parent(self.object())
+        return self
+
+def calculate_size(elements):
+    min_x = 0
+    max_x = 0
+    min_y = 0
+    max_y = 0
+
+    for e in elements:
+        x_low = e.object().get_x() - e.object().get_width() / 2.0
+        x_high = e.object().get_x() + e.object().get_width() / 2.0
+
+        y_low = e.object().get_y() - e.object().get_height() / 2.0
+        y_high = e.object().get_y() + e.object().get_height() / 2.0
+
+        min_x = min(x_low, min_x)
+        max_x = max(x_high, max_x)
+
+        min_y = min(y_low, min_y)
+        max_y = max(y_high, max_y)
+
+    return max_x - min_x, max_y - min_y
+
+class Integer(Element):
+    def __init__(self, value, moving=True):
+        super().__init__([], value=IntValue(value), moving=moving)
 
 class Set(Element):
-    def __init__(self, elements, value=None, data=None):
-        super().__init__(elements, value=value, data=data, obj_gen=lambda: VGroup([e.display_object() for e in elements]))
+    WIDTH_PADDING = 0.2
+    HEIGHT_PADDING = 0.2
+    WIDTH_FACTOR = 1.1
+    HEIGHT_FACTOR = 1.1
 
-class Renderer(Scene):
+    RETRY_OVERLAP = 10
+
+    def __init__(self, elements, moving=False):
+        super().__init__(elements, value=SetValue(elements), obj_gen=lambda: Ellipse(color=WHITE, width=1, height=1), moving=moving)
+
+        self.envelope_elements()
+        self.arrange_elements()
+
+        # Try to avoid elements overlapping
+        # for e1 in self.elements:
+        #     for n in range(Set.RETRY_OVERLAP):
+        #         if e1.overlaps_with_any(self.elements):
+        #             e1.reposition()
+        #         else:
+        #             break
+
+    def envelope_elements(self):
+        w, h = calculate_size(self.elements)
+        self.object().scale(2 * np.sqrt(w**2 + h**2))
+
+        self.update_radii()
+        return self
+
+    def arrange_elements(self):
+        for i, e in enumerate(self.elements):
+            theta = i * 2 * PI / len(self.elements)
+
+            offset_x = self.object().get_width() / 2.0 * math.cos(theta)
+            offset_y = self.object().get_height() / 2.0 * math.sin(theta)
+            e.move_to(offset_x, offset_y)
+
+    def scale_sets(self, amount, recursive=True):
+        self.object().scale(amount)
+        if recursive:
+            for e in self.elements:
+                if isinstance(e, Set):
+                    e.scale_sets(amount, recursive=recursive)
+        return self.update_radii()
+
+    def union(self):
+        anims = []
+        for e in self.elements:
+            if isinstance(e, Set):
+                anims.extend(e.fade(recursive=False))
+                self.add_elements(e.remove_elements())
+        return anims
+
+class Interpreter(Scene):
     def construct(self):
-        e1 = Element([], value=IntValue(1))
-        e2 = Element([], value=IntValue(2))
-        e3 = Element([], value=IntValue(3))
-        self.play(*e1.draw(), *e2.draw(), *e3.draw())
-        a = Set([e1, e2, e3])
-        self.play(*a.draw())
-        self.wait(60)
         # A = { 1,2,3 }
+        # a = Set([Integer(1), Integer(2), Integer(3)])
+        # a.shift(4, 0)
+        # self.play(*a.draw())
+        # self.wait()
+
+        # B = { 4,5,6 }
+        # b = Set([Integer(4), Integer(5)])
+        # b.shift(-4,0)
+        # self.play(*b.draw())
+        # self.wait()
+
+        # C = { {1}, {2,-1} }
+        c = Set([Set([Integer(1)]).shift(-1, 0), Set([Integer(2), Integer(-1)]).shift(1, 0)])
+        c.scale_sets(2)
+        self.play(*c.draw())
+        self.wait(2)
+        self.play(*c.union())
+        # a.shift(-1,0)
+        self.wait(10)
 
