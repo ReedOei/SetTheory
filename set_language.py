@@ -103,6 +103,17 @@ class Element(Resolvable):
 
         self.move(moving)
 
+    def update_value(self, new_value):
+        anims = []
+        old_value = self.value
+        self.value = new_value
+        if self.value is not None:
+            self.display_obj = VGroup(self.object(), self.value.object())
+            self.value.object().add_updater(lambda obj, dt: obj.next_to(self.object(), UP))
+        if self.drawn:
+            anims.append(Transform(old_value.object(), self.value.object()))
+        return anims
+
     # TODO: This assumes circles...
     def overlaps_with(self, other):
         # Divide by 4 because average of the two and they are diameters
@@ -361,10 +372,17 @@ class Set(Element):
 
     def union(self):
         anims = []
+        to_keep = []
+        new_elements = []
         for e in self.elements:
             if isinstance(e, Set):
                 anims.extend(e.fade(recursive=False))
-                self.add_elements(e.remove_elements())
+                new_elements.extend(e.remove_elements())
+            else:
+                to_keep.append(e)
+        self.elements = to_keep
+        self.add_elements(new_elements)
+        anims.extend(self.update_value(SetValue(self.elements)))
         return anims
 
 class Interpreter(Scene):
