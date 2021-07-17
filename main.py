@@ -24,8 +24,8 @@ class LangTransformer(Transformer):
     def elim_le(self, *args):
         return '<='
 
-    def elim_ne(self, *args):
-        return '!='
+    def ne(self, *args):
+        return '≠'
 
     def var_ref(self, name):
         return VarRef(str(name[0]))
@@ -72,7 +72,7 @@ class LangTransformer(Transformer):
         return Sequence(list(defs))
 
     or_op = ignore_singleton(lambda *args: reduce(lambda a, b: Operator(a, 'or', operators['or'], b), args))
-    and_op = ignore_singleton(lambda *args: reduce(lambda a, b: Operator(a, 'and', operators['or'], b), args))
+    and_op = ignore_singleton(lambda *args: reduce(lambda a, b: Operator(a, 'and', operators['and'], b), args))
 
     def image(self, f, arg):
         return Image(f, arg)
@@ -85,17 +85,17 @@ class LangTransformer(Transformer):
         return Function(args[:-1], args[-1])
 
     def if_stmt(self, cond, t, e):
-        return IfThenElse(cond, t, e)
+        return IfThenElse(cond, t, e).simplify()
 
     def praline_app(self, func, *args):
-        return App(func, *args)
+        return App(func, *args).simplify()
 
     praline_factorial = Factorial
     def praline_int(self, val):
         return Num(val)
 
     def operator(self, lhs, op, rhs):
-        return Operator(lhs, op, operators.get(op), rhs)
+        return Operator(lhs, op, operators.get(op), rhs).simplify()
 
     def praline_var(self, name):
         return VarRef(str(name))
@@ -131,6 +131,8 @@ class LangTransformer(Transformer):
         return LetBind(pat, t, body)
 
     def comp_set(self, quant, sym, *preds):
+        preds = [ p.simplify() for p in preds ]
+
         orig_quant = quant
 
         build_comp = True
@@ -171,7 +173,7 @@ class LangTransformer(Transformer):
             if len(var_doms) > 1:
                 temp = VarRef(VarRef.fresh())
                 body = orig_quant.substitute({ y.name: App(temp, Num(i)) for i, (y, dom) in enumerate(var_doms) })
-                return Image(Function([var_doms[0][0]], body), ComprehensionSet(var_doms, list(preds))).simplify()
+                return Image(Function([temp], body), ComprehensionSet(var_doms, list(preds))).simplify()
             else:
                 return Image(Function([var_doms[0][0]], orig_quant), ComprehensionSet(var_doms, list(preds))).simplify()
 
@@ -209,6 +211,8 @@ if __name__ == '__main__':
         'verbose': Num(0),
         'ω': Num(OmegaOrd()),
         'p': PrimeSeq(),
+        'powerset': Builtin('powerset', lambda a, args: FinSet([ FinSet(xs) for xs in powerset(args[0].eval(a).enumerate(a)) ])),
+        'powerlist': Builtin('powerlist', lambda a, args: FinSet([ List(xs) for xs in powerset(args[0].eval(a).enumerate(a)) ])),
         'choose': Builtin('choose', lambda a, args: args[0].eval(a).arbitrary(a)),
         'gcd': Builtin('gcd', lambda a, args: Num(gcd(args[0].eval(a).as_int(), args[1].eval(a).as_int()))),
         'next': Builtin('next', lambda a, args: args[0].eval(a).next_elem(args[1].eval(a), a)),
@@ -223,15 +227,19 @@ if __name__ == '__main__':
         'sequence': Builtin('sequence', lambda a, args: SetSequence(args[0].eval(a)).eval(a)),
         'cached_elements': Builtin('cached_elements', lambda a, args: FinSet(args[0].eval(a).known_elements)),
         '⋃': Builtin('⋃', lambda a, args: Union(list(args[0].eval(a).enumerate(a))).eval(a)),
-        '⋂': Builtin('⋂', lambda a, args: Union(list(args[0].eval(a).enumerate(a))).eval(a)),
-        'sort': Builtin('sort', lambda a, args: List(sorted(list(val.enumerate(a))))),
+        '⋂': Builtin('⋂', lambda a, args: Intersection(list(args[0].eval(a).enumerate(a))).eval(a)),
+        'sort': Builtin('sort', lambda a, args: List(sorted(list(args[0].eval(a).enumerate(a))))),
         'n_smallest': Builtin('n_smallest', n_smallest),
         'cf': Builtin('cf', eval_cf),
         'print': Builtin('print', print_val),
         'μ': Builtin('μ', minimize),
         'group': Builtin('group', group),
         'Animate': Builtin('Animate', animate),
-        'memo': Builtin('memo', make_memo)
+        'memo': Builtin('memo', make_memo),
+        'Max': Builtin('Max', lambda a, args: Max(list(args[0].eval(a).enumerate(a))).eval(a)),
+        'Min': Builtin('Min', lambda a, args: Min(list(args[0].eval(a).enumerate(a))).eval(a)),
+        'force_set_eval': Builtin('force_set_eval', lambda a, args: FinSet(args[0].eval(a).enumerate(a))),
+        'show_set_eval': Builtin('show_set_eval', show_set_eval)
     }
 
     sys.setrecursionlimit(10000)

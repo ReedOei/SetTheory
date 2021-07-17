@@ -26,7 +26,7 @@ Sequence:
 
 f(12)
 
-Let Π := X |-> if X = {} then 1 else ** Σ X .
+Let Π := X |-> if card(X) = 0 then 1 else ** Σ X .
 
 // Project Euler 1
 Σ { x ∈ {1...999} : 3 | x or 5 | x }
@@ -36,7 +36,6 @@ Let fib := n |-> num(cf((n |-> 1)[list({1...n})])) .
 Σ { x ∈ fib[{1...50}] : x < 4*10^6 and 2 | x }
 
 // Project Euler 3
-Let divisors := n |-> { d ∈ {1...n} : d | n } .
 // Let smallest_div := n |-> if n = 1 then 1 else μ(d |-> (d + 2) | n) + 2 .
 Let smallest_div := n |-> if n <= 1 then 1 else p(μ(k |-> p(k) | n)) .
 // Let is_prime := n |-> n > 1 and smallest_div(n) = n .
@@ -48,29 +47,33 @@ Let is_prime := n |-> n = 2 or (n > 1 and ((not (2 | n)) and (not (exists m ∈ 
 
 Let primes := cache("primes", { n ∈ ℕ : is_prime(n) }) .
 min_elem(primes)
-
 choose(primes)
-// next(primes, 2)
 n_smallest(100, primes)
 
-Let factors := n |-> i |->
+Let factor_seq := n |-> i |->
     if i = 0
     then smallest_div(n)
-    else smallest_div(n / Π((factors(n))[list({0...i-1})])) .
-// Let factor := n |-> (factors(n))[list({0...μ(m |-> (factors(n))(m + 1) = 1)})] .
+    else smallest_div(n / Π((factors(n))[sort({0...i-1})])) .
+// Let factor := n |-> (factors(n))[sort({0...μ(m |-> (factors(n))(m + 1) = 1)})] .
 
-Let factor := n |->
+Let factor_list := n |->
     if smallest_div(n) = n
     then [n]
-    else [smallest_div(n)] @ factor(n / smallest_div(n)) .
+    else [smallest_div(n)] @ factor_list(n / smallest_div(n)) .
 
-Hint(factor, "finite"). // Currently doesn't do anything
-max(factor(600851475143))
+Let factor := n |-> { [p, μ(k |-> not (p^k | n)) - 1] : p ∈ factor_list(n) } .
+Let factors := n |-> set(factor_list(n)) .
+// Let divisors := n |-> { d ∈ {1...n} : d | n } .
+Let divisors := n |-> Π[powerlist(factor_list(n))] .
+
+Hint(factor_list, "finite"). // Currently doesn't do anything
+
+max(factors(600851475143))
 
 // Project Euler 4
-Let int_log := n |-> μ(m |-> n / 10^m < 10) .
+Let int_log := n |-> μ(m |-> n < 10^(m + 1)) .
 Let nth_dig := n |-> i |-> (n / 10^(int_log(n) - i)) % 10 .
-Let digits := n |-> (nth_dig(n))[list({0...int_log(n)})] .
+Let digits := n |-> (nth_dig(n))[sort({0...int_log(n)})] .
 Let is_palindrome := n |-> digits(n) = reverse(digits(n)) .
 
 // max({ n ∈ Π[{10...99}^2] : is_palindrome(n) })
@@ -104,19 +107,18 @@ Section
 // TODO: Would be nice to be able to write this
 // Σ { p ∈ primes : p < 2000000 }
 
-// Project Euler 11:
+// Project Euler 12:
 Let Tri := n |-> n*(n+1)/2 .
-Let factor_pow := n |-> { [p, μ(k |-> not (p^k | n)) - 1] : p ∈ factor(n) } .
-// Let d := n |-> card(divisors(n)) .
+// Let τ := n |-> card(divisors(n)) .
 // The below uses the prime factorization and is much faster.
-Let d := n |-> Π((p |-> p(1) + 1)[list(factor_pow(n))]) .
-// Tri(μ(n |-> d(Tri(n + 2)) > 500) + 2)
+Let τ := n |-> Π((p |-> p(1) + 1)[list(factor(n))]) .
+// Tri(μ(n |-> τ(Tri(n + 2)) > 500) + 2)
 
 // TODO: How is this not faster?
-Let dTri := n |-> if 2 | n then d(num(n / 2)) * d(n + 1) else d(n) * d(num((n + 1) / 2)) .
-// Tri(μ(n |-> dTri(n + 2) > 500) + 2)
+Let τTri := n |-> if 2 | n then τ(num(n / 2)) * τ(n + 1) else τ(n) * τ(num((n + 1) / 2)) .
+// Tri(μ(n |-> τTri(n + 2) > 500) + 2)
 
-// Project Euler 12
+// Project Euler 14
 Let collatz := n |->
     if n = 1 then [1]
     else [n] @ collatz(if 2 | n then n / 2 else 3*n + 1) .
@@ -125,6 +127,28 @@ Let collatzSteps := memo(n |->
     if n = 1 then 0
     else 1 + collatzSteps(if 2 | n then n / 2 else 3*n + 1)) .
 
-// { [n, card(collatz(n)) ] : n ∈ {1,3...10000} }
-{ [ collatzSteps(n), n ] : n ∈ {1,3...1000000} }
+// Max({ [ collatzSteps(n), n ] : n ∈ {1,3...1000000} })
+
+// Project Euler 15
+Let binomial := (n,k) |-> n! / (k! * (n - k)!) .
+binomial(40, 20)
+
+// Project Euler 16
+Section
+Σ digits(2^1000)
+
+// Project Euler 20
+Section
+Σ digits(100!)
+
+// Project Euler 21
+Let d := n |-> (Σ divisors(n)) - n .
+Let amicable := cache("amicable", { n ∈ ℕ : n > 2, d(d(n)) = n, d(n) ≠ n }) .
+
+// Project Euler 23
+Let perfect := cache("perfect", { n ∈ ℕ : n > 0, d(n) = n }) .
+Let abundant := cache("abundant", { n ∈ ℕ : n > 0, d(n) > n }) .
+Let deficient := cache("deficient", { n ∈ ℕ : n > 0, d(n) < n }) .
+
+show_set_eval({ print(a + b) : [a,b] ∈ abundant^2 })
 

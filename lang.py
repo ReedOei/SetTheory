@@ -8,10 +8,11 @@ import random
 
 operators = {
     '=': lambda a, lhs, rhs: Num(1) if lhs.eval(a) == rhs.eval(a) else Num(0),
-    '>': lambda a, lhs, rhs: Num(1) if greater(lhs.eval(a).val, rhs.eval(a).val) else Num(0),
-    '>=': lambda a, lhs, rhs: Num(1) if greater_eq(lhs.eval(a).val, rhs.eval(a).val) else Num(0),
-    '<=': lambda a, lhs, rhs: Num(1) if less_eq(lhs.eval(a).val, rhs.eval(a).val) else Num(0),
-    '<': lambda a, lhs, rhs: Num(1) if less(lhs.eval(a).val, rhs.eval(a).val) else Num(0),
+    '≠': lambda a, lhs, rhs: Num(1) if lhs.eval(a) != rhs.eval(a) else Num(0),
+    '>': lambda a, lhs, rhs: Num(1) if lhs.eval(a) > rhs.eval(a) else Num(0),
+    '>=': lambda a, lhs, rhs: Num(1) if lhs.eval(a) >= rhs.eval(a) else Num(0),
+    '<=': lambda a, lhs, rhs: Num(1) if lhs.eval(a) <= rhs.eval(a) else Num(0),
+    '<': lambda a, lhs, rhs: Num(1) if lhs.eval(a) < rhs.eval(a) else Num(0),
     '@': lambda a, lhs, rhs: List(lhs.eval(a).elems + rhs.eval(a).elems),
     'or': lambda a, lhs, rhs: Num(1) if lhs.eval(a).as_int() != 0 or rhs.eval(a).as_int() != 0 else Num(0),
     'and': lambda a, lhs, rhs: Num(1) if lhs.eval(a).as_int() != 0 and rhs.eval(a).as_int() != 0 else Num(0),
@@ -19,6 +20,12 @@ operators = {
     '∪': lambda a, lhs, rhs: Union([lhs.eval(a), rhs.eval(a)]).eval(a),
     '∩': lambda a, lhs, rhs: Intersection([lhs.eval(a), rhs.eval(a)]).eval(a),
 }
+
+# From: https://stackoverflow.com/a/1482316/1498618
+def powerset(iterable):
+    "powerset([1,2,3]) --> () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"
+    s = list(iterable)
+    return list(it.chain.from_iterable(it.combinations(s, r) for r in range(len(s)+1)))
 
 def less(a, b):
     if isinstance(a, int) and isinstance(b, Rat):
@@ -117,11 +124,14 @@ class Function(AST):
                 new_subs.pop(arg.name)
         return Function(self.args, self.body.substitute(new_subs), name=self.name)
 
-    def call(self, a, actual_args):
-        subs = { formal.name: arg.eval(a) for formal, arg in zip(self.args, actual_args) }
+    def prepare_call(self, evaled_args):
+        subs = { formal.name: arg for formal, arg in zip(self.args, evaled_args) }
         if self.name is not None:
             subs[self.name] = self
-        return self.body.substitute(subs).eval(a)
+        return self.body.substitute(subs)
+
+    def call(self, a, actual_args):
+        return self.prepare_call(arg.eval(a) for arg in actual_args).eval(a)
 
     def as_function(self):
         return self
@@ -311,6 +321,13 @@ class App(AST):
     def eval(self, a):
         return self.func.eval(a).call(a, self.args)
 
+    def simplify(self):
+        # This will take something like (n |-> n + 2)(x) and convert it into x + 2.
+        if isinstance(self.func, Function) and all([ isinstance(arg, VarRef) for arg in self.args]):
+            return self.func.prepare_call(self.args)
+        else:
+            return self
+
     def is_finite(self):
         # Uh...don't worry about it *sweats*
         return True
@@ -376,14 +393,7 @@ class Elem(AST):
         self.domain = domain
 
     def eval(self, a):
-        self.domain = self.domain.eval(a)
-        b = False
-        if isinstance(self.domain, List):
-            b = self.x.eval(a) in self.domain.elems
-        else:
-            b = self.x.eval(a) in self.domain.enumerate(a)
-
-        if b:
+        if self.domain.eval(a).contains(self.x.eval(a), a):
             return Num(1)
         else:
             return Num(0)
@@ -418,7 +428,7 @@ class Max(AST):
                 if max_val is None:
                     max_val = arg
                 else:
-                    max_val = Num(max(max_val.val, arg.val))
+                    max_val = max(max_val, arg)
             else:
                 new_args.append(arg)
 
@@ -431,7 +441,7 @@ class Max(AST):
             return Max(new_args)
 
     def eval(self, a):
-        return Num(max([ arg.eval(a).val for arg in self.args ]))
+        return max([ arg.eval(a) for arg in self.args ])
 
     def is_finite(self):
         return all([ arg.is_finite() for arg in self.args ])
@@ -456,7 +466,7 @@ class Min(AST):
         self.args = args
 
     def eval(self, a):
-        return Num(min([ arg.eval(a).val for arg in self.args ]))
+        return min([ arg.eval(a) for arg in self.args ])
 
     def simplify(self):
         new_args = []
@@ -466,7 +476,7 @@ class Min(AST):
                 if min_val is None:
                     min_val = arg
                 else:
-                    min_val = Num(min(min_val.val, arg.val))
+                    min_val = min(min_val, arg)
             else:
                 new_args.append(arg)
 
@@ -713,6 +723,8 @@ class Num(AST):
     def as_rat(self):
         if self.is_int():
             return Rat(self.val, 1)
+        elif isinstance(self.val, NatOrd):
+            return Rat(self.val.n, 1)
         else:
             return self.val
 
@@ -733,6 +745,18 @@ class Num(AST):
 
     def __hash__(self):
         return hash(self.as_rat())
+
+    def __lt__(self, other):
+        return less(self.val, other.val)
+
+    def __le__(self, other):
+        return less_eq(self.val, other.val)
+
+    def __gt__(self, other):
+        return greater(self.val, other.val)
+
+    def __ge__(self, other):
+        return greater_eq(self.val, other.val)
 
 class Ord:
     def __init__(self):
@@ -1038,30 +1062,30 @@ class Operator(AST):
     def as_set_restriction(self, var):
         # TODO: For the moment, this assumes natural numbers...
         if self.op == '<':
-            if var == self.lhs:
+            if var == self.lhs and var.name not in self.rhs.free_vars():
                 return RangeSet(Num(0), BinArithOp('Sub', sub, self.rhs, Num(1)), Num(1))
-            elif var == self.rhs:
+            elif var == self.rhs and var.name not in self.lhs.free_vars():
                 return RangeSet(BinArithOp('Add', add, self.lhs, Num(1)), Num(OmegaOrd()), Num(1))
         elif self.op == '>':
-            if var == self.lhs:
+            if var == self.lhs and var.name not in self.rhs.free_vars():
                 return RangeSet(BinArithOp('Add', add, self.lhs, Num(1)), Num(OmegaOrd()), Num(1))
-            elif var == self.rhs:
+            elif var == self.rhs and var.name not in self.lhs.free_vars():
                 return RangeSet(Num(0), BinArithOp('Sub', sub, self.rhs, Num(1)), Num(1))
         elif self.op == '<=':
-            if var == self.lhs:
+            if var == self.lhs and var.name not in self.rhs.free_vars():
                 return RangeSet(Num(0), self.rhs, Num(1))
-            elif var == self.rhs:
+            elif var == self.rhs and var.name not in self.lhs.free_vars():
                 return RangeSet(self.lhs, Num(OmegaOrd()), Num(1))
         elif self.op == '>=':
-            if var == self.lhs:
+            if var == self.lhs and var.name not in self.rhs.free_vars():
                 return RangeSet(self.lhs, Num(OmegaOrd()), Num(1))
-            elif var == self.rhs:
+            elif var == self.rhs and var.name not in self.lhs.free_vars():
                 return RangeSet(Num(0), self.rhs, Num(1))
         elif self.op == '=':
             # This plays nicer with the simplifier
-            if var == self.lhs:
+            if var == self.lhs and var.name not in self.rhs.free_vars():
                 return FinSet([self.rhs])
-            elif var == self.rhs:
+            elif var == self.rhs and var.name not in self.lhs.free_vars():
                 return FinSet([self.lhs])
         return None
 
@@ -1205,21 +1229,34 @@ class Set(AST):
     def cardinality(self, a):
         return Num(len(list(self.enumerate(a))))
 
+    def contains(self, x, a):
+        # If this set is ordered and we can find a minimum element, then we may be able to say a value is not a member of the set even if the set is infinite
+        # This may be slower sometimes, but it also has the benefit of actually terminating when the element is not in the set sometimes, which is nice.
+        y = self.min_elem(a)
+        if y is None: # But if the set is not ordered, just try enumerating and hope the set is finite :(
+            return x in self.enumerate(a)
+        while x > y:
+            y = self.next_elem(y, a)
+        return x == y
+
     def next_elem(self, y, a):
         res = None
         for x in self.enumerate(a):
-            if x.val > y.val and (res is None or res.val > x.val):
+            if x > y and (res is None or res > x):
                 res = x
         return res
 
     def min_elem(self, a):
-        return min(self.enumerate(a), key=lambda n: n.val)
+        return min(self.enumerate(a))
 
 class FinSet(Set):
     def __init__(self, elems, evaled=False):
         super().__init__()
         self.elems = set(elems)
         self.evaled = evaled
+
+    def contains(self, x, a):
+        return x in self.elems
 
     def eval(self, a):
         if self.evaled:
@@ -1338,13 +1375,65 @@ class RangeSet(Set):
     def __hash__(self):
         return hash((self.low, self.high, self.step))
 
+# Modified from: https://stackoverflow.com/a/41099553/1498618
+def bin_cart_prod(a, b):
+    a, a_copy = it.tee(a)
+    b, b_copy = it.tee(b)
+    try:
+        yield (next(a_copy), next(b_copy))
+    except StopIteration:
+        return
+    size = 1
+    while True:
+        try:
+            next_a = next(a_copy)
+        except StopIteration:
+            for next_b in b_copy:
+                a, new_a = it.tee(a)
+                yield from ((aval, next_b) for aval in new_a)
+            return
+
+        try:
+            next_b = next(b_copy)
+        except StopIteration:
+            # We already got next_a from a_copy, so do this one before we process the rest
+            b, new_b = it.tee(b)
+            yield from((next_a, bval) for bval in new_b)
+            for next_a in a_copy:
+                b, new_b = it.tee(b)
+                yield from((next_a, bval) for bval in new_b)
+            return
+
+        a, new_a = it.tee(a)
+        b, new_b = it.tee(b)
+        yield from ((next(new_a), next_b) for i in range(size))
+        yield from ((next_a, next(new_b)) for i in range(size))
+        yield (next_a, next_b)
+        size += 1
+
+# This works for infinite iterables, and is guaranteed to eventually generate all tuples.
+def cart_prod(*xss):
+    xss = [ iter(xs) for xs in xss ]
+    if len(xss) == 1:
+        for x in xss[0]:
+            yield (x,)
+    elif len(xss) == 2:
+        for p in bin_cart_prod(*xss):
+            yield p
+    else:
+        for ps in cart_prod(bin_cart_prod(xss[0], xss[1]), *xss[2:]):
+            yield ps[0] + ps[1:]
+
 class CartProd(Set):
     def __init__(self, *sets):
         super().__init__()
         self.sets = list(sets)
 
     def simplify(self):
-        if len(self.sets) == 1:
+        # If the single element isn't guaranteed to be a set, then we need to keep something so that it gets converted to a set.
+        # For example, CartProd(List([1,1,2,3])) == FinSet({1,2,3})
+        # But List([1,1,2,3]) != FinSet({1,2,3})
+        if len(self.sets) == 1 and isinstance(self.sets[0], Set):
             return self.sets[0]
         else:
             return self
@@ -1359,8 +1448,26 @@ class CartProd(Set):
             for x in self.sets[0].eval(a).enumerate(a):
                 yield x
         else:
-            for xs in it.product(*[ s.eval(a).enumerate(a) for s in self.sets]):
+            for xs in cart_prod(*[ s.eval(a).enumerate(a) for s in self.sets]):
                 yield List(xs)
+
+    # Inspired by: https://stackoverflow.com/a/20516638/1498618
+    def bind(self, xs, f):
+        for x in xs:
+            for y in f(x):
+                yield y
+
+    def min_elem(self, a):
+        return List([ s.eval(a).min_elem(a) for s in self.sets ])
+
+    def concat(self, xs, ys):
+        b = True
+        try:
+            while True:
+                yield next(xs)
+                yield next(ys)
+        except StopIteration:
+            pass
 
     def is_finite(self):
         return all([s.is_finite() for s in self.sets])
@@ -1557,6 +1664,9 @@ class Naturals(Set):
     def cardinality(self, a):
         return Num(OmegaOrd())
 
+    def contains(self, x, a):
+        return isinstance(x, Num) and x.as_rat().d == 1
+
     def enumerate(self, a):
         n = 0
         while True:
@@ -1659,6 +1769,12 @@ class CachedSet(Set):
         else:
             return self
 
+    def contains(self, x, a):
+        if isinstance(x, Num) and isinstance(self.max_known_element, Num) and x < self.max_known_element:
+            return x in self.known_elements
+        else:
+            return super().contains(x, a)
+
     def min_elem(self, a):
         x = self.base_set.min_elem(a)
         if self.max_known_element is None:
@@ -1667,9 +1783,11 @@ class CachedSet(Set):
         return x
 
     def next_elem(self, y, a):
-        if isinstance(y, Num) and isinstance(self.max_known_element, Num) and less(y.val, self.max_known_element.val):
-            idx = self.known_list.index(y)
-            return self.known_list[idx + 1]
+        if isinstance(y, Num) and isinstance(self.max_known_element, Num) and y < self.max_known_element:
+            i = 0
+            while self.known_list[i] < y:
+                i += 1
+            return self.known_list[i]
         else:
             res = self.base_set.next_elem(y, a)
             if y == self.max_known_element:
@@ -1803,7 +1921,13 @@ class Reduce(AST):
 
     def eval(self, a):
         res = self.body.eval(a)
-        final_res = None
+
+        if self.op == '++':
+            final_res = Num(0)
+        elif self.op == '**':
+            final_res = Num(1)
+        else:
+            final_res = None
 
         for v in res.enumerate(a):
             if final_res is None:
@@ -2045,7 +2169,7 @@ class Union(Set):
 
 class List(AST):
     def __init__(self, elems):
-        self.elems = elems
+        self.elems = list(elems)
 
     def eval(self, a):
         return List([ e.eval(a) for e in self.elems ])
@@ -2083,4 +2207,22 @@ class List(AST):
 
     def __hash__(self):
         return hash(tuple(self.elems))
+
+    def __lt__(self, other):
+        for a, b in zip(self.elems, other.elems):
+            if a < b:
+                return True
+            elif b < a:
+                return False
+
+        return len(self.elems) < len(other.elems)
+
+    def __le__(self, other):
+        return self < other or self == other
+
+    def __gt__(self, other):
+        return not self <= other
+
+    def __ge__(self, other):
+        return not self < other
 
