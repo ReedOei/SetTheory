@@ -126,5 +126,5 @@ Let collatzSteps := memo(n |->
     else 1 + collatzSteps(if 2 | n then n / 2 else 3*n + 1)) .
 
 // { [n, card(collatz(n)) ] : n ∈ {1,3...10000} }
-{ [n, collatzSteps(n) ] : n ∈ {1,3...100000} }
+{ [ collatzSteps(n), n ] : n ∈ {1,3...1000000} }
 

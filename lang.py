@@ -12,7 +12,7 @@ operators = {
     '>=': lambda a, lhs, rhs: Num(1) if greater_eq(lhs.eval(a).val, rhs.eval(a).val) else Num(0),
     '<=': lambda a, lhs, rhs: Num(1) if less_eq(lhs.eval(a).val, rhs.eval(a).val) else Num(0),
     '<': lambda a, lhs, rhs: Num(1) if less(lhs.eval(a).val, rhs.eval(a).val) else Num(0),
-    '@': lambda a, lhs, rhs: List(*lhs.eval(a).elems, *rhs.eval(a).elems),
+    '@': lambda a, lhs, rhs: List(lhs.eval(a).elems + rhs.eval(a).elems),
     'or': lambda a, lhs, rhs: Num(1) if lhs.eval(a).as_int() != 0 or rhs.eval(a).as_int() != 0 else Num(0),
     'and': lambda a, lhs, rhs: Num(1) if lhs.eval(a).as_int() != 0 and rhs.eval(a).as_int() != 0 else Num(0),
     '×': lambda a, lhs, rhs: CartProd(lhs.eval(a), rhs.eval(a)).eval(a),
@@ -58,9 +58,6 @@ def mul(a, b):
 
 def divide(a, b):
     if isinstance(a, int):
-        # if isinstance(b, int) and a % b == 0:
-        #     return a / b
-        # else:
         return Rat(a, 1) / b
     else:
         return a / b
@@ -102,17 +99,13 @@ class AST:
         return False
 
 class Function(AST):
-    def __init__(self, args, body, name=None, memo=None):
+    def __init__(self, args, body, name=None):
         self.name = name
         if isinstance(args, list):
             self.args = args
         else:
             self.args = [args]
         self.body = body
-
-        self.memo = {}
-        if memo is not None:
-            self.memo = memo
 
     def free_vars(self):
         return self.body.free_vars() - { x.name for x in self.args }
@@ -125,14 +118,10 @@ class Function(AST):
         return Function(self.args, self.body.substitute(new_subs), name=self.name)
 
     def call(self, a, actual_args):
-        # if tuple(actual_args) in self.memo:
-        #     return self.memo[tuple(actual_args)]
-        body = self.body
+        subs = { formal.name: arg.eval(a) for formal, arg in zip(self.args, actual_args) }
         if self.name is not None:
-            body = body.substitute({ self.name: self })
-        val = body.substitute({ formal.name: arg.eval(a) for formal, arg in zip(self.args, actual_args) }).eval(a)
-        # self.memo[tuple(actual_args)] = val
-        return val
+            subs[self.name] = self
+        return self.body.substitute(subs).eval(a)
 
     def as_function(self):
         return self
@@ -267,7 +256,7 @@ def group(a, args):
         if not x in res:
             res[x] = 0
         res[x] += 1
-    return List(*[ List(*([k] * v)) for k, v in res.items() ])
+    return List([ List([k] * v) for k, v in res.items() ])
 
 def print_val(a, args):
     val = args[0].eval(a)
@@ -284,7 +273,7 @@ def n_smallest(a, args):
     for i in range(n.as_int()):
         vals.append(cur)
         cur = base_set.next_elem(cur, a)
-    return FinSet(*vals)
+    return FinSet(vals)
 
 def eval_cf(a, args):
     res = args[0].eval(a)
@@ -298,7 +287,8 @@ def minimize(a, args):
     # See: The minimization operator in: https://en.wikipedia.org/wiki/General_recursive_function#Definition
     # This version is slightly different in that it finds the smallest value for which the function does not return 0 (i.e., false)
     n = 0
-    while App(args[0], Num(n)).eval(a).as_int() == 0:
+    f = args[0].eval(a)
+    while f.call(a, [Num(n)]).as_int() == 0:
         n += 1
     return Num(n)
 
@@ -1070,9 +1060,9 @@ class Operator(AST):
         elif self.op == '=':
             # This plays nicer with the simplifier
             if var == self.lhs:
-                return FinSet(self.rhs)
+                return FinSet([self.rhs])
             elif var == self.rhs:
-                return FinSet(self.lhs)
+                return FinSet([self.lhs])
         return None
 
     def free_vars(self):
@@ -1226,7 +1216,7 @@ class Set(AST):
         return min(self.enumerate(a), key=lambda n: n.val)
 
 class FinSet(Set):
-    def __init__(self, *elems, evaled=False):
+    def __init__(self, elems, evaled=False):
         super().__init__()
         self.elems = set(elems)
         self.evaled = evaled
@@ -1234,7 +1224,7 @@ class FinSet(Set):
     def eval(self, a):
         if self.evaled:
             return self
-        return FinSet(*[ e.eval(a) for e in self.elems ], evaled=True)
+        return FinSet([ e.eval(a) for e in self.elems ], evaled=True)
 
     def enumerate(self, a):
         for v in self.elems:
@@ -1257,7 +1247,7 @@ class FinSet(Set):
             changed |= new_elem != e
             new_elems.append(new_elem)
         if changed:
-            return FinSet(*new_elems)
+            return FinSet(new_elems)
         else:
             return self
 
@@ -1286,7 +1276,7 @@ class RangeSet(Set):
         hval = self.high.eval(a)
 
         if hval.is_finite():
-            return FinSet(*list(self.enumerate(a)), evaled=True)
+            return FinSet(self.enumerate(a), evaled=True)
         else:
             return self
 
@@ -1361,7 +1351,7 @@ class CartProd(Set):
 
     def eval(self, a):
         if self.is_finite():
-            return FinSet(*list(self.enumerate(a)))
+            return FinSet(self.enumerate(a))
         return CartProd(*[ s.eval(a) for s in self.sets ])
 
     def enumerate(self, a):
@@ -1370,13 +1360,13 @@ class CartProd(Set):
                 yield x
         else:
             for xs in it.product(*[ s.eval(a).enumerate(a) for s in self.sets]):
-                yield List(*xs)
+                yield List(xs)
 
     def is_finite(self):
         return all([s.is_finite() for s in self.sets])
 
     def arbitrary(self, a):
-        return List(*[ s.arbitrary(a) for s in self.sets ])
+        return List([ s.arbitrary(a) for s in self.sets ])
 
     def free_vars(self):
         return { v for s in self.sets for v in s.free_vars() }
@@ -1475,7 +1465,7 @@ class ComprehensionSet(Set):
 
     def eval(self, a):
         if self.is_finite():
-            return FinSet(*self.enumerate(a), evaled=True)
+            return FinSet(self.enumerate(a), evaled=True)
         else:
             return self
 
@@ -1512,7 +1502,7 @@ class ComprehensionSet(Set):
         if len(self.var_doms) == 1:
             return xs[self.var_doms[0][0].name]
         else:
-            return List(*[ xs[x.name] for x, dom in self.var_doms ])
+            return List([ xs[x.name] for x, dom in self.var_doms ])
 
     def is_finite(self):
         # A conservative check, this set could be finite simply by virtue of the clauses always being false, but that's obviously too hard to check
@@ -1850,23 +1840,24 @@ class Image(Set):
         return Image(self.f.simplify(), self.arg_set.simplify())
 
     def eval(self, a):
-        self.arg_set = self.arg_set.eval(a)
-        self.f = self.f.eval(a)
-        if isinstance(self.arg_set, List):
-            return List(*[ App(self.f, e) for e in self.arg_set.elems ]).eval(a)
+        arg_set = self.arg_set.eval(a)
 
-        if self.arg_set.is_finite():
-            return FinSet(*[ App(self.f, e) for e in self.arg_set.enumerate(a) ]).eval(a)
+        if arg_set.is_finite():
+            f = self.f.eval(a)
+            if isinstance(arg_set, List):
+                return List([ f.call(a, [e]) for e in arg_set.elems ])
+            return FinSet([ f.call(a, [e]) for e in arg_set.enumerate(a) ])
 
         return self
 
     def enumerate(self, a):
+        f = self.f.eval(a)
         for v in self.arg_set.eval(a).enumerate(a):
-            yield App(self.f, v).eval(a)
+            yield f.call(a, [v])
 
     def arbitrary(self, a):
-        self.arg_set = self.arg_set.eval(a)
-        return App(self.f, self.arg_set.arbitrary(a)).eval(a)
+        arg_set = self.arg_set.eval(a)
+        return App(self.f, arg_set.arbitrary(a)).eval(a)
 
     def is_finite(self):
         # Recall that is_finite returning True implies this set is finite, but it returning False only means it **might** not be finite.
@@ -1914,7 +1905,7 @@ class Intersection(Set):
                 range_sets.append(s)
             elif isinstance(s, FinSet):
                 if len(s.elems) == 0:
-                    return FinSet()
+                    return FinSet([])
                 elif len(s.elems) == 1:
                     singletons.append(s)
                 else:
@@ -1958,7 +1949,7 @@ class Intersection(Set):
 
     def eval(self, a):
         if self.is_finite():
-            return FinSet(*list(self.enumerate(a)))
+            return FinSet(self.enumerate(a))
         else:
             return self
 
@@ -1994,11 +1985,11 @@ class Union(Set):
         others = []
 
         for s in self.sets:
-            if isinstance(s, RangeSet):
+            if isinstance(s, RangeSet) and s.step == Num(1):
                 range_sets.append(s)
             elif isinstance(s, FinSet):
                 if len(s.elems) == 0:
-                    return FinSet()
+                    return FinSet([])
                 elif len(s.elems) == 1:
                     singletons.append(s)
                 else:
@@ -2009,7 +2000,7 @@ class Union(Set):
         if len(range_sets) > 0:
             low = Min([ s.low for s in range_sets ] + [ next(iter(s.elems)) for s in singletons ])
             high = Max([ s.high for s in range_sets ] + [ next(iter(s.elems)) for s in singletons ])
-            self.sets = others + [ RangeSet(low, high) ]
+            self.sets = others + [ RangeSet(low, high, Num(1)) ]
             if len(self.sets) == 1:
                 return self.sets[0]
         return self
@@ -2030,7 +2021,7 @@ class Union(Set):
 
     def eval(self, a):
         if self.is_finite():
-            return FinSet(*list(self.enumerate(a)))
+            return FinSet(self.enumerate(a))
         else:
             return self
 
@@ -2053,14 +2044,14 @@ class Union(Set):
         return hash(tuple(self.sets))
 
 class List(AST):
-    def __init__(self, *elems):
-        self.elems = list(elems)
+    def __init__(self, elems):
+        self.elems = elems
 
     def eval(self, a):
-        return List(*[ e.eval(a) for e in self.elems ])
+        return List([ e.eval(a) for e in self.elems ])
 
     def substitute(self, subs):
-        return List(*[ e.substitute(subs) for e in self.elems ])
+        return List([ e.substitute(subs) for e in self.elems ])
 
     def free_vars(self):
         return { v for elem in self.elems for v in elem.free_vars() }

@@ -78,7 +78,7 @@ class LangTransformer(Transformer):
         return Image(f, arg)
 
     def list(self, *args):
-        return List(*args)
+        return List(list(args))
 
     def lambda_fun(self, *args):
         args = list(args)
@@ -125,7 +125,7 @@ class LangTransformer(Transformer):
         return Complement(t)
 
     def finset(self, *elems):
-        return FinSet(*elems)
+        return FinSet(elems)
 
     def let_match(self, pat, t, body):
         return LetBind(pat, t, body)
@@ -148,7 +148,7 @@ class LangTransformer(Transformer):
 
             preds = new_preds
             if len(quants) > 1:
-                quant = Elem(List(*[ q.x for q in quants ]), CartProd(*[ q.domain for q in quants ]))
+                quant = Elem(List([ q.x for q in quants ]), CartProd(*[ q.domain for q in quants ]))
             else:
                 quant = quants[0]
 
@@ -213,18 +213,18 @@ if __name__ == '__main__':
         'gcd': Builtin('gcd', lambda a, args: Num(gcd(args[0].eval(a).as_int(), args[1].eval(a).as_int()))),
         'next': Builtin('next', lambda a, args: args[0].eval(a).next_elem(args[1].eval(a), a)),
         'card': Builtin('card', lambda a, args: args[0].eval(a).cardinality(a)),
-        'reverse': Builtin('reverse', lambda a, args: List(*args[0].eval(a).elems[::-1])),
-        'set': Builtin('set', lambda a, args: FinSet(*args[0].eval(a).enumerate(a))),
-        'list': Builtin('list', lambda a, args: List(*args[0].eval(a).enumerate(a))),
+        'reverse': Builtin('reverse', lambda a, args: List(args[0].eval(a).elems[::-1])),
+        'set': Builtin('set', lambda a, args: FinSet(args[0].eval(a).enumerate(a))),
+        'list': Builtin('list', lambda a, args: List(args[0].eval(a).enumerate(a))),
         'num': Builtin('num', lambda a, args: Num(args[0].eval(a).as_rat().n)),
         'denom': Builtin('denom', lambda a, args: Num(args[0].eval(a).as_rat().d)),
         'min_elem': Builtin('min_elem', lambda a, args: args[0].eval(a).min_elem(a)),
         'cache': Builtin('cache', lambda a, args: CachedSet(args[0].eval(a).val, args[1].eval(a))),
         'sequence': Builtin('sequence', lambda a, args: SetSequence(args[0].eval(a)).eval(a)),
-        'cached_elements': Builtin('cached_elements', lambda a, args: FinSet(*args[0].eval(a).known_elements)),
+        'cached_elements': Builtin('cached_elements', lambda a, args: FinSet(args[0].eval(a).known_elements)),
         '⋃': Builtin('⋃', lambda a, args: Union(list(args[0].eval(a).enumerate(a))).eval(a)),
         '⋂': Builtin('⋂', lambda a, args: Union(list(args[0].eval(a).enumerate(a))).eval(a)),
-        'sort': Builtin('sort', lambda a, args: List(*sorted(list(val.enumerate(a))))),
+        'sort': Builtin('sort', lambda a, args: List(sorted(list(val.enumerate(a))))),
         'n_smallest': Builtin('n_smallest', n_smallest),
         'cf': Builtin('cf', eval_cf),
         'print': Builtin('print', print_val),
