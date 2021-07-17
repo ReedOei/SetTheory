@@ -20,7 +20,7 @@ definition tuples :: "('a, 'b) struct \<Rightarrow> nat \<Rightarrow> 'b list se
 
 definition is_struct :: "'a language \<Rightarrow> ('a, 'b) struct \<Rightarrow> bool" where
   "is_struct \<L> \<A> \<equiv> (lang \<A> = \<L>) \<and>
-                    (\<forall>m. \<forall>r \<in> \<L>\<^sup>R m. \<forall>l. length l \<noteq> m \<longrightarrow> l \<notin> rel_interp \<A> r) \<and>
+                    (\<forall>m. \<forall>r \<in> \<L>\<^sup>R m. rel_interp \<A> r \<subseteq> (\<A>\<^sup>m)) \<and>
                     (\<forall>n. \<forall>f \<in> \<L>\<^sup>F n. \<forall>l \<in> \<A>\<^sup>n. fun_interp \<A> f l :\<in> \<A>)"
 
 definition hom :: "('a, 'b) struct \<Rightarrow> ('a, 'c) struct \<Rightarrow> ('b \<Rightarrow> 'c) set" where
@@ -299,9 +299,51 @@ definition quotient_struct :: "('a, 'b) struct \<Rightarrow> ('b \<times> 'b) se
                             rel_interp = \<lambda>r. quotient_rel_interp (rel_interp \<A> r) E,
                             fun_interp = \<lambda>f. quotient_fun_interp (fun_interp \<A> f) E \<rparr>"
 
+lemma rel_subset:
+  fixes \<A> and r and m
+  assumes a_struct: "is_struct (lang \<A>) \<A>" and
+          rel: "r \<in> ((lang \<A>)\<^sup>R) m"
+  shows "rel_interp \<A> r \<subseteq> (\<A>\<^sup>m)"
+  using assms
+  by (auto simp: is_struct_def)
+
+thm someI
+thm someI_ex
+thm some_eq_ex
+thm some_in_eq
+
+lemma 
+  fixes y z
+  assumes "(SOME x. x \<in> y) \<in> z"
+  shows "y \<noteq> {}"
+  using assms 
+proof(auto simp: some_in_eq)
+  assume sin: "(SOME x. False) \<in> z" and ymt: "y = {}"
+  show "False"
+  proof -
+    from sin have "False"
+      apply (rule someI)
+
 lemma
   fixes \<A> and E
-  shows "is_struct (lang \<A>) (quotient_struct A E)"
+  assumes a_struct: "is_struct (lang \<A>) \<A>"
+  shows "is_struct (lang \<A>) (quotient_struct \<A> E)"
+  using assms
+proof(auto simp: is_struct_def tuples_def 
+                 quotient_struct_def quotient_by_rel_def 
+                 quotient_rel_interp_def quotient_fun_interp_def)
+  fix m r x y
+  assume rel: "r \<in> ((lang \<A>)\<^sup>R) m" and 
+         in_rel: "map (\<lambda>a. SOME x. x \<in> a) x \<in> rel_interp \<A> r" and
+         in_set: "y \<in> list.set x"
+
+  from a_struct and rel have r_sub: "rel_interp \<A> r \<subseteq> (\<A>\<^sup>m)" by (rule rel_subset)
+  from r_sub and in_rel have "map (\<lambda>a. SOME x. x \<in> a) x \<in> (\<A>\<^sup>m)" by auto "
+  from in_rel and in_set have "y \<noteq> {}"
+  then show "y \<in> (\<A>\<^sup>U)"
+  then obtain x where "x \<in> (\<A>\<^sup>U) \<and> y = [x]\<^sub>E"
+  proof -
+
 
 lemma 
   fixes \<A> and E

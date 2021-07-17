@@ -113,6 +113,58 @@
         \item Let $c : \mathcal{C} \to 2$ of $\mathcal{G}$ and let $A_i := c^{-1}(i)$ for $i \in \curlys{0,1}$.
     \end{enumerate}
 \end{proposition}
+\begin{proof}
+    \reed{TODO}
+\end{proof}
+
+\begin{definition}
+    A \emph{filter} on a set $X$ is a set $\mathcal{U} \subseteq \powerset{X}$ such that
+    \begin{enumerate}[label=(\roman*)]
+        \item (Nontriviality) $X \in \mathcal{U}$ but $\emptyset \not\in \mathcal{U}$.
+        \item (Upward closure) For any $A \in \mathcal{U}$ and $B$ such that $A \subseteq B$, we have $B \in \mathcal{U}$.
+        \item (Closure under finite intersections) If $A, B \in \mathcal{U}$, then $A \cap B \in \mathcal{U}$.
+    \end{enumerate}
+
+    A filter $\mathcal{U}$ is called an \emph{ultrafilter} if for any $A \not\in \mathcal{U}$, we have $A^c \in \mathcal{U}$.
+    A filter $\mathcal{U}$ is called \emph{principal} if for some $x \in X$, $\{x\} \in \mathcal{U}$; equivalently, if $\mathcal{U} = \setbuild{A \subseteq X}{x \in A}$.
+\end{definition}
+
+\begin{lemma}
+    Every filter $\mathcal{U}$ on $X$ is contained in an ultrafilter $\mathcal{U}'$ on $X$.
+\end{lemma}
+\begin{proof}
+    Consider $\mathcal{U}' = \mathcal{U} \cup \setbuild{A \subseteq X}{A \neq \emptyset \tand A \not\in \mathcal{U} \tand A^c \not\in \mathcal{U}}$; we will show this is an ultrafilter, and it clearly contains $\mathcal{U}$.
+
+    It satisfies the nontriviality requirement because $\mathcal{U}$ does and we did not add $\emptyset$.
+
+    For upward closure, consider $A \in \mathcal{U}'$ and $B \subseteq X$ such that $A \subseteq B$.
+    If $A \in \mathcal{U}$, then we are done; otherwise, $A \not\in \mathcal{U}$ and $A^c \not\in \mathcal{U}$.
+    If $B \in \mathcal{U}$, then $A \cap B = B \in \mathcal{U} \subseteq \mathcal{U}'$, and we are done.
+    Otherwise, $B \not\in \mathcal{U}$.
+    But if $B^c \in \mathcal{U}$, then $A \cap B^c = \emptyset \in \mathcal{U}$, a contradiction.
+    So $B^c \not\in \mathcal{U}$ too, and so by definition $B \in \mathcal{U}'$.
+
+    For closure under finite intersections, consider $A, B \in \mathcal{U}'$.
+    If $A, B \in \mathcal{U}$, we are done.
+
+\end{proof}
+
+\begin{proposition}[Exercise 52a]
+    (AC) For every infinite set $X$, there is a nonprincipal ultrafilter on $X$.
+\end{proposition}
+\begin{proof}
+    \reed{TODO}
+\end{proof}
+
+\begin{proposition}[Exercise 52b]
+    Identifying the $\powerset{\N}$ with the Cantor space, $2^\N$, we can view ultrafilters on $\N$ as subsets of the Cantor space such that no nonprincipal ultrafilter $\mathcal{U}$ is Baire measurable.
+
+    That is, for any ultrafilter $\mathcal{U}$ on $\N$, we may ``convert'' each element $A$ of $\mathcal{U}$ to an element of $2^\N$ by taking the string $\indicator{A}$.
+    Then, if $\mathcal{U}$ is nonprincipal, then the set $\setbuild{ \indicator{A} }{ A \in \mathcal{U} }$ is \textbf{not} Baire measurable as a subset of $2^\N$.
+\end{proposition}
+\begin{proof}
+    \reed{TODO}
+\end{proof}
 
 We write $A \subseteq_c B$ and $B \supseteq_c A$ to mean that $\closure{A} \subseteq B$.
 
@@ -192,7 +244,7 @@ Then Player I wins if and only if $x \in A$.
     If $f : X \to Y$ is universally measurable and $B \subseteq Y$ is Borel, then $f^{-1}(B)$ is universally measurable.
 \end{lemma}
 \begin{proof}
-    This is obviously true for open sets, by the definition of a universally measurable function.
+    This is true for open sets by the definition of a universally measurable function.
     If the $f$-preimage of some subset $A$ of $X$ is universally measurable, then the $f$-preimage of $A^c$ will also be universally measurable because universally measurable sets form a $\sigma$-algebra.
     Similarly, for a family of subsets $A_n$ of $X$ such that $f^{-1}(A_n)$ is universally measurable, the preimage $f^{-1}\parens{\bigcup_n A_n} = \bigcup_n f^{-1}(A_n)$ will also be universally measurable.
     So then the sets for which $f^{-1}(A)$ is universally measurable is a $\sigma$-algebra containing the open sets, and so contains every Borel set.

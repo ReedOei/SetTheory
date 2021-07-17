@@ -1,0 +1,116 @@
+start: (term | definition | sequence)*
+
+definition: "Let" var _IS term "."
+          | "Let" "'" operator_sym "'" _IS term "." -> let_operator
+          | "Section" -> section
+          | "Hint" "(" term "," term ")" "." -> hint
+
+sequence: "Sequence" COLON (seq_def ";")* seq_def "."
+
+seq_def: app _IS term
+
+?term: "if" term "then" term "else" term -> if_stmt
+     | var "|->" term -> lambda_fun
+     | "(" var ("," var)* ")" "|->" term -> lambda_fun
+     | bool
+     | operator_sym "Σ" term -> reduce
+     | term "Σ" term -> reduce
+     | "Σ" term -> reduce_sum
+     | operator_sym "sum" term -> reduce
+     | forall_sym quant_qual "." term -> forall
+     | exists_sym quant_qual "." term -> exists
+     | "let" term _IS term "in" term -> let_match
+
+bool: operator ("or" operator)* -> or_op
+     | operator ("and" operator)+ -> and_op
+     | COMP operator -> complement
+     | quant_qual -> elem
+
+?operator: operator operator_sym operator -> operator
+         | praline_arith
+
+?operator_sym: operator_sym_char+ -> operator_sym
+?operator_sym_char: PP | MM | TT
+                  | PERCENT | ATSIGN
+                  | le | ne | ge | EQ | GT | LT
+                  | DISJ | CONJ | COMP
+                  | /[^\x00-\xFF]|×/
+
+PP: "++"
+MM: "--"
+TT: "**"
+
+CONJ: "&" | "/\\" | "∧" | "and"
+DISJ: "|" | "\\/" | "∨" | "or"
+
+PERCENT: "%"
+ATSIGN: "@"
+
+EQ: "="
+GT: ">"
+LT: "<"
+COLON: ":"
+
+?praline_arith: "-" praline_sub -> praline_neg
+              | praline_sub
+
+?praline_sub: praline_add ("-" praline_add)* -> praline_sub
+?praline_add: praline_mul ("+" praline_mul)* -> praline_add
+?praline_mul: praline_div ("*" praline_div)* -> praline_mul
+?praline_div: praline_exp ("/" praline_exp)* -> praline_div
+            | praline_exp ("%" praline_exp)+ -> praline_mod
+?praline_exp: praline_factorial ("^" praline_factorial)* -> praline_exp
+?praline_factorial: app "!" -> praline_factorial
+                  | app
+
+?app: praline_atom "(" (term ("," term)*)? ")" -> praline_app
+    | praline_atom "[" term "]" -> image
+    | praline_atom
+
+?praline_atom: var
+     | int -> praline_int
+     | string -> praline_string
+     | "true" -> praline_true
+     | "false" -> praline_false
+     | "(" term ")"
+     | "[" (term ("," term)*)? "]" -> list
+     // | praline_tuple
+     | "{" (term ("," term)*)? "}" -> finset
+     | "{" term "..." term "}" -> range_set
+     | "{" term "," term "..." term "}" -> range_set_step
+     | "{" term COLON term ("," term)* "}" -> comp_set
+
+// ?praline_tuple: "(" (term ",")+ (term)? ")"
+
+_IS: "are" | "is" | "∈" | "be" | ":="
+quant_qual: term _IS term
+
+int: INT -> int_tok
+var: VAR -> praline_var
+string: ESCAPED_STRING -> escaped_str
+
+ne: COMP EQ -> elim_ne
+   | "/" EQ | "≠"
+COMP: "!" | "~" | "¬" | "not"
+ge: GT EQ -> elim_ge
+   | "≥" -> elim_ge
+le: LT EQ -> elim_le
+   | "≤" -> elim_ge
+
+_IMPLIES: "=>" | "⇒" | "⟹ "
+_IFF: "<=>" | "⟺" | "⇔" | "iff"
+
+?forall_sym: "forall" | "∀"
+?exists_sym: "exists" | "∃"
+
+VAR: /(?!(Section|let|be|true|false|if|then|else|iff|is|are|forall|exists|not|or|and|∈)\b)[ℕ𝕀ℙℂℚωℝΠξμδθγβαa-z_A-Z\$⋃⋂][\$a-zA-Z_0-9ℕ𝕀ℙℂℚℝωΠξμδθγβαa-z_A-Z⋃⋂]*/
+
+%import common.INT
+%import common.WS
+%import common.ESCAPED_STRING
+
+COMMENT: /\/\/[^\n]*/
+
+%ignore WS
+%ignore COMMENT
+
