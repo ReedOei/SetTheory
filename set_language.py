@@ -150,8 +150,8 @@ class Element(Resolvable):
     def set_parent(self, new_parent):
         self.anchor_to(new_parent)
 
-        if not self.in_parent(self.object().get_x(), self.object().get_y()):
-            return self.reposition()
+        # if not self.in_parent(self.object().get_x(), self.object().get_y()):
+        #     return self.reposition()
 
     def anchor_to(self, new_parent):
         self.parent = new_parent
@@ -306,6 +306,9 @@ def calculate_size(elements):
     min_y = 0
     max_y = 0
 
+    center_x = 0
+    center_y = 0
+
     for e in elements:
         x_low = e.object().get_x() - e.object().get_width() / 2.0
         x_high = e.object().get_x() + e.object().get_width() / 2.0
@@ -319,37 +322,41 @@ def calculate_size(elements):
         min_y = min(y_low, min_y)
         max_y = max(y_high, max_y)
 
-    return max_x - min_x, max_y - min_y
+        center_x += (x_high + x_low) / 2.0
+        center_y += (y_high + y_low) / 2.0
+
+    return center_x / len(elements), center_y / len(elements), max_x - min_x, max_y - min_y
 
 class Integer(Element):
     def __init__(self, value, moving=True):
         super().__init__([], value=IntValue(value), moving=moving)
 
 class Set(Element):
-    WIDTH_PADDING = 0.2
-    HEIGHT_PADDING = 0.2
-    WIDTH_FACTOR = 1.1
-    HEIGHT_FACTOR = 1.1
+    PADDING_FACTOR = 1
 
     RETRY_OVERLAP = 10
+
+    BORDER_TOLERANCE = 0.9
 
     def __init__(self, elements, moving=False):
         super().__init__(elements, value=SetValue(elements), obj_gen=lambda: Ellipse(color=WHITE, width=1, height=1), moving=moving)
 
         self.envelope_elements()
-        self.arrange_elements()
+        # self.arrange_elements()
 
         # Try to avoid elements overlapping
-        # for e1 in self.elements:
-        #     for n in range(Set.RETRY_OVERLAP):
-        #         if e1.overlaps_with_any(self.elements):
-        #             e1.reposition()
-        #         else:
-        #             break
+        for e1 in self.elements:
+            for n in range(Set.RETRY_OVERLAP):
+                if e1.overlaps_with_any(self.elements):
+                    e1.reposition()
+                else:
+                    break
 
     def envelope_elements(self):
-        w, h = calculate_size(self.elements)
-        self.object().scale(2 * np.sqrt(w**2 + h**2))
+        x, y, w, h = calculate_size(self.elements)
+        self.object().move_to(np.array([x,y,0]))
+        print(w, h, np.sqrt(w**2 + h**2))
+        self.object().scale(self.PADDING_FACTOR * np.sqrt(w**2 + h**2))
 
         self.update_radii()
         return self
@@ -358,8 +365,8 @@ class Set(Element):
         for i, e in enumerate(self.elements):
             theta = i * 2 * PI / len(self.elements)
 
-            offset_x = self.object().get_width() / 2.0 * math.cos(theta)
-            offset_y = self.object().get_height() / 2.0 * math.sin(theta)
+            offset_x = Set.BORDER_TOLERANCE * self.object().get_width() / 2.0 * math.cos(theta)
+            offset_y = Set.BORDER_TOLERANCE * self.object().get_height() / 2.0 * math.sin(theta)
             e.move_to(offset_x, offset_y)
 
     def scale_sets(self, amount, recursive=True):
@@ -388,16 +395,23 @@ class Set(Element):
 class Interpreter(Scene):
     def construct(self):
         # A = { 1,2,3 }
-        # a = Set([Integer(1), Integer(2), Integer(3)])
-        # a.shift(4, 0)
-        # self.play(*a.draw())
-        # self.wait()
+        a = Set([Integer(1), Integer(2), Integer(3)])
+        a.shift(-3, 0)
+        a.scale_sets(2)
+        self.play(*a.draw())
+        self.wait()
 
         # B = { 4,5,6 }
-        # b = Set([Integer(4), Integer(5)])
-        # b.shift(-4,0)
-        # self.play(*b.draw())
-        # self.wait()
+        b = Set([Integer(4), Integer(5)])
+        b.shift(-4,0)
+        b.scale_sets(2)
+        self.play(*b.draw())
+        self.wait()
+
+        # AB = {A, B}
+        ab = Set([a, b])
+        self.play(*ab.draw())
+        self.wait()
 
         # C = { {1}, {2,-1} }
         c = Set([Set([Integer(1)]).shift(-1, 0), Set([Integer(2), Integer(-1)]).shift(1, 0)])
@@ -405,6 +419,5 @@ class Interpreter(Scene):
         self.play(*c.draw())
         self.wait(2)
         self.play(*c.union())
-        # a.shift(-1,0)
         self.wait(10)
 
