@@ -7,6 +7,8 @@ import math
 import random
 import uuid
 
+from lang import *
+
 BORDER_FACTOR = 0.98
 COLLISION_TOLERANCE = 0.99
 
@@ -119,8 +121,8 @@ class Element(Resolvable):
     # TODO: This assumes circles...
     def overlaps_with(self, other):
         # Divide by 4 because average of the two and they are diameters
-        r1 = (self.object().get_width() + self.object().get_height()) / 4
-        r2 = (other.object().get_width() + other.object().get_height()) / 4
+        r1 = (self.object().width + self.object().height) / 4
+        r2 = (other.object().width + other.object().height) / 4
 
         diff = self.object().get_center() - other.object().get_center()
 
@@ -167,8 +169,8 @@ class Element(Resolvable):
     def update_radii(self):
         # NOTE: This will only work for circles or ellipses.
         if self.parent is not None:
-            radius_x = (self.parent.get_width() - self.object().get_width()) / 2.0
-            radius_y = (self.parent.get_height() - self.object().get_height()) / 2.0
+            radius_x = (self.parent.width - self.object().width) / 2.0
+            radius_y = (self.parent.height - self.object().height) / 2.0
             self.radii = np.array([radius_x, radius_y, 1])
         else:
             self.radii = np.array([0,0,1])
@@ -255,7 +257,7 @@ class Element(Resolvable):
     def in_bounds(self, new_x, new_y):
         w = BORDER_FACTOR*config['frame_width']/2
         h = BORDER_FACTOR*config['frame_height']/2
-        return new_x + self.object().get_width() / 2.0 < w and new_y + self.object().get_height() / 2.0 < h and new_x - self.object().get_width() / 2.0 > -w and new_y - self.object().get_height() / 2.0 > -h
+        return new_x + self.object().width / 2.0 < w and new_y + self.object().height / 2.0 < h and new_x - self.object().width / 2.0 > -w and new_y - self.object().height / 2.0 > -h
 
     def in_parent(self, new_x, new_y):
         if self.radii[0] == 0 or self.radii[1] == 0:
@@ -312,11 +314,11 @@ def calculate_size(elements):
     center_y = 0
 
     for e in elements:
-        x_low = e.object().get_x() - e.object().get_width() / 2.0
-        x_high = e.object().get_x() + e.object().get_width() / 2.0
+        x_low = e.object().get_x() - e.object().width / 2.0
+        x_high = e.object().get_x() + e.object().width / 2.0
 
-        y_low = e.object().get_y() - e.object().get_height() / 2.0
-        y_high = e.object().get_y() + e.object().get_height() / 2.0
+        y_low = e.object().get_y() - e.object().height / 2.0
+        y_high = e.object().get_y() + e.object().height / 2.0
 
         min_x = min(x_low, min_x)
         max_x = max(x_high, max_x)
@@ -357,7 +359,6 @@ class Set(Element):
     def envelope_elements(self):
         x, y, w, h = calculate_size(self.elements)
         self.object().move_to(np.array([x,y,0]))
-        print(w, h, np.sqrt(w**2 + h**2))
         self.object().scale(self.PADDING_FACTOR * np.sqrt(w**2 + h**2))
 
         self.update_radii()
@@ -367,8 +368,8 @@ class Set(Element):
         for i, e in enumerate(self.elements):
             theta = i * 2 * PI / len(self.elements)
 
-            offset_x = Set.BORDER_TOLERANCE * self.object().get_width() / 2.0 * math.cos(theta)
-            offset_y = Set.BORDER_TOLERANCE * self.object().get_height() / 2.0 * math.sin(theta)
+            offset_x = Set.BORDER_TOLERANCE * self.object().width / 2.0 * math.cos(theta)
+            offset_y = Set.BORDER_TOLERANCE * self.object().height / 2.0 * math.sin(theta)
             e.move_to(offset_x, offset_y)
 
     def scale_sets(self, amount, recursive=True):

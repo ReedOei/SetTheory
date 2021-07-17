@@ -230,7 +230,8 @@ if __name__ == '__main__':
         'print': Builtin('print', print_val),
         'μ': Builtin('μ', minimize),
         'group': Builtin('group', group),
-        'Animate': Builtin('Animate', animate)
+        'Animate': Builtin('Animate', animate),
+        'memo': Builtin('memo', make_memo)
     }
 
     sys.setrecursionlimit(10000)

@@ -121,10 +121,10 @@ Let collatz := n |->
     if n = 1 then [1]
     else [n] @ collatz(if 2 | n then n / 2 else 3*n + 1) .
 
-Let collatzSteps := n |->
+Let collatzSteps := memo(n |->
     if n = 1 then 0
-    else 1 + collatzSteps(if 2 | n then n / 2 else 3*n + 1) .
+    else 1 + collatzSteps(if 2 | n then n / 2 else 3*n + 1)) .
 
 // { [n, card(collatz(n)) ] : n ∈ {1,3...10000} }
-{ [n, collatzSteps(n) ] : n ∈ {1,3...10000} }
+{ [n, collatzSteps(n) ] : n ∈ {1,3...100000} }
 

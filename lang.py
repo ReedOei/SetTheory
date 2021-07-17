@@ -302,6 +302,17 @@ def minimize(a, args):
         n += 1
     return Num(n)
 
+def make_memo(a, args):
+    memo = {}
+    func = args[0].eval(a)
+    def f(a, args):
+        vals = tuple(arg.eval(a) for arg in args)
+        if not vals in memo:
+            memo[vals] = func.call(a, vals)
+        return memo[vals]
+
+    return Builtin(Builtin.fresh(), f)
+
 class App(AST):
     def __init__(self, func, *args):
         self.func = func
@@ -502,7 +513,13 @@ class BinArithOp(AST):
         self.args = list(args)
 
     def eval(self, a):
-        return Num(reduce(self.op, [ arg.eval(a).val for arg in self.args ]))
+        res = None
+        for arg in self.args:
+            if res is None:
+                res = arg.eval(a).val
+            else:
+                res = self.op(res, arg.eval(a).val)
+        return Num(res)
 
     def is_finite(self):
         return all([ arg.is_finite() for arg in self.args ])
