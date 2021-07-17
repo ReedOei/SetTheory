@@ -46,6 +46,9 @@ class LangTransformer(Transformer):
             return BinArithOp(op_name, op, *args)
         return go
 
+    def rule(self, lhs, rhs):
+        return Rule(lhs, rhs)
+
     start = lambda self, *args: list(args)
 
     praline_add = ignore_singleton(parse_op('Add', add))
@@ -205,12 +208,14 @@ def animate(a, args):
     args[0].animate()
 
 if __name__ == '__main__':
-    default_env = {
+    main_env = {
         'hints': {},
+        'rules': [],
         'ℕ': Naturals(),
         'verbose': Num(0),
         'ω': Num(OmegaOrd()),
         'p': PrimeSeq(),
+        'increasing_pairs': Builtin('increasing_pairs', increasing_pairs),
         'powerset': Builtin('powerset', lambda a, args: FinSet([ FinSet(xs) for xs in powerset(args[0].eval(a).enumerate(a)) ])),
         'powerlist': Builtin('powerlist', lambda a, args: FinSet([ List(xs) for xs in powerset(args[0].eval(a).enumerate(a)) ])),
         'choose': Builtin('choose', lambda a, args: args[0].eval(a).arbitrary(a)),
@@ -250,11 +255,13 @@ if __name__ == '__main__':
     all_start = time.time()
     for stmt in parsed:
         print('>', str(stmt))
+        stmt = rewrite_with(main_env['rules'], stmt)
+        print('simpl>', str(stmt))
         if isinstance(stmt, lark_parser.Tree):
             print('no_eval')
         else:
             start = time.time()
-            res = stmt.eval(default_env)
+            res = stmt.eval(main_env)
             if res is not None:
                 print(str(res))
             end = time.time()

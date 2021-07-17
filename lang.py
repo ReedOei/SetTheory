@@ -27,15 +27,42 @@ def powerset(iterable):
     s = list(iterable)
     return list(it.chain.from_iterable(it.combinations(s, r) for r in range(len(s)+1)))
 
+def increasing_pairs(a, args):
+    xs = sorted(args[0].eval(a).enumerate(a))
+
+    res = []
+    for i, x in enumerate(xs):
+        for y in xs[i:]:
+            res.append(List([x,y]))
+
+    return FinSet(res)
+
+def rewrite_with(rules, t):
+    def go(x):
+        for r in rules:
+            x = r.rewrite(x).simplify()
+        return x
+
+    while True:
+        new_t = go(t.map(go))
+        if new_t == t:
+            break
+        t = new_t
+    return t
+
 def less(a, b):
     if isinstance(a, int) and isinstance(b, Rat):
         return Rat(a, 1) < b
+    elif isinstance(a, int) and isinstance(b, Ord):
+        return NatOrd(a) < b
     else:
         return a < b
 
 def less_eq(a, b):
     if isinstance(a, int) and isinstance(b, Rat):
         return Rat(a, 1) <= b
+    elif isinstance(a, int) and isinstance(b, Ord):
+        return NatOrd(a) <= b
     else:
         return a <= b
 
@@ -81,6 +108,14 @@ def gcd(a,b):
         a, b = b, a % b
     return a
 
+def show_set_eval(a, args):
+    res = set()
+    for x in args[0].eval(a).enumerate(a):
+        if x not in res:
+            res.add(x)
+            print(x)
+    return FinSet(res)
+
 class AST:
     counter = 0
     @staticmethod
@@ -93,6 +128,15 @@ class AST:
 
     def free_vars(self):
         raise NotImplementedError
+
+    def map(self, f):
+        raise NotImplementedError(self)
+
+    def call(self, a, args):
+        return App(self, *args)
+
+    def unify(self, other, subs):
+        return False
 
     def simplify(self):
         return self
@@ -113,6 +157,9 @@ class Function(AST):
         else:
             self.args = [args]
         self.body = body
+
+    def map(self, f):
+        return Function(self.args, f(self.body.map(f)), name=self.name)
 
     def free_vars(self):
         return self.body.free_vars() - { x.name for x in self.args }
@@ -169,6 +216,9 @@ class IfThenElse(AST):
         else:
             return self.e.eval(a)
 
+    def map(self, f):
+        return IfThenElse(f(self.cond.map(f)), f(self.t.map(f)), f(self.e.map(f)))
+
     def substitute(self, subs):
         return IfThenElse(self.cond.substitute(subs), self.t.substitute(subs), self.e.substitute(subs))
 
@@ -219,6 +269,9 @@ class Sequence(AST):
         a[name] = Function(params + [x], body, name=name)
         return a[name]
 
+    def map(self, f):
+        return Sequence([ (lhs, f(rhs.map(f))) for lhs, rhs in self.defs ])
+
     def free_vars(self):
         return { v for d in self.defs for v in d.free_vars() }
 
@@ -244,6 +297,9 @@ class Builtin(AST):
 
     def free_vars(self):
         return set()
+
+    def map(self, f):
+        return self
 
     def substitute(self, subs):
         return self
@@ -328,9 +384,21 @@ class App(AST):
         else:
             return self
 
+    def unify(self, other, subs):
+        if not isinstance(other, App):
+            return False
+
+        if len(self.args) != len(other.args):
+            return False
+
+        return self.func.unify(other.func, subs) and all([ a.unify(b, subs) for a, b in zip(self.args, other.args) ])
+
     def is_finite(self):
         # Uh...don't worry about it *sweats*
         return True
+
+    def map(self, f):
+        return App(f(self.func.map(f)), *[ f(arg.map(f)) for arg in self.args ])
 
     def free_vars(self):
         return self.func.free_vars() | { v for arg in self.args for v in arg.free_vars() }
@@ -366,6 +434,9 @@ class SetSequence(AST):
     def free_vars(self):
         return self.base_set.free_vars()
 
+    def map(self, f):
+        return SetSequence(f(self.base_set.map(f)))
+
     def call(self, a, args):
         self.base_set = self.base_set.eval(a)
         idx = args[0].eval(a).as_int()
@@ -400,6 +471,9 @@ class Elem(AST):
 
     def substitute(self, subs):
         return Elem(self.x.substitute(subs), self.domain.substitute(subs))
+
+    def map(self, f):
+        return Elem(f(self.x.map(f)), f(self.domain.map(f)))
 
     def free_vars(self):
         return self.x.free_vars() | self.domain.free_vars()
@@ -442,6 +516,9 @@ class Max(AST):
 
     def eval(self, a):
         return max([ arg.eval(a) for arg in self.args ])
+
+    def map(self, f):
+        return Max([ f(arg.map(f)) for arg in self.args ])
 
     def is_finite(self):
         return all([ arg.is_finite() for arg in self.args ])
@@ -488,6 +565,9 @@ class Min(AST):
         else:
             return Min(new_args)
 
+    def map(self, f):
+        return Min([ f(arg.map(f)) for arg in self.args ])
+
     def is_finite(self):
         return any([ arg.is_finite() for arg in self.args ])
 
@@ -521,11 +601,26 @@ class BinArithOp(AST):
                 res = self.op(res, arg.eval(a).val)
         return Num(res)
 
+    def unify(self, other, subs):
+        if not isinstance(other, BinArithOp):
+            return False
+
+        if len(self.args) != len(other.args):
+            return False
+
+        if self.op_name != other.op_name:
+            return False
+
+        return all([ a.unify(b, subs) for a, b in zip(self.args, other.args)])
+
     def is_finite(self):
         return all([ arg.is_finite() for arg in self.args ])
 
     def substitute(self, subs):
         return BinArithOp(self.op_name, self.op, *[ v.substitute(subs) for v in self.args ])
+
+    def map(self, f):
+        return BinArithOp(self.op_name, self.op, *[ f(arg.map(f)) for arg in self.args ])
 
     def free_vars(self):
         return { v for arg in self.args for v in arg.free_vars() }
@@ -553,6 +648,9 @@ class Exp(AST):
 
     def substitute(self, subs):
         return Exp(*[ v.substitute(subs) for v in self.args ])
+
+    def map(self, f):
+        return Exp(*[ f(arg.map(f)) for arg in self.args ])
 
     def eval(self, a):
         vals = [ arg.eval(a) for arg in self.args ]
@@ -605,6 +703,9 @@ class Factorial(AST):
     def free_vars(self):
         return self.arg.free_vars()
 
+    def map(self, f):
+        return Factorial(f(self.arg.map(f)))
+
     def __repr__(self):
         return 'Factorial({})'.format(self.arg)
 
@@ -635,6 +736,9 @@ class LetBind(AST):
             return { x.name for x in self.pat.elems }
         else:
             return set()
+
+    def map(self, f):
+        return LetBind(self.pat, f(self.t.map(f)), f(self.body.map(f)))
 
     def eval(self, a):
         val = self.t.eval(a)
@@ -669,6 +773,12 @@ class Str(AST):
     def eval(self, a):
         return self
 
+    def map(self, f):
+        return self
+
+    def unify(self, other, subs):
+        return self == other
+
     def __repr__(self):
         return 'Str({})'.format(self.val)
 
@@ -698,6 +808,12 @@ class Num(AST):
             return self
 
     def substitute(self, subs):
+        return self
+
+    def unify(self, other, subs):
+        return self == other
+
+    def map(self, f):
         return self
 
     def eval(self, a):
@@ -787,8 +903,13 @@ class Ord:
             return False
         elif isinstance(self, NatOrd) and isinstance(other, NatOrd):
             return self.n < other.n
+        elif self == other:
+            return False
         else:
             raise NotImplementedError('Cannot compare {} and {}'.format(self, other))
+
+    def __le__(self, other):
+        return self < other or self == other
 
     def __gt__(self, other):
         if isinstance(other, int):
@@ -799,8 +920,13 @@ class Ord:
             return True
         elif isinstance(self, NatOrd) and isinstance(other, NatOrd):
             return self.n > other.n
+        elif self == other:
+            return False
         else:
             raise NotImplementedError('Cannot compare {} and {}'.format(self, other))
+
+    def __ge__(self, other):
+        return self > other or self == other
 
 class NatOrd(Ord):
     def __init__(self, n):
@@ -988,6 +1114,43 @@ class Rat:
     def __hash__(self):
         return hash((self.n, self.d))
 
+class Rule(AST):
+    def __init__(self, lhs, rhs):
+        self.lhs = lhs
+        self.rhs = rhs
+
+    def substitute(self, subs):
+        return Rule(self.lhs.substitute(subs), self.rhs.substitute(subs))
+
+    def map(self, f):
+        return Rule(f(self.lhs.map(f)), f(self.rhs.map(f)))
+
+    def eval(self, a):
+        a['rules'].append(self)
+        return self
+
+    def rewrite(self, term):
+        subs = {}
+        if self.lhs.unify(term, subs):
+            return self.rhs.substitute(subs)
+        else:
+            return term
+
+    def free_vars(self):
+        return self.rhs().free_vars() - self.lhs.free_vars()
+
+    def __repr__(self):
+        return 'Rule({}, {})'.format(self.lhs, self.rhs)
+
+    def __str__(self):
+        return 'Rule {} => {} .'.format(self.lhs, self.rhs)
+
+    def __eq__(self, other):
+        return other is not None and type(other) is self.__class__ and self.lhs == other.lhs and self.rhs == other.rhs
+
+    def __hash__(self):
+        return hash((self.lhs, self.rhs))
+
 class Hint(AST):
     def __init__(self, a, b):
         self.a = a
@@ -995,6 +1158,9 @@ class Hint(AST):
 
     def substitute(self, subs):
         return Hint(self.a.substitute(subs), self.b.substitute(subs))
+
+    def map(self, f):
+        return Hint(f(self.a.map(f)), f(self.b.map(f)))
 
     def eval(self, a):
         aval = self.a.eval(a)
@@ -1028,6 +1194,20 @@ class VarRef(AST):
         else:
             return self
 
+    def map(self, f):
+        return self
+
+    def unify(self, other, subs):
+        if self.name.startswith('$'):
+            name = self.name[1:]
+            if name not in subs:
+                subs[name] = other
+            else:
+                return subs[name].unify(other, subs)
+            return True
+        else:
+            return isinstance(other, VarRef) and self.name == other.name
+
     def free_vars(self):
         return { self.name }
 
@@ -1059,6 +1239,9 @@ class Operator(AST):
         else:
             return self.f(a, self.lhs, self.rhs)
 
+    def map(self, f):
+        return Operator(f(self.lhs.map(f)), self.op, self.f, f(self.rhs.map(f)))
+
     def as_set_restriction(self, var):
         # TODO: For the moment, this assumes natural numbers...
         if self.op == '<':
@@ -1068,9 +1251,9 @@ class Operator(AST):
                 return RangeSet(BinArithOp('Add', add, self.lhs, Num(1)), Num(OmegaOrd()), Num(1))
         elif self.op == '>':
             if var == self.lhs and var.name not in self.rhs.free_vars():
-                return RangeSet(BinArithOp('Add', add, self.lhs, Num(1)), Num(OmegaOrd()), Num(1))
+                return RangeSet(BinArithOp('Add', add, self.rhs, Num(1)), Num(OmegaOrd()), Num(1))
             elif var == self.rhs and var.name not in self.lhs.free_vars():
-                return RangeSet(Num(0), BinArithOp('Sub', sub, self.rhs, Num(1)), Num(1))
+                return RangeSet(Num(0), BinArithOp('Sub', sub, self.lhs, Num(1)), Num(1))
         elif self.op == '<=':
             if var == self.lhs and var.name not in self.rhs.free_vars():
                 return RangeSet(Num(0), self.rhs, Num(1))
@@ -1078,9 +1261,9 @@ class Operator(AST):
                 return RangeSet(self.lhs, Num(OmegaOrd()), Num(1))
         elif self.op == '>=':
             if var == self.lhs and var.name not in self.rhs.free_vars():
-                return RangeSet(self.lhs, Num(OmegaOrd()), Num(1))
+                return RangeSet(self.rhs, Num(OmegaOrd()), Num(1))
             elif var == self.rhs and var.name not in self.lhs.free_vars():
-                return RangeSet(Num(0), self.rhs, Num(1))
+                return RangeSet(Num(0), self.lhs, Num(1))
         elif self.op == '=':
             # This plays nicer with the simplifier
             if var == self.lhs and var.name not in self.rhs.free_vars():
@@ -1122,6 +1305,9 @@ class Complement(AST):
         else:
             return Num(0)
 
+    def map(self, f):
+        return Complement(f(self.t.map(f)))
+
     def substitute(self, subs):
         return Complement(self.t.substitute(subs))
 
@@ -1144,7 +1330,7 @@ class Exists(AST):
 
     def eval(self, a):
         # TODO: Deal with infinite sets?
-        for y in self.domain.enumerate(a):
+        for y in self.domain.eval(a).enumerate(a):
             new_a = dict(a)
             new_a[self.x.name] = y
 
@@ -1152,6 +1338,9 @@ class Exists(AST):
                 return Num(1)
 
         return Num(0)
+
+    def map(self, f):
+        return Exists((f(self.x.map(f)), f(self.domain.map(f))), f(self.body.map(f)))
 
     def substitute(self, subs):
         new_subs = dict(subs)
@@ -1180,9 +1369,12 @@ class Forall(AST):
         self.x, self.domain = qual
         self.body = body
 
+    def map(self, f):
+        return Forall((f(self.x.map(f)), f(self.domain.map(f))), f(self.body.map(f)))
+
     def eval(self, a):
         # TODO: Deal with infinite sets?
-        for y in self.domain.enumerate(a):
+        for y in self.domain.eval(a).enumerate(a):
             new_a = dict(a)
             new_a[self.x.name] = y
 
@@ -1255,6 +1447,30 @@ class FinSet(Set):
         self.elems = set(elems)
         self.evaled = evaled
 
+    def map(self, f):
+        return FinSet([ f(e.map(f)) for e in self.elems ])
+
+    def unify(self, other, subs):
+        if not isinstance(other, FinSet):
+            return False
+
+        if len(self.elems) != len(other.elems):
+            return False
+
+        # We don't want to try too many permutations in case one of the sets is really big (e.g., more than 5 elements or so)
+        # We only really use unify for simplification rules, so it's not a huge problem if it fails
+        LIMIT = 10000
+        i = 0
+        for p1 in it.permutations(self.elems):
+            for p2 in it.permutations(other.elems):
+                i += 1
+                if i > LIMIT:
+                    return False
+                new_subs = dict(subs)
+                if all([ a.unify(b, new_subs) for a, b in zip(p1, p2) ]):
+                    subs.update(new_subs)
+                    return True
+
     def contains(self, x, a):
         return x in self.elems
 
@@ -1309,6 +1525,9 @@ class RangeSet(Set):
         self.high = high
         self.step = step
 
+    def map(self, f):
+        return RangeSet(f(self.low.map(f)), f(self.high.map(f)), f(self.step.map(f)))
+
     def eval(self, a):
         hval = self.high.eval(a)
 
@@ -1337,10 +1556,10 @@ class RangeSet(Set):
 
         step = self.step.eval(a).val
 
-        if y.val <= lval.val:
+        if y < lval:
             return lval
-        elif y.val >= hval.val:
-            return hval
+        elif y > hval:
+            return None
         else:
             return Num(lval.as_int() + step * ((y.as_int() - lval.as_int()) // step + 1))
 
@@ -1478,6 +1697,9 @@ class CartProd(Set):
     def free_vars(self):
         return { v for s in self.sets for v in s.free_vars() }
 
+    def map(self, f):
+        return CartProd(*[ f(s.map(f)) for s in self.sets ])
+
     def substitute(self, subs):
         return CartProd(*[ s.substitute(subs) for s in self.sets ])
 
@@ -1577,14 +1799,24 @@ class ComprehensionSet(Set):
             return self
 
     def enumerate(self, a):
-        return self.run_enum(0, {}, a)
+        doms = []
+        vs = set()
+        for x, dom in self.var_doms:
+            vs.add(x.name)
+            if len(dom.free_vars() & vs) == 0:
+                doms.append((False, x, dom.eval(a)))
+            else:
+                doms.append((True, x, dom))
+        return self.run_enum(doms, 0, {}, a)
 
-    def run_enum(self, i, xs, a):
-        if i == len(self.var_doms):
+    def run_enum(self, doms, i, xs, a):
+        if i == len(doms):
             yield self.make_value(xs)
         else:
-            x, dom = self.var_doms[i]
-            for y in dom.substitute(xs).eval(a).enumerate(a):
+            b, x, dom = doms[i]
+            if b:
+                dom = dom.substitute(xs).eval(a)
+            for y in dom.enumerate(a):
                 xs[x.name] = y
                 skip = False
                 for clause in self.clause_eval[i]:
@@ -1593,7 +1825,7 @@ class ComprehensionSet(Set):
                         break
                 if skip:
                     continue
-                for val in self.run_enum(i + 1, xs, a):
+                for val in self.run_enum(doms, i + 1, xs, a):
                     yield val
 
     def simplify(self):
@@ -1627,6 +1859,10 @@ class ComprehensionSet(Set):
     def substitute(self, subs):
         return ComprehensionSet([ (x, dom.substitute(subs)) for x, dom in self.var_doms ],
                                 [ clause.substitute(subs) for clause in self.clauses ])
+
+    def map(self, f):
+        return ComprehensionSet([ (x, f(dom.map(f))) for x, dom in self.var_doms ],
+                                [ f(clause.map(f)) for clause in self.clauses ])
 
     def bound_names(self):
         res = set()
@@ -1676,6 +1912,9 @@ class Naturals(Set):
     def free_vars(self):
         return set()
 
+    def map(self, f):
+        return self
+
     def arbitrary(self, a):
         lim = 2
         while random.randint(0, Naturals.N) > 0:
@@ -1714,6 +1953,12 @@ class Section(AST):
     def free_vars(self):
         return set()
 
+    def map(self, f):
+        return self
+
+    def substitute(self, subs):
+        return self
+
     def __repr__(self):
         return 'Section()'
 
@@ -1736,6 +1981,9 @@ class Definition(AST):
 
     def free_vars(self):
         return self.body.free_vars() - { self.name.name }
+
+    def map(self, f):
+        return Definition(self.name, f(self.body.map(f)))
 
     def __repr__(self):
         return 'Definition({}, {})'.format(self.name, self.body)
@@ -1778,14 +2026,14 @@ class CachedSet(Set):
     def min_elem(self, a):
         x = self.base_set.min_elem(a)
         if self.max_known_element is None:
-            self.known_list.append(x)
+            self.known_list = [x] # Do this before saving so everything is in sync
             self.max_known_element = self.save_to_cache(x)
         return x
 
     def next_elem(self, y, a):
         if isinstance(y, Num) and isinstance(self.max_known_element, Num) and y < self.max_known_element:
             i = 0
-            while self.known_list[i] < y:
+            while self.known_list[i] <= y:
                 i += 1
             return self.known_list[i]
         else:
@@ -1794,8 +2042,6 @@ class CachedSet(Set):
                 self.known_list.append(res)
                 self.max_known_element = res
             return self.save_to_cache(res)
-
-        raise Exception('No next element!')
 
     def enumerate(self, a):
         for x in self.known_elements:
@@ -1828,6 +2074,9 @@ class CachedSet(Set):
     def substitute(self, subs):
         return self
 
+    def map(self, f):
+        return self
+
     def free_vars(self):
         return set()
 
@@ -1854,7 +2103,10 @@ class PrimeSeq(AST):
         return self
 
     def substitute(self, subs):
-        return PrimeSeq()
+        return self
+
+    def map(self, f):
+        return self
 
     def free_vars(self):
         return set()
@@ -1940,6 +2192,9 @@ class Reduce(AST):
     def substitute(self, subs):
         return Reduce(self.op, self.f, self.body.substitute(subs))
 
+    def map(self, f):
+        return Reduce(self.op, self.f, f(self.body.map(f)))
+
     def free_vars(self):
         return self.body.free_vars()
 
@@ -1963,20 +2218,27 @@ class Image(Set):
     def simplify(self):
         return Image(self.f.simplify(), self.arg_set.simplify())
 
+    def unify(self, other, subs):
+        if not isinstance(other, Image):
+            return False
+
+        return self.f.unify(other.f, subs) and self.arg_set.unify(other.arg_set, subs)
+
     def eval(self, a):
         arg_set = self.arg_set.eval(a)
 
         if arg_set.is_finite():
-            f = self.f.eval(a)
             if isinstance(arg_set, List):
-                return List([ f.call(a, [e]) for e in arg_set.elems ])
-            return FinSet([ f.call(a, [e]) for e in arg_set.enumerate(a) ])
+                return List(self.enumerate(a, arg_set=arg_set))
+            return FinSet(self.enumerate(a, arg_set=arg_set))
 
         return self
 
-    def enumerate(self, a):
+    def enumerate(self, a, arg_set=None):
+        if arg_set is None:
+            arg_set = self.arg_set.eval(a)
         f = self.f.eval(a)
-        for v in self.arg_set.eval(a).enumerate(a):
+        for v in arg_set.enumerate(a):
             yield f.call(a, [v])
 
     def arbitrary(self, a):
@@ -1991,6 +2253,9 @@ class Image(Set):
 
     def free_vars(self):
         return self.f.free_vars() | self.arg_set.free_vars()
+
+    def map(self, f):
+        return Image(f(self.f.map(f)), f(self.arg_set.map(f)))
 
     def __repr__(self):
         return 'Image({}, {})'.format(self.f, self.arg_set)
@@ -2018,6 +2283,9 @@ class Intersection(Set):
                     min_card = s.cardinality(a).val
                     idx = i
         return idx
+
+    def map(self, f):
+        return Intersection([ f(s.map(f)) for s in self.sets ])
 
     def simplify(self):
         range_sets = []
@@ -2103,6 +2371,9 @@ class Union(Set):
     def free_vars(self):
         return { v for s in self.sets for v in s.free_vars() }
 
+    def map(self, f):
+        return Union([ f(s.map(f)) for s in self.sets ])
+
     def simplify(self):
         range_sets = []
         singletons = []
@@ -2176,6 +2447,9 @@ class List(AST):
 
     def substitute(self, subs):
         return List([ e.substitute(subs) for e in self.elems ])
+
+    def map(self, f):
+        return List([ f(e.map(f)) for e in self.elems ])
 
     def free_vars(self):
         return { v for elem in self.elems for v in elem.free_vars() }

@@ -3,6 +3,18 @@ Let '--' := (a,b) |-> a - b .
 Let '**' := (a,b) |-> a * b .
 Let '|' := (a,b) |-> b % a = 0 .
 
+Rule $a + 0 => a .
+Rule 0 + $a => a .
+Rule $a * 0 => 0 .
+Rule 0 * $a => 0 .
+Rule 1 * $a => a .
+Rule $a * 1 => a .
+
+Rule $f[{}] => {} .
+
+Rule {} × $a => {} .
+Rule $a × {} => {} .
+
 2 + 2!
 
 Let max := X |-> choose({ x ∈ X : ∀y ∈ X . x ≥ y }) .
@@ -146,9 +158,21 @@ Let d := n |-> (Σ divisors(n)) - n .
 Let amicable := cache("amicable", { n ∈ ℕ : n > 2, d(d(n)) = n, d(n) ≠ n }) .
 
 // Project Euler 23
-Let perfect := cache("perfect", { n ∈ ℕ : n > 0, d(n) = n }) .
-Let abundant := cache("abundant", { n ∈ ℕ : n > 0, d(n) > n }) .
-Let deficient := cache("deficient", { n ∈ ℕ : n > 0, d(n) < n }) .
+Let perfect := cache("perfect", { n ∈ {2...ω} : d(n) = n }) .
+Let abundant := cache("abundant", { n ∈ {2...ω} : d(n) > n }) .
+Let deficient := cache("deficient", { n ∈ {2...ω} : d(n) < n }) .
 
-show_set_eval({ print(a + b) : [a,b] ∈ abundant^2 })
+Let is_abundant := n |-> n ∈ abundant . // Annoying workaround because of how the below is implemented...
+Let small_abundant := { a ∈ {2...28123} : a ∈ abundant } .
+card(small_abundant)
+Let sum := X |-> Σ X.
+// Let increasing_pairs :=
+//     X |-> let sortedX := sort(X) in
+//         ⋃((i |-> let a := sortedX(i) in (j |-> [a, sortedX(j)])[{i...card(sortedX) - 1}])[{0...card(sortedX) - 1}]) .
+
+Let diagonal := X |-> { [x,x] : x ∈ X } .
+
+Let abundant_sums := sum[increasing_pairs(small_abundant)] .// { a + b : a ∈ {2...28123}, b ∈ {a...28123}, is_abundant(a), is_abundant(b) } .
+// card(abundant_sums)
+// { print(n) : n ∈ {1...28123}, not (a ∈ abundant_sums) }
 

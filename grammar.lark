@@ -4,6 +4,7 @@ definition: "Let" var _IS term "."
           | "Let" "'" operator_sym "'" _IS term "." -> let_operator
           | "Section" -> section
           | "Hint" "(" term "," term ")" "." -> hint
+          | "Rule" term "=>" term "." -> rule
 
 sequence: "Sequence" COLON (seq_def ";")* seq_def "."
 
