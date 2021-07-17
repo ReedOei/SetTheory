@@ -198,6 +198,10 @@ class LangTransformer(Transformer):
 
 parser = Lark_StandAlone(transformer=LangTransformer())
 
+def animate(a, args):
+    assert len(args) == 1
+    args[0].animate()
+
 if __name__ == '__main__':
     default_env = {
         'hints': {},
@@ -226,6 +230,7 @@ if __name__ == '__main__':
         'print': Builtin('print', print_val),
         'μ': Builtin('μ', minimize),
         'group': Builtin('group', group),
+        'Animate': Builtin('Animate', animate)
     }
 
     sys.setrecursionlimit(10000)

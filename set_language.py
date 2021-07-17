@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 
-from manimlib.imports import *
+from manim import *
 
 import itertools as it
+import math
+import random
 import uuid
 
 BORDER_FACTOR = 0.98
@@ -49,7 +51,7 @@ class Value(Resolvable):
 class IntValue(Value):
     def __init__(self, value):
         self.value = value
-        super().__init__(TexMobject(self.latex()))
+        super().__init__(MathTex(self.latex()))
         self.obj.scale(0.5)
 
     def latex(self):
@@ -58,14 +60,14 @@ class IntValue(Value):
 class SetValue(Value):
     def __init__(self, elements):
         self.elements = elements
-        super().__init__(TexMobject(self.latex()))
+        super().__init__(MathTex(self.latex()))
         self.obj.scale(0.5)
 
     def latex(self):
         return '\\left\\{' + ', '.join([e.value.latex() for e in self.elements]) + '\\right\\}'
 
 class Element(Resolvable):
-    def __init__(self, elements, value=None, data=None, obj_gen=SmallDot, moving=True, parent=None):
+    def __init__(self, elements, value=None, data=None, obj_gen=Dot, moving=True, parent=None):
         super().__init__()
 
         self.parent = parent
@@ -207,7 +209,7 @@ class Element(Resolvable):
             return []
         else:
             self.drawn = True
-            return [ShowCreation(self.display_object())] + [anim for e in self.elements for anim in e.draw()]
+            return [Create(self.display_object())] + [anim for e in self.elements for anim in e.draw()]
 
     def fade_value(self):
         return [FadeOut(self.value.object())]
@@ -251,8 +253,8 @@ class Element(Resolvable):
         return self.shift(dx, dy)
 
     def in_bounds(self, new_x, new_y):
-        w = BORDER_FACTOR*FRAME_WIDTH/2
-        h = BORDER_FACTOR*FRAME_HEIGHT/2
+        w = BORDER_FACTOR*config['frame_width']/2
+        h = BORDER_FACTOR*config['frame_height']/2
         return new_x + self.object().get_width() / 2.0 < w and new_y + self.object().get_height() / 2.0 < h and new_x - self.object().get_width() / 2.0 > -w and new_y - self.object().get_height() / 2.0 > -h
 
     def in_parent(self, new_x, new_y):

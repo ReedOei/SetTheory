@@ -1740,7 +1740,10 @@ class PrimeSeq(AST):
         if idx >= len(self.primes):
             # See: https://en.wikipedia.org/wiki/Prime_number_theorem#Approximations_for_the_nth_prime_number
             # This guarantees we will find the nth prime in this round of the sieve
-            new_max = int(idx*(math.log(idx) + math.log(math.log(idx))))
+            if idx < 2: # If idx = 1, then loglog(idx) is undefined, choose 100 because why not
+                new_max = 100
+            else:
+                new_max = int(idx*(math.log(idx) + math.log(math.log(idx))))
             self.run_sieve(new_max - self.max)
             self.save_to_cache()
 
