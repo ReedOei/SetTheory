@@ -1,0 +1,10 @@
+main = _{ term* }
+
+term = _{ int }
+
+int = @{ "-"? ~ ASCII_DIGIT+ }
+
+is = { "are" | "is" | "∈" | "be" | ":=" }
+WHITESPACE = _{ " " | "\t" | "\n" }
+COMMENT = _{ "//" ~ (!"\n" ~ ANY)* }
+
