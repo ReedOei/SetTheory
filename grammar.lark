@@ -5,6 +5,9 @@ definition: "Let" var _IS term "."
           | "Section" -> section
           | "Hint" "(" term "," term ")" "." -> hint
           | "Rule" term "=>" term "." -> rule
+          | "Rule" term "=>" term "assuming" (assumption ","?)+ "." -> rule_assuming
+
+assumption: term "has" "property" term
 
 sequence: "Sequence" COLON (seq_def ";")* seq_def "."
 

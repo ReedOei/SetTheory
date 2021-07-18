@@ -15,6 +15,23 @@ Rule $f[{}] => {} .
 Rule {} × $a => {} .
 Rule $a × {} => {} .
 
+Rule $f[{$x}] => { f(x) } .
+Rule $f[{$x, $y}] => { f(x), f(y) } .
+Rule $f[{$x, $y, $z}] => { f(x), f(y), f(z) } .
+
+Rule $A^2 => A × A .
+
+// Currently this rule will never trigger due to how ComprehensionSet works.
+// Rule { [$x, $y] ∈ $X × $X : x < y } => increasing_pairs(X) .
+
+Rule { $x ∈ $X : $x < $a } => take_lt(X, a)
+    assuming X has property "increasing".
+Rule { $f($x) : $x ∈ $X, $f($x) < $a } => take_map_lt(f, X, a)
+    assuming f has property "increasing",
+             X has property "increasing".
+
+Let square := n |-> n^2 .
+
 2 + 2!
 
 Let max := X |-> choose({ x ∈ X : ∀y ∈ X . x ≥ y }) .
@@ -97,7 +114,6 @@ Let lcm := (a,b) |-> (a * b) / gcd(a,b) .
 lcm Σ {1...20}
 
 // Project Euler 6
-Let square := n |-> n^2 .
 square(Σ {1...100}) - (Σ square[{1...100}])
 
 // Project Euler 7
@@ -113,11 +129,13 @@ card(ℕ)
 
 // Project Euler 10:
 Section
+Hint(ℕ, "increasing").
+Hint(p, "increasing").
 
 // Σ p[{0...μ(n |-> p(n) > 2000000)}]
 
 // TODO: Would be nice to be able to write this
-// Σ { p ∈ primes : p < 2000000 }
+Σ { p(n) : n ∈ ℕ, p(n) < 2000000 }
 
 // Project Euler 12:
 Let Tri := n |-> n*(n+1)/2 .
@@ -145,6 +163,11 @@ Let collatzSteps := memo(n |->
 Let binomial := (n,k) |-> n! / (k! * (n - k)!) .
 binomial(40, 20)
 
+Rule binomial($n, 0) => 1 .
+// Rule binomial($n, $n) => 1 .
+Rule binomial($n, 1) => n .
+// Rule binomial($n, $n - 1) => n .
+
 // Project Euler 16
 Section
 Σ digits(2^1000)
@@ -155,7 +178,7 @@ Section
 
 // Project Euler 21
 Let d := n |-> (Σ divisors(n)) - n .
-Let amicable := cache("amicable", { n ∈ ℕ : n > 2, d(d(n)) = n, d(n) ≠ n }) .
+Let amicable := cache("amicable", { n ∈ {2...ω} : d(d(n)) = n, d(n) ≠ n }) .
 
 // Project Euler 23
 Let perfect := cache("perfect", { n ∈ {2...ω} : d(n) = n }) .
@@ -172,7 +195,8 @@ Let sum := X |-> Σ X.
 
 Let diagonal := X |-> { [x,x] : x ∈ X } .
 
-Let abundant_sums := sum[increasing_pairs(small_abundant)] .// { a + b : a ∈ {2...28123}, b ∈ {a...28123}, is_abundant(a), is_abundant(b) } .
-// card(abundant_sums)
-// { print(n) : n ∈ {1...28123}, not (a ∈ abundant_sums) }
+Let abundant_sums := cache("abundant_sums", sum[increasing_pairs(small_abundant)]) . // { a + b : a ∈ {2...28123}, b ∈ {a...28123}, is_abundant(a), is_abundant(b) } .
+card(abundant_sums)
+Section
+Σ { n ∈ {1...28123} : not (a ∈ abundant_sums) }
 

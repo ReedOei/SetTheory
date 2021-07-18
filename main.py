@@ -47,7 +47,10 @@ class LangTransformer(Transformer):
         return go
 
     def rule(self, lhs, rhs):
-        return Rule(lhs, rhs)
+        return Rule(lhs, rhs, [])
+
+    def rule_assuming(self, lhs, rhs, *assumptions):
+        return Rule(lhs, rhs, list(assumptions))
 
     start = lambda self, *args: list(args)
 
@@ -129,6 +132,9 @@ class LangTransformer(Transformer):
 
     def finset(self, *elems):
         return FinSet(elems)
+
+    def assumption(self, a, b):
+        return (a, b)
 
     def let_match(self, pat, t, body):
         return LetBind(pat, t, body)
@@ -241,6 +247,8 @@ if __name__ == '__main__':
         'group': Builtin('group', group),
         'Animate': Builtin('Animate', animate),
         'memo': Builtin('memo', make_memo),
+        'take_lt': Builtin('take_lt', take_lt),
+        'take_map_lt': Builtin('take_map_lt', take_map_lt),
         'Max': Builtin('Max', lambda a, args: Max(list(args[0].eval(a).enumerate(a))).eval(a)),
         'Min': Builtin('Min', lambda a, args: Min(list(args[0].eval(a).enumerate(a))).eval(a)),
         'force_set_eval': Builtin('force_set_eval', lambda a, args: FinSet(args[0].eval(a).enumerate(a))),

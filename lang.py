@@ -50,6 +50,58 @@ def rewrite_with(rules, t):
         t = new_t
     return t
 
+def take_map_lt(a, args):
+    f = args[0].eval(a)
+    base_set = args[1].eval(a)
+    bound = args[2].eval(a)
+
+    res = []
+    if Str('increasing') in a['hints'].get(base_set, []) and Str('increasing') in a['hints'].get(f, []):
+        for x in base_set.enumerate(a):
+            fx = f.call(a, [x])
+            if fx < bound:
+                res.append(fx)
+            else:
+                break
+    else:
+        x = base_set.min_elem(a)
+
+        if x is None:
+            return FinSet(filter(lambda x: x < bound, [ f.call(a, [x]) for x in base_set.enumerate(a) ]))
+
+        while True:
+            fx = f.call(a, [x])
+            if fx < bound:
+                res.append(fx)
+            else:
+                break
+            x = base_set.next_elem(x, a)
+
+    return FinSet(res)
+
+def take_lt(a, args):
+    base_set = args[0].eval(a)
+    bound = args[1].eval(a)
+
+    res = []
+    if Str('increasing') in a['hints'].get(base_set, []):
+        for x in base_set.enumerate(a):
+            if x < bound:
+                res.append(x)
+            else:
+                break
+    else:
+        x = base_set.min_elem(a)
+
+        if x is None:
+            return FinSet([ x for x in base_set.enumerate(a) if x < bound ])
+
+        while x < bound:
+            res.append(x)
+            x = base_set.next_elem(x, a)
+
+    return FinSet(res)
+
 def less(a, b):
     if isinstance(a, int) and isinstance(b, Rat):
         return Rat(a, 1) < b
@@ -163,6 +215,12 @@ class Function(AST):
 
     def free_vars(self):
         return self.body.free_vars() - { x.name for x in self.args }
+
+    def simplify(self):
+        if isinstance(self.body, App) and self.body.args == self.args:
+            return self.body.func
+        else:
+            return self
 
     def substitute(self, subs):
         new_subs = dict(subs)
@@ -507,7 +565,7 @@ class Max(AST):
                 new_args.append(arg)
 
         if max_val is not None:
-            new_args.appned(max_val)
+            new_args.append(max_val)
 
         if len(new_args) == 1:
             return new_args[0]
@@ -558,7 +616,7 @@ class Min(AST):
                 new_args.append(arg)
 
         if min_val is not None:
-            new_args.appned(min_val)
+            new_args.append(min_val)
 
         if len(new_args) == 1:
             return new_args[0]
@@ -1115,23 +1173,35 @@ class Rat:
         return hash((self.n, self.d))
 
 class Rule(AST):
-    def __init__(self, lhs, rhs):
+    def __init__(self, lhs, rhs, assumptions, env=None):
         self.lhs = lhs
         self.rhs = rhs
+        self.assumptions = assumptions
+
+        if env is None:
+            self.env = {}
+        else:
+            self.env = env
 
     def substitute(self, subs):
-        return Rule(self.lhs.substitute(subs), self.rhs.substitute(subs))
+        return Rule(self.lhs.substitute(subs), self.rhs.substitute(subs), [ (a.substitute(subs), b.substitute(subs)) for a, b in self.assumptions], env=self.env)
 
     def map(self, f):
-        return Rule(f(self.lhs.map(f)), f(self.rhs.map(f)))
+        return Rule(f(self.lhs.map(f)), f(self.rhs.map(f)), [ (f(a.map(f)), f(b.map(f))) for a, b in self.assumptions ], env=self.env)
 
     def eval(self, a):
         a['rules'].append(self)
+        self.env = a
         return self
 
     def rewrite(self, term):
         subs = {}
         if self.lhs.unify(term, subs):
+            for a, b in self.assumptions:
+                print(self.env['hints'])
+                if b not in self.env['hints'].get(a.substitute(subs), []):
+                    return term
+
             return self.rhs.substitute(subs)
         else:
             return term
@@ -1140,16 +1210,16 @@ class Rule(AST):
         return self.rhs().free_vars() - self.lhs.free_vars()
 
     def __repr__(self):
-        return 'Rule({}, {})'.format(self.lhs, self.rhs)
+        return 'Rule({}, {}, {})'.format(self.lhs, self.rhs, self.assumptions)
 
     def __str__(self):
-        return 'Rule {} => {} .'.format(self.lhs, self.rhs)
+        return 'Rule {} => {} assuming {} .'.format(self.lhs, self.rhs, self.assumptions)
 
     def __eq__(self, other):
-        return other is not None and type(other) is self.__class__ and self.lhs == other.lhs and self.rhs == other.rhs
+        return other is not None and type(other) is self.__class__ and self.lhs == other.lhs and self.rhs == other.rhs and self.assumptions == other.assumptions
 
     def __hash__(self):
-        return hash((self.lhs, self.rhs))
+        return hash((self.lhs, self.rhs, tuple(self.assumptions)))
 
 class Hint(AST):
     def __init__(self, a, b):
@@ -1163,10 +1233,9 @@ class Hint(AST):
         return Hint(f(self.a.map(f)), f(self.b.map(f)))
 
     def eval(self, a):
-        aval = self.a.eval(a)
-        if not aval in a['hints']:
-            a['hints'][aval] = []
-        a['hints'][aval].append(self.b.eval(a))
+        if not self.a in a['hints']:
+            a['hints'][self.a] = []
+        a['hints'][self.a].append(self.b)
         return self
 
     def free_vars(self):
@@ -1203,6 +1272,8 @@ class VarRef(AST):
             if name not in subs:
                 subs[name] = other
             else:
+                if subs[name] == self:
+                    return True
                 return subs[name].unify(other, subs)
             return True
         else:
@@ -1241,6 +1312,15 @@ class Operator(AST):
 
     def map(self, f):
         return Operator(f(self.lhs.map(f)), self.op, self.f, f(self.rhs.map(f)))
+
+    def unify(self, other, subs):
+        if not isinstance(other, Operator):
+            return False
+
+        if self.op != other.op:
+            return False
+
+        return self.lhs.unify(other.lhs, subs) and self.rhs.unify(other.rhs, subs)
 
     def as_set_restriction(self, var):
         # TODO: For the moment, this assumes natural numbers...
@@ -1760,6 +1840,15 @@ class ComprehensionSet(Set):
 
             self.var_doms[i] = (x, new_dom)
 
+    def unify(self, other, subs):
+        if not isinstance(other, ComprehensionSet):
+            return False
+
+        if len(self.clauses) != len(other.clauses):
+            return False
+
+        return all([ x.unify(y, subs) and xdom.unify(ydom, subs) for (x, xdom), (y, ydom) in zip(self.var_doms, other.var_doms) ]) and all([ c1.unify(c2, subs) for c1, c2 in zip(self.clauses, other.clauses) ])
+
     def extract_clauses(self, expr):
         if isinstance(expr, Operator) and expr.op == 'and':
             return self.extract_clauses(expr.lhs) + self.extract_clauses(expr.rhs)
@@ -2157,10 +2246,10 @@ class PrimeSeq(AST):
         return open('.setlang_cache/{}'.format(self.cache_name), mode)
 
     def __repr__(self):
-        return 'PrimeSeq({}, {}, {})'.format(self.max, self.primes, self.sieve)
+        return 'PrimeSeq({})'.format(self.max, self.primes)
 
     def __eq__(self, other):
-        return other is not None and type(other) is self.__class__ and self.max == other.max and self.primes == other.primes and self.sieve == other.sieve
+        return other is not None and type(other) is self.__class__ and self.max == other.max and self.primes == other.primes
 
     def __hash__(self):
         return hash(self.max)
