@@ -52,7 +52,8 @@ class LangTransformer(Transformer):
     def rule_assuming(self, lhs, rhs, *assumptions):
         return Rule(lhs, rhs, list(assumptions))
 
-    start = lambda self, *args: list(args)
+    def start(self, *args)
+        return list(args)
 
     praline_add = ignore_singleton(parse_op('Add', add))
     praline_sub = ignore_singleton(parse_op('Sub', sub))
@@ -67,6 +68,7 @@ class LangTransformer(Transformer):
         return Str(s)
 
     praline_exp = ignore_singleton(Exp)
+
     def elem(self, arg):
         x, domain = arg
         return Elem(x, domain)
@@ -114,6 +116,9 @@ class LangTransformer(Transformer):
 
     def praline_false(self):
         return Num(0)
+
+    def neg(self, a):
+        return Negate(a)
 
     def varlist(self, *args):
         return [ VarRef(x) for x in args ]
@@ -175,6 +180,7 @@ class LangTransformer(Transformer):
                 var_doms = [ (temp, quant.domain) ]
                 subs = { y.name: App(temp, Num(i)) for i, y in enumerate(quant.x.elems) }
                 preds = [ pred.substitute(subs) for pred in preds ]
+                orig_quant = orig_quant.substitute(subs)
 
         if build_comp:
             return ComprehensionSet(var_doms, list(preds)).simplify()
@@ -234,9 +240,10 @@ if __name__ == '__main__':
         'num': Builtin('num', lambda a, args: Num(args[0].eval(a).as_rat().n)),
         'denom': Builtin('denom', lambda a, args: Num(args[0].eval(a).as_rat().d)),
         'min_elem': Builtin('min_elem', lambda a, args: args[0].eval(a).min_elem(a)),
-        'cache': Builtin('cache', lambda a, args: CachedSet(args[0].eval(a).val, args[1].eval(a))),
+        'cached_set': Builtin('cached_set', lambda a, args: CachedSet(args[0].eval(a).val, args[1].substitute(a)).eval(a)),
+        'cached_function': Builtin('cached_functon', lambda a, args: CachedFunction(args[0].eval(a).val, args[1].substitute(a)).eval(a)),
         'sequence': Builtin('sequence', lambda a, args: SetSequence(args[0].eval(a)).eval(a)),
-        'cached_elements': Builtin('cached_elements', lambda a, args: FinSet(args[0].eval(a).known_elements)),
+        'cached_values': Builtin('cached_values', lambda a, args: args[0].eval(a).cached_values()),
         '⋃': Builtin('⋃', lambda a, args: Union(list(args[0].eval(a).enumerate(a))).eval(a)),
         '⋂': Builtin('⋂', lambda a, args: Intersection(list(args[0].eval(a).enumerate(a))).eval(a)),
         'sort': Builtin('sort', lambda a, args: List(sorted(list(args[0].eval(a).enumerate(a))))),
@@ -262,18 +269,18 @@ if __name__ == '__main__':
 
     all_start = time.time()
     for stmt in parsed:
-        print('>', str(stmt))
+        # print('>', str(stmt))
         stmt = rewrite_with(main_env['rules'], stmt)
-        print('simpl>', str(stmt))
+        print('>', str(stmt))
+        # print('simpl>', str(stmt))
         if isinstance(stmt, lark_parser.Tree):
             print('no_eval')
         else:
             start = time.time()
             res = stmt.eval(main_env)
+            end = time.time()
             if res is not None:
                 print(str(res))
-            end = time.time()
-            if not isinstance(stmt, Definition):
                 print('Elapsed: {:.3f}'.format(end - start))
     all_end = time.time()
 

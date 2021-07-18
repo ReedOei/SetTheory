@@ -31,6 +31,8 @@ Rule { $f($x) : $x ∈ $X, $f($x) < $a } => take_map_lt(f, X, a)
              X has property "increasing".
 
 Let square := n |-> n^2 .
+Let Π := X |-> if card(X) = 0 then 1 else ** Σ X .
+Let sum := X |-> Σ X.
 
 2 + 2!
 
@@ -48,20 +50,20 @@ cf([1,1,1,1,1])
 
 // if 1 = 1 then 2 else 0
 
-Sequence:
-    f(0) := 0;
-    f(1) := 1;
-    f(n) := f(n-1) + f(n-2) .
+Let fib := memo(n |->
+    if n = 0 then 0
+    else if n = 1 then 1
+    else fib(n - 1) + fib(n - 2)).
 
-f(12)
-
-Let Π := X |-> if card(X) = 0 then 1 else ** Σ X .
+fib(12)
 
 // Project Euler 1
+Section
 Σ { x ∈ {1...999} : 3 | x or 5 | x }
 
 // Project Euler 2
-Let fib := n |-> num(cf((n |-> 1)[list({1...n})])) .
+// Let fib := n |-> num(cf((n |-> 1)[list({1...n})])) .
+Section
 Σ { x ∈ fib[{1...50}] : x < 4*10^6 and 2 | x }
 
 // Project Euler 3
@@ -72,9 +74,9 @@ smallest_div(42)
 
 Let int_sqrt := n |-> μ(m |-> m^2 >= n) .
 int_sqrt(10)
-Let is_prime := n |-> n = 2 or (n > 1 and ((not (2 | n)) and (not (exists m ∈ {3,5...int_sqrt(n)} . m | n)))) .
+Let is_prime := n |-> n = 2 or (n > 1 and (not (2 | n)) and (not (exists m ∈ {3,5...int_sqrt(n)} . m | n))) .
 
-Let primes := cache("primes", { n ∈ ℕ : is_prime(n) }) .
+Let primes := cached_set("primes", { n ∈ ℕ : is_prime(n) }) .
 min_elem(primes)
 choose(primes)
 n_smallest(100, primes)
@@ -85,10 +87,10 @@ Let factor_seq := n |-> i |->
     else smallest_div(n / Π((factors(n))[sort({0...i-1})])) .
 // Let factor := n |-> (factors(n))[sort({0...μ(m |-> (factors(n))(m + 1) = 1)})] .
 
-Let factor_list := n |->
+Let factor_list := cached_function("factor_list", n |->
     if smallest_div(n) = n
     then [n]
-    else [smallest_div(n)] @ factor_list(n / smallest_div(n)) .
+    else [smallest_div(n)] @ factor_list(n / smallest_div(n))) .
 
 Let factor := n |-> { [p, μ(k |-> not (p^k | n)) - 1] : p ∈ factor_list(n) } .
 Let factors := n |-> set(factor_list(n)) .
@@ -107,7 +109,7 @@ Let is_palindrome := n |-> digits(n) = reverse(digits(n)) .
 
 // max({ n ∈ Π[{10...99}^2] : is_palindrome(n) })
 // max({ n ∈ Π[{100...999}^2] : is_palindrome(n) })
-// max({ n ∈ Π[{900...999}^2] : is_palindrome(n) })
+// Max({ n ∈ Π[{900...999}^2] : is_palindrome(n) })
 
 // Project Euler 5
 Let lcm := (a,b) |-> (a * b) / gcd(a,b) .
@@ -177,26 +179,37 @@ Section
 Σ digits(100!)
 
 // Project Euler 21
-Let d := n |-> (Σ divisors(n)) - n .
-Let amicable := cache("amicable", { n ∈ {2...ω} : d(d(n)) = n, d(n) ≠ n }) .
+// Let d := n |-> (Σ divisors(n)) - n .
+Let σ := k |-> n |-> Π((p |-> (p(0)^(k*(p(1) + 1)) - 1) / (p(0) - 1))[list(factor(n))])- n .
+Let d := σ(1) .
+
+Let amicable := cached_set("amicable", { n ∈ {2...ω} : d(d(n)) = n, d(n) ≠ n }) .
+Σ { x ∈ {1...10000} : x ∈ amicable }
 
 // Project Euler 23
-Let perfect := cache("perfect", { n ∈ {2...ω} : d(n) = n }) .
-Let abundant := cache("abundant", { n ∈ {2...ω} : d(n) > n }) .
-Let deficient := cache("deficient", { n ∈ {2...ω} : d(n) < n }) .
+Let perfect := cached_set("perfect", { n ∈ {2...ω} : d(n) = n }) .
+Let abundant := cached_set("abundant", { n ∈ {2...ω} : d(n) > n }) .
+Let deficient := cached_set("deficient", { n ∈ {2...ω} : d(n) < n }) .
 
 Let is_abundant := n |-> n ∈ abundant . // Annoying workaround because of how the below is implemented...
 Let small_abundant := { a ∈ {2...28123} : a ∈ abundant } .
-card(small_abundant)
-Let sum := X |-> Σ X.
 // Let increasing_pairs :=
 //     X |-> let sortedX := sort(X) in
 //         ⋃((i |-> let a := sortedX(i) in (j |-> [a, sortedX(j)])[{i...card(sortedX) - 1}])[{0...card(sortedX) - 1}]) .
 
 Let diagonal := X |-> { [x,x] : x ∈ X } .
 
-Let abundant_sums := cache("abundant_sums", sum[increasing_pairs(small_abundant)]) . // { a + b : a ∈ {2...28123}, b ∈ {a...28123}, is_abundant(a), is_abundant(b) } .
-card(abundant_sums)
+Let abundant_sums := cached_set("abundant_sums", sum[increasing_pairs(small_abundant)]) .
+card(abundant_sums) // This will force evaluation of abundant_sums to build the cache.
 Section
-Σ { n ∈ {1...28123} : not (a ∈ abundant_sums) }
+Σ { n ∈ {1...28123} : not (n ∈ abundant_sums) }
+
+// Project Euler 25
+// μ(n |-> print(card(digits(fib(n+1)))) > 100) + 1
+
+// Project Euler 27
+Let conseq_primes := f |-> μ(n |-> not is_prime(f(n))) .
+conseq_primes(n |-> n^2 + n + 41)
+Max({ let f := n |-> n^2 + a*n + b in [conseq_primes(f), f] : a ∈ {-99...99}, b ∈ {-100...100} })
+// Max({ let f := n |-> n^2 + a*n + b in [conseq_primes(f), f] : a ∈ {-999...999}, b ∈ {-1000...1000} })
 

@@ -1,10 +1,12 @@
 from functools import reduce
 import itertools as it
 
+import atexit
+import math
 import pickle
 import os
-import math
 import random
+import sys
 
 operators = {
     '=': lambda a, lhs, rhs: Num(1) if lhs.eval(a) == rhs.eval(a) else Num(0),
@@ -1198,7 +1200,6 @@ class Rule(AST):
         subs = {}
         if self.lhs.unify(term, subs):
             for a, b in self.assumptions:
-                print(self.env['hints'])
                 if b not in self.env['hints'].get(a.substitute(subs), []):
                     return term
 
@@ -1499,7 +1500,7 @@ class Set(AST):
         raise NotImplementedError
 
     def cardinality(self, a):
-        return Num(len(list(self.enumerate(a))))
+        return Num(len(set(self.enumerate(a))))
 
     def contains(self, x, a):
         # If this set is ordered and we can find a minimum element, then we may be able to say a value is not a member of the set even if the set is infinite
@@ -2066,7 +2067,6 @@ class Definition(AST):
         if isinstance(self.body, Function):
             self.body.name = self.name.name
         a[self.name.name] = self.body.eval(a)
-        return a[self.name.name]
 
     def free_vars(self):
         return self.body.free_vars() - { self.name.name }
@@ -2083,6 +2083,39 @@ class Definition(AST):
     def __hash__(self):
         return hash((self.name, self.body))
 
+class CachedFunction(Function):
+    def __init__(self, cache_name, func):
+        super().__init__(func.args, func.body, name=func.name)
+        self.cache_name = cache_name
+        self.memo = {}
+
+        try:
+            self.memo = pickle.load(self.cache_file('rb'))
+        except FileNotFoundError as e:
+            # This is fine, we just will create a new cache file.
+            pass
+
+        atexit.register(self.save_to_cache)
+
+    def call(self, a, actual_args):
+        vals = tuple(arg.eval(a) for arg in actual_args)
+        if not vals in self.memo:
+            self.memo[vals] = self.prepare_call(vals).eval(a)
+        return self.memo[vals]
+
+    def save_to_cache(self):
+        pickle.dump(self.memo, self.cache_file('wb'))
+
+    def cached_values(self):
+        return self.memo
+
+    def cache_file(self, mode):
+        try:
+            os.makedirs('.setlang_cache')
+        except FileExistsError as e:
+            pass
+        return open('.setlang_cache/{}'.format(self.cache_name), mode)
+
 class CachedSet(Set):
     def __init__(self, cache_name, base_set):
         super().__init__()
@@ -2095,14 +2128,19 @@ class CachedSet(Set):
         self.max_known_element = None
 
         try:
-            self.max_known_element, self.known_list, self.known_elements = pickle.load(self.cache_file('rb'))
+            self.fully_known, self.max_known_element, self.known_list, self.known_elements = pickle.load(self.cache_file('rb'))
         except FileNotFoundError as e:
             # This is fine, we just will create a new cache file.
             pass
 
+        atexit.register(self.save_to_cache)
+
+    def cached_values(self):
+        return FinSet(self.known_elements)
+
     def eval(self, a):
         if self.fully_known:
-            return self.base_set
+            return FinSet(self.known_elements)
         else:
             return self
 
@@ -2113,41 +2151,51 @@ class CachedSet(Set):
             return super().contains(x, a)
 
     def min_elem(self, a):
-        x = self.base_set.min_elem(a)
-        if self.max_known_element is None:
-            self.known_list = [x] # Do this before saving so everything is in sync
-            self.max_known_element = self.save_to_cache(x)
-        return x
+        if self.max_known_element is not None:
+            return self.known_list[0]
+        else:
+            x = self.base_set.min_elem(a)
+            self.known_list = [x]
+            self.max_known_element = self.add_to_cache(x)
+            return x
 
     def next_elem(self, y, a):
-        if isinstance(y, Num) and isinstance(self.max_known_element, Num) and y < self.max_known_element:
+        if self.max_known_element is not None and y < self.max_known_element:
             i = 0
             while self.known_list[i] <= y:
                 i += 1
             return self.known_list[i]
         else:
             res = self.base_set.next_elem(y, a)
+            if res is None:
+                self.fully_known = True
+                return None
             if y == self.max_known_element:
                 self.known_list.append(res)
                 self.max_known_element = res
-            return self.save_to_cache(res)
+            return self.add_to_cache(res)
 
     def enumerate(self, a):
         for x in self.known_elements:
             yield x
-        for x in self.base_set.enumerate(a):
-            yield self.save_to_cache(x)
+        if not self.fully_known:
+            for x in self.base_set.eval(a).enumerate(a):
+                if x not in self.known_elements:
+                    yield self.add_to_cache(x)
+            self.fully_known = True
 
     def arbitrary(self, a):
         if self.fully_known or (len(self.known_elements) > 0 and random.choice([0,1]) == 0):
             return random.choice(list(self.known_elements))
         else:
-            return self.save_to_cache(self.base_set.arbitrary(a))
+            return self.add_to_cache(self.base_set.arbitrary(a))
 
-    def save_to_cache(self, x):
+    def add_to_cache(self, x):
         self.known_elements.add(x)
-        pickle.dump((self.max_known_element, self.known_list, self.known_elements), self.cache_file('wb'))
         return x
+
+    def save_to_cache(self):
+        pickle.dump((self.fully_known, self.max_known_element, self.known_list, self.known_elements), self.cache_file('wb'))
 
     def cache_file(self, mode):
         try:
@@ -2188,6 +2236,8 @@ class PrimeSeq(AST):
         self.cache_name = 'prime_seq'
         self.load_from_cache()
 
+        atexit.register(self.save_to_cache)
+
     def eval(self, a):
         return self
 
@@ -2211,7 +2261,6 @@ class PrimeSeq(AST):
             else:
                 new_max = int(idx*(math.log(idx) + math.log(math.log(idx))))
             self.run_sieve(new_max - self.max)
-            self.save_to_cache()
 
         return Num(self.primes[idx])
 
@@ -2253,6 +2302,34 @@ class PrimeSeq(AST):
 
     def __hash__(self):
         return hash(self.max)
+
+class Negate(AST):
+    def __init__(self, t):
+        self.t = t
+
+    def eval(self, a):
+        return Num(-self.t.eval(a).val)
+
+    def substitute(self, subs):
+        return Negate(self.t.substitute(subs))
+
+    def map(self, f):
+        return Negate(f(self.t.map(f)))
+
+    def free_vars(self):
+        return self.t.free_vars()
+
+    def __repr__(self):
+        return 'Negate({})'.format(self.t)
+
+    def __str__(self):
+        return '(-{})'.format(str(self.t))
+
+    def __eq__(self, other):
+        return other is not None and type(other) is self.__class__ and self.t == other.t
+
+    def __hash__(self):
+        return hash(self.t)
 
 class Reduce(AST):
     def __init__(self, op, f, body):
