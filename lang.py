@@ -8,6 +8,32 @@ import os
 import random
 import sys
 
+def bind(f, gen):
+    for x in gen:
+        yield from f(x)
+
+def or_op(a, lhs, rhs):
+    if lhs.eval(a).as_int() != 0:
+        return Num(1)
+    a['context'].add(Complement(lhs))
+    if rhs.eval(a).as_int() != 0:
+        res = Num(1)
+    else:
+        res = Num(0)
+    a['context'] -= { Complement(lhs) }
+    return res
+
+def and_op(a, lhs, rhs):
+    if lhs.eval(a).as_int() == 0:
+        return Num(0)
+    a['context'].add(lhs)
+    if rhs.eval(a).as_int() != 0:
+        res = Num(1)
+    else:
+        res = Num(0)
+    a['context'] -= { lhs }
+    return res
+
 operators = {
     '=': lambda a, lhs, rhs: Num(1) if lhs.eval(a) == rhs.eval(a) else Num(0),
     '≠': lambda a, lhs, rhs: Num(1) if lhs.eval(a) != rhs.eval(a) else Num(0),
@@ -15,9 +41,10 @@ operators = {
     '>=': lambda a, lhs, rhs: Num(1) if lhs.eval(a) >= rhs.eval(a) else Num(0),
     '<=': lambda a, lhs, rhs: Num(1) if lhs.eval(a) <= rhs.eval(a) else Num(0),
     '<': lambda a, lhs, rhs: Num(1) if lhs.eval(a) < rhs.eval(a) else Num(0),
+    '==>': lambda a, lhs, rhs: Num(1) if lhs.eval(a).as_int() == 0 or rhs.eval(a).as_int() == 1 else Num(0),
     '@': lambda a, lhs, rhs: List(lhs.eval(a).elems + rhs.eval(a).elems),
-    'or': lambda a, lhs, rhs: Num(1) if lhs.eval(a).as_int() != 0 or rhs.eval(a).as_int() != 0 else Num(0),
-    'and': lambda a, lhs, rhs: Num(1) if lhs.eval(a).as_int() != 0 and rhs.eval(a).as_int() != 0 else Num(0),
+    'or': or_op,
+    'and': and_op,
     '×': lambda a, lhs, rhs: CartProd(lhs.eval(a), rhs.eval(a)).eval(a),
     '∪': lambda a, lhs, rhs: Union([lhs.eval(a), rhs.eval(a)]).eval(a),
     '∩': lambda a, lhs, rhs: Intersection([lhs.eval(a), rhs.eval(a)]).eval(a),
@@ -48,14 +75,34 @@ def rewrite_with(rules, t):
     def go(x):
         for r in rules:
             x = r.rewrite(x).simplify()
-        return x
+        yield x
 
     while True:
-        new_t = go(t.map(go))
+        new_t = next(go(next(t.map(go))))
         if new_t == t:
             break
         t = new_t
     return t
+
+def prove(rules, t):
+    def go(x):
+        for r in rules:
+            new_x = r.rewrite(x).simplify()
+            if new_x != x:
+                yield new_x
+        yield x
+
+    seen = set()
+    todo = [t]
+    while len(todo) > 0:
+        t = todo.pop(0)
+        if t == Num(1):
+            return True
+        for new_t in bind(go, t.map(go)):
+            if new_t not in seen:
+                seen.add(new_t)
+                todo.append(new_t)
+    return False
 
 def take_map_lt(a, args):
     f = args[0].eval(a)
@@ -219,7 +266,8 @@ class Function(AST):
         self.calls = 0
 
     def map(self, f):
-        return Function(self.args, f(self.body.map(f)), name=self.name)
+        for new_body in bind(f, self.body.map(f)):
+            yield Function(self.args, new_body, name=self.name)
 
     def free_vars(self):
         return self.body.free_vars() - { x.name for x in self.args }
@@ -293,12 +341,21 @@ class IfThenElse(AST):
 
     def eval(self, a):
         if self.cond.eval(a).as_int() == 1:
-            return self.t.eval(a)
+            a['context'].add(self.cond)
+            res = self.t.eval(a)
+            a['context'] -= { self.cond }
+            return res
         else:
-            return self.e.eval(a)
+            a['context'].add(Complement(self.cond))
+            res = self.e.eval(a)
+            a['context'] -= { Complement(self.cond) }
+            return res
 
     def map(self, f):
-        return IfThenElse(f(self.cond.map(f)), f(self.t.map(f)), f(self.e.map(f)))
+        for new_cond in bind(f, self.cond.map(f)):
+            for new_t in bind(f, self.t.map(f)):
+                for new_e in bind(f, self.e.map(f)):
+                    yield IfThenElse(new_cond, new_t, new_e)
 
     def substitute(self, subs):
         return IfThenElse(self.cond.substitute(subs), self.t.substitute(subs), self.e.substitute(subs))
@@ -351,7 +408,8 @@ class Sequence(AST):
         return a[name]
 
     def map(self, f):
-        return Sequence([ (lhs, f(rhs.map(f))) for lhs, rhs in self.defs ])
+        for new_rhss in it.product(*[ bind(f, rhs.map(f)) for _, rhs in self.defs ]):
+            yield Sequence(list(zip([ lhs for lhs, _ in self.defs ], new_rhss)))
 
     def free_vars(self):
         return { v for d in self.defs for v in d.free_vars() }
@@ -380,7 +438,7 @@ class Builtin(AST):
         return set()
 
     def map(self, f):
-        return self
+        yield self
 
     def substitute(self, subs):
         return self
@@ -509,7 +567,9 @@ class App(AST):
         return True
 
     def map(self, f):
-        return App(f(self.func.map(f)), *[ f(arg.map(f)) for arg in self.args ])
+        for new_f in bind(f, self.func.map(f)):
+            for new_args in it.product(*[ bind(f, arg.map(f)) for arg in self.args ]):
+                yield App(new_f, *new_args)
 
     def free_vars(self):
         return self.func.free_vars() | { v for arg in self.args for v in arg.free_vars() }
@@ -546,7 +606,8 @@ class SetSequence(AST):
         return self.base_set.free_vars()
 
     def map(self, f):
-        return SetSequence(f(self.base_set.map(f)))
+        for new_base_set in bind(f, self.base_set.map(f)):
+            yield SetSequence(new_base_set)
 
     def call(self, a, args):
         self.base_set = self.base_set.eval(a)
@@ -584,7 +645,9 @@ class Elem(AST):
         return Elem(self.x.substitute(subs), self.domain.substitute(subs))
 
     def map(self, f):
-        return Elem(f(self.x.map(f)), f(self.domain.map(f)))
+        for new_x in bind(f, self.x.map(f)):
+            for new_domain in bind(f, self.domain.map(f)):
+                yield Elem(new_x, new_domain)
 
     def free_vars(self):
         return self.x.free_vars() | self.domain.free_vars()
@@ -629,7 +692,8 @@ class Max(AST):
         return max([ arg.eval(a) for arg in self.args ])
 
     def map(self, f):
-        return Max([ f(arg.map(f)) for arg in self.args ])
+        for new_args in it.product(*[ bind(f, arg.map(f)) for arg in self.args ]):
+            yield Max(new_args)
 
     def is_finite(self):
         return all([ arg.is_finite() for arg in self.args ])
@@ -677,7 +741,8 @@ class Min(AST):
             return Min(new_args)
 
     def map(self, f):
-        return Min([ f(arg.map(f)) for arg in self.args ])
+        for new_args in it.product(*[ bind(f, arg.map(f)) for arg in self.args ]):
+            yield Min(new_args)
 
     def is_finite(self):
         return any([ arg.is_finite() for arg in self.args ])
@@ -706,7 +771,9 @@ class Exp(AST):
         return Exp(self.base.substitute(subs), self.exp.substitute(subs))
 
     def map(self, f):
-        return Exp(f(self.base.map(f)), f(self.exp.map(f)))
+        for new_base in bind(f, self.base.map(f)):
+            for new_exp in bind(f, self.exp.map(f)):
+                yield Exp(new_base, new_exp)
 
     def eval(self, a):
         base = self.base.eval(a)
@@ -754,7 +821,8 @@ class Factorial(AST):
         return self.arg.free_vars()
 
     def map(self, f):
-        return Factorial(f(self.arg.map(f)))
+        for new_arg in bind(f, self.arg.map(f)):
+            yield Factorial(new_arg)
 
     def __repr__(self):
         return 'Factorial({})'.format(self.arg)
@@ -788,7 +856,9 @@ class LetBind(AST):
             return set()
 
     def map(self, f):
-        return LetBind(self.pat, f(self.t.map(f)), f(self.body.map(f)))
+        for new_t in bind(f, self.t.map(f)):
+            for new_body in bind(f, self.body.map(f)):
+                yield LetBind(self.pat, new_t, new_body)
 
     def eval(self, a):
         val = self.t.eval(a)
@@ -824,7 +894,7 @@ class Str(AST):
         return self
 
     def map(self, f):
-        return self
+        yield self
 
     def unify(self, other, subs):
         return self == other
@@ -864,7 +934,7 @@ class Num(AST):
         return self == other
 
     def map(self, f):
-        return self
+        yield self
 
     def eval(self, a):
         return self
@@ -1165,7 +1235,7 @@ class Rat:
         return hash((self.n, self.d))
 
 class Rule(AST):
-    def __init__(self, lhs, rhs, assumptions, env=None):
+    def __init__(self, lhs, rhs, assumptions, env=None, attrs=None):
         self.lhs = lhs
         self.rhs = rhs
         self.assumptions = assumptions
@@ -1175,11 +1245,19 @@ class Rule(AST):
         else:
             self.env = env
 
+        if attrs is None:
+            self.attrs = set()
+        else:
+            self.attrs = attrs
+
     def substitute(self, subs):
-        return Rule(self.lhs.substitute(subs), self.rhs.substitute(subs), [ (a.substitute(subs), b.substitute(subs)) for a, b in self.assumptions], env=self.env)
+        return Rule(self.lhs.substitute(subs), self.rhs.substitute(subs), [ (a.substitute(subs), b.substitute(subs)) for a, b in self.assumptions], env=self.env, attrs=self.attrs)
 
     def map(self, f):
-        return Rule(f(self.lhs.map(f)), f(self.rhs.map(f)), [ (f(a.map(f)), f(b.map(f))) for a, b in self.assumptions ], env=self.env)
+        for new_lhs in bind(f, self.lhs.map(f)):
+            for new_rhs in bind(f, self.rhs.map(f)):
+                for new_assumptions in it.product(*[ bind(f, a.map(f)) for a in self.assumptions ]):
+                        yield Rule(new_lhs, new_rhs, new_assumptions, env=self.env, attrs=self.attrs)
 
     def eval(self, a):
         a['rules'].append(self)
@@ -1189,8 +1267,8 @@ class Rule(AST):
     def rewrite(self, term):
         subs = {}
         if self.lhs.unify(term, subs):
-            for a, b in self.assumptions:
-                if b not in self.env['hints'].get(a.substitute(subs), []):
+            for assumption in self.assumptions:
+                if not assumption.check(self.env, subs):
                     return term
 
             return self.rhs.substitute(subs)
@@ -1201,45 +1279,109 @@ class Rule(AST):
         return self.rhs().free_vars() - self.lhs.free_vars()
 
     def __repr__(self):
-        return 'Rule({}, {}, {})'.format(self.lhs, self.rhs, self.assumptions)
+        return 'Rule({}, {}, {}, {})'.format(self.lhs, self.rhs, self.assumptions, self.attrs)
 
     def __str__(self):
-        return 'Rule {} => {} assuming {} .'.format(self.lhs, self.rhs, self.assumptions)
+        return 'Rule {} => {} assuming {} [{}].'.format(self.lhs, self.rhs, self.assumptions, ', '.join(self.attrs))
 
     def __eq__(self, other):
-        return other is not None and type(other) is self.__class__ and self.lhs == other.lhs and self.rhs == other.rhs and self.assumptions == other.assumptions
+        return other is not None and type(other) is self.__class__ and self.lhs == other.lhs and self.rhs == other.rhs and self.assumptions == other.assumptions and self.attrs == other.attrs
 
     def __hash__(self):
-        return hash((self.lhs, self.rhs, tuple(self.assumptions)))
+        return hash((self.lhs, self.rhs, tuple(self.assumptions), self.attrs))
 
-class Hint(AST):
+class HasProperty(AST):
     def __init__(self, a, b):
         self.a = a
         self.b = b
 
     def substitute(self, subs):
-        return Hint(self.a.substitute(subs), self.b.substitute(subs))
+        return HasProperty(self.a.substitute(subs), self.b.substitute(subs))
 
     def map(self, f):
-        return Hint(f(self.a.map(f)), f(self.b.map(f)))
+        for new_a in bind(f, self.a.map(f)):
+            for new_b in bind(f, self.b.map(f)):
+                yield HasProperty(new_a, new_b)
 
     def eval(self, a):
         if not self.a in a['hints']:
             a['hints'][self.a] = []
         a['hints'][self.a].append(self.b)
-        return self
+
+    def check(self, a, subs):
+        return self.b in a['hints'].get(self.a.substitute(subs), [])
 
     def free_vars(self):
         return self.a.free_vars() | self.b.free_vars()
 
     def __repr__(self):
-        return 'Hint({}, {})'.format(self.a, self.b)
+        return 'HasProperty({}, {})'.format(self.a, self.b)
 
     def __eq__(self, other):
         return other is not None and type(other) is self.__class__ and self.a == other.a and self.b == other.b
 
     def __hash__(self):
         return hash((self.a, self.b))
+
+class AssumeTerm(AST):
+    def __init__(self, t):
+        self.t = t
+
+    def substitute(self, subs):
+        return AssumeTerm(self.t.substitute(subs))
+
+    def map(self, f):
+        for new_t in bind(f, self.t.map(f)):
+            yield AssumeTerm(new_t)
+
+    def eval(self, a):
+        a['context'].add(self.t)
+
+    def check(self, a, subs):
+        if len(a['context']) > 0:
+            ctx = reduce(lambda lhs, rhs: Op(lhs, 'and', operators['and'], rhs), a['context'])
+            res = prove(a['rules'], Op(ctx, '==>', operators['==>'], self.t.substitute(subs)))
+        else:
+            res = prove(a['rules'], self.t.substitute(subs))
+        return res
+
+    def free_vars(self):
+        return self.t.free_vars()
+
+    def __repr__(self):
+        return 'AssumeTerm({})'.format(self.t)
+
+    def __eq__(self, other):
+        return other is not None and type(other) is self.__class__ and self.t == other.t
+
+    def __hash__(self):
+        return hash(self.t)
+
+class Assumption(AST):
+    def __init__(self, statement):
+        self.statement = statement
+
+    def substitute(self, subs):
+        return Assumption(self.statement.substitute(subs))
+
+    def map(self, f):
+        for new_statement in bind(f, self.statement.map(f)):
+            yield Assumption(new_statement)
+
+    def eval(self, a):
+        self.statement.eval(a)
+
+    def free_vars(self):
+        return self.statement.free_vars()
+
+    def __repr__(self):
+        return 'Assumption({})'.format(self.statement)
+
+    def __eq__(self, other):
+        return other is not None and type(other) is self.__class__ and self.statement == other.statement
+
+    def __hash__(self):
+        return hash(self.statement)
 
 class VarRef(AST):
     def __init__(self, name):
@@ -1255,7 +1397,7 @@ class VarRef(AST):
             return self
 
     def map(self, f):
-        return self
+        yield self
 
     def unify(self, other, subs):
         if self.name.startswith('$'):
@@ -1305,7 +1447,9 @@ class Op(AST):
             return self.f(a, self.lhs, self.rhs)
 
     def map(self, f):
-        return Op(f(self.lhs.map(f)), self.op, self.f, f(self.rhs.map(f)))
+        for new_lhs in bind(f, self.lhs.map(f)):
+            for new_rhs in bind(f, self.rhs.map(f)):
+                yield Op(new_lhs, self.op, self.f, new_rhs)
 
     def unify(self, other, subs):
         if not isinstance(other, Op):
@@ -1380,7 +1524,8 @@ class Complement(AST):
             return Num(0)
 
     def map(self, f):
-        return Complement(f(self.t.map(f)))
+        for new_t in bind(f, self.t.map(f)):
+            yield Complement(new_t)
 
     def substitute(self, subs):
         return Complement(self.t.substitute(subs))
@@ -1414,7 +1559,9 @@ class Exists(AST):
         return Num(0)
 
     def map(self, f):
-        return Exists((f(self.x.map(f)), f(self.domain.map(f))), f(self.body.map(f)))
+        for new_domain in bind(f, self.domain.map(f)):
+            for new_body in bind(f, self.body.map(f)):
+                yield Exists(self.x, new_domain, new_body)
 
     def substitute(self, subs):
         new_subs = dict(subs)
@@ -1444,7 +1591,9 @@ class Forall(AST):
         self.body = body
 
     def map(self, f):
-        return Forall((f(self.x.map(f)), f(self.domain.map(f))), f(self.body.map(f)))
+        for new_domain in bind(f, self.domain.map(f)):
+            for new_body in bind(f, self.body.map(f)):
+                yield Forall(self.x, new_domain, new_body)
 
     def eval(self, a):
         # TODO: Deal with infinite sets?
@@ -1522,7 +1671,8 @@ class FinSet(Set):
         self.evaled = evaled
 
     def map(self, f):
-        return FinSet([ f(e.map(f)) for e in self.elems ])
+        for new_elems in it.product(*[ bind(f, e.map(f)) for e in self.elems ]):
+            yield FinSet(new_elems)
 
     def unify(self, other, subs):
         if not isinstance(other, FinSet):
@@ -1603,7 +1753,10 @@ class RangeSet(Set):
         self.step = step
 
     def map(self, f):
-        return RangeSet(f(self.low.map(f)), f(self.high.map(f)), f(self.step.map(f)))
+        for new_low in bind(f, self.low.map(f)):
+            for new_high in bind(f, self.high.map(f)):
+                for new_step in bind(f, self.step.map(f)):
+                    yield RangeSet(new_log, new_high, new_step)
 
     def eval(self, a):
         hval = self.high.eval(a)
@@ -1775,7 +1928,8 @@ class CartProd(Set):
         return { v for s in self.sets for v in s.free_vars() }
 
     def map(self, f):
-        return CartProd(*[ f(s.map(f)) for s in self.sets ])
+        for new_sets in it.product(*[ bind(f, s.map(f)) for s in self.sets ]):
+            yield CartProd(*new_sets)
 
     def substitute(self, subs):
         return CartProd(*[ s.substitute(subs) for s in self.sets ])
@@ -1947,8 +2101,10 @@ class ComprehensionSet(Set):
                                 [ clause.substitute(subs) for clause in self.clauses ])
 
     def map(self, f):
-        return ComprehensionSet([ (x, f(dom.map(f))) for x, dom in self.var_doms ],
-                                [ f(clause.map(f)) for clause in self.clauses ])
+        for new_doms in it.product(*[ bind(f, dom.map(f)) for x, dom in self.var_doms ]):
+            for new_clauses in it.product(*[ bind(f, c.map(f)) for c in self.clauses ]):
+                new_var_doms = list(zip([ x for x, dom in self.var_doms ], new_doms))
+                yield ComprehensionSet(new_var_doms, new_clauses)
 
     def bound_names(self):
         res = set()
@@ -1999,7 +2155,7 @@ class Naturals(Set):
         return set()
 
     def map(self, f):
-        return self
+        yield self
 
     def arbitrary(self, a):
         lim = 2
@@ -2040,7 +2196,7 @@ class Section(AST):
         return set()
 
     def map(self, f):
-        return self
+        yield self
 
     def substitute(self, subs):
         return self
@@ -2068,7 +2224,8 @@ class Definition(AST):
         return self.body.free_vars() - { self.name.name }
 
     def map(self, f):
-        return Definition(self.name, f(self.body.map(f)))
+        for new_body in bind(f, self.body.map(f)):
+            yield Definition(self.name, new_body)
 
     def __repr__(self):
         return 'Definition({}, {})'.format(self.name, self.body)
@@ -2208,7 +2365,7 @@ class CachedSet(Set):
         return self
 
     def map(self, f):
-        return self
+        yield self
 
     def free_vars(self):
         return set()
@@ -2241,7 +2398,7 @@ class PrimeSeq(AST):
         return self
 
     def map(self, f):
-        return self
+        yield self
 
     def free_vars(self):
         return set()
@@ -2310,7 +2467,8 @@ class Negate(AST):
         return Negate(self.t.substitute(subs))
 
     def map(self, f):
-        return Negate(f(self.t.map(f)))
+        for new_t in bind(f, self.t.map(f)):
+            yield Negate(new_t)
 
     def free_vars(self):
         return self.t.free_vars()
@@ -2355,7 +2513,8 @@ class Reduce(AST):
         return Reduce(self.op, self.f, self.body.substitute(subs))
 
     def map(self, f):
-        return Reduce(self.op, self.f, f(self.body.map(f)))
+        for new_body in bind(f, self.body.map(f)):
+            yield Reduce(self.op, self.f, new_body)
 
     def free_vars(self):
         return self.body.free_vars()
@@ -2417,7 +2576,9 @@ class Image(Set):
         return self.f.free_vars() | self.arg_set.free_vars()
 
     def map(self, f):
-        return Image(f(self.f.map(f)), f(self.arg_set.map(f)))
+        for new_f in bind(f, self.f.map(f)):
+            for new_arg_set in bind(f, self.arg_set.map(f)):
+                yield Image(new_f, new_arg_set)
 
     def __repr__(self):
         return 'Image({}, {})'.format(self.f, self.arg_set)
@@ -2447,7 +2608,8 @@ class Intersection(Set):
         return idx
 
     def map(self, f):
-        return Intersection([ f(s.map(f)) for s in self.sets ])
+        for new_sets in it.product(*[ bind(f, s.map(f)) for s in self.sets ]):
+            yield Intersection(new_sets)
 
     def simplify(self):
         range_sets = []
@@ -2534,7 +2696,8 @@ class Union(Set):
         return { v for s in self.sets for v in s.free_vars() }
 
     def map(self, f):
-        return Union([ f(s.map(f)) for s in self.sets ])
+        for new_sets in it.product(*[ bind(f, s.map(f)) for s in self.sets ]):
+            yield Union(new_sets)
 
     def simplify(self):
         range_sets = []
@@ -2611,7 +2774,8 @@ class List(AST):
         return List([ e.substitute(subs) for e in self.elems ])
 
     def map(self, f):
-        return List([ f(e.map(f)) for e in self.elems ])
+        for new_elems in it.product(*[ bind(f, e.map(f)) for e in self.elems ]):
+            yield List(new_elems)
 
     def free_vars(self):
         return { v for elem in self.elems for v in elem.free_vars() }

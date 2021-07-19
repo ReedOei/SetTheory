@@ -25,6 +25,15 @@ Rule $A^2 => A × A .
 Rule [$a, $b](0) => a .
 Rule [$a, $b](1) => b .
 
+Rule 0 and $b => 0 .
+Rule 1 and $b => $b .
+
+Rule 0 or $b => $b .
+Rule 1 or $b => 1 .
+
+Rule card($a) <= card($a) => 1 .
+Rule card($a) <= card($a ∪ $b) => 1 .
+
 // Currently this rule will never trigger due to how ComprehensionSet works.
 // Rule { [$x, $y] ∈ $X × $X : x < y } => increasing_pairs(X) .
 
@@ -51,8 +60,6 @@ minℕ({100...500})
 choose({ x ∈ ℕ : x < 10 })
 num[ {1, 1/2, 1/4} ]
 cf([1,1,1,1,1])
-
-// if 1 = 1 then 2 else 0
 
 Let fib := memo(n |->
     if n = 0 then 0
@@ -101,7 +108,7 @@ Let factors := n |-> set(factor_list(n)) .
 // Let divisors := n |-> { d ∈ {1...n} : d | n } .
 Let divisors := n |-> Π[powerlist(factor_list(n))] .
 
-Hint(factor_list, "finite"). // Currently doesn't do anything
+Assume factor_list has property "finite". // Currently doesn't do anything
 
 max(factors(600851475143))
 
@@ -139,8 +146,8 @@ card(ℕ)
 
 // Project Euler 10:
 Section
-Hint(ℕ, "increasing").
-Hint(p, "increasing").
+Assume ℕ has property "increasing".
+Assume p has property "increasing".
 
 // Σ p[{0...μ(n |-> p(n) > 2000000)}]
 
@@ -199,7 +206,6 @@ Let perfect := cached_set("perfect", { n ∈ {2...ω} : d(n) = n }) .
 Let abundant := cached_set("abundant", { n ∈ {2...ω} : d(n) > n }) .
 Let deficient := cached_set("deficient", { n ∈ {2...ω} : d(n) < n }) .
 
-Let is_abundant := n |-> n ∈ abundant . // Annoying workaround because of how the below is implemented...
 Let small_abundant := { a ∈ {2...28123} : a ∈ abundant } .
 // Let increasing_pairs :=
 //     X |-> let sortedX := sort(X) in
@@ -215,10 +221,10 @@ Section
 // Project Euler 25
 Let fib_helper := (a,b,n) |-> if n = 0 then [a] else [a] @ fib_helper(b,a+b,n-1) .
 Let fibs := n |-> fib_helper(0,1,n).
-μ(n |-> print(card(digits(fib(n)))) >= 1000, 1, n |-> 1000 + n)
+μ(n |-> card(digits(fib(n))) >= 1000, 1, n |-> 1000 + n)
 
 // Project Euler 27
 Let conseq_primes := f |-> μ(n |-> not is_prime(f(n))) .
 conseq_primes(n |-> n^2 + n + 41)
-// Max({ let f := n |-> n^2 + a*n + b in [conseq_primes(f), f] : a ∈ {-1000...1000}, b ∈ {0...1000}, is_prime(b) })
+Max({ let f := n |-> n^2 + a*n + b in [conseq_primes(f), f] : a ∈ {-1000...1000}, b ∈ {0...1000}, is_prime(b) })
 

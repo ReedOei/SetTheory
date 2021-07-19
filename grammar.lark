@@ -3,11 +3,14 @@ start: (term | definition | sequence)*
 definition: "Let" var _IS term "."
           | "Let" "'" operator_sym "'" _IS term "." -> let_operator
           | "Section" -> section
-          | "Hint" "(" term "," term ")" "." -> hint
           | "Rule" term "=>" term "." -> rule
           | "Rule" term "=>" term "assuming" (assumption ","?)+ "." -> rule_assuming
+          | "Proof" "Rule" term "=>" term "." -> proof_rule
+          | "Proof" "Rule" term "=>" term "assuming" (assumption ","?)+ "." -> proof_rule_assuming
+          | "Assume" assumption "." -> assumption
 
-assumption: term "has" "property" term
+assumption: term "has" "property" term -> assume_property
+          | "that" term -> assume_that
 
 sequence: "Sequence" COLON (seq_def ";")* seq_def "."
 

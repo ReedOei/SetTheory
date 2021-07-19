@@ -30,8 +30,8 @@ class LangTransformer(Transformer):
     def var_ref(self, name):
         return VarRef(str(name[0]))
 
-    def hint(self, a, b):
-        return Hint(a, b)
+    def assumption(self, statement):
+        return Assumption(statement)
 
     def ignore_singleton(f):
         def go(self, *args):
@@ -51,6 +51,12 @@ class LangTransformer(Transformer):
 
     def rule_assuming(self, lhs, rhs, *assumptions):
         return Rule(lhs, rhs, list(assumptions))
+
+    def proof_rule(self, lhs, rhs):
+        return Rule(lhs, rhs, [], attrs=['proof rule'])
+
+    def proof_rule_assuming(self, lhs, rhs, *assumptions):
+        return Rule(lhs, rhs, list(assumptions), attrs=['proof rule'])
 
     def start(self, *args):
         return list(args)
@@ -108,8 +114,8 @@ class LangTransformer(Transformer):
     def praline_var(self, name):
         return VarRef(str(name))
 
-    def operator_sym(self, sym):
-        return str(sym)
+    def operator_sym(self, *syms):
+        return ''.join(map(str, syms))
 
     def praline_true(self):
         return Num(1)
@@ -138,8 +144,11 @@ class LangTransformer(Transformer):
     def finset(self, *elems):
         return FinSet(elems)
 
-    def assumption(self, a, b):
-        return (a, b)
+    def assume_property(self, a, b):
+        return HasProperty(a, b)
+
+    def assume_that(self, t):
+        return AssumeTerm(t)
 
     def let_match(self, pat, t, body):
         return LetBind(pat, t, body)
@@ -239,6 +248,7 @@ if __name__ == '__main__':
     main_env = {
         'hints': {},
         'rules': [],
+        'context': set(), # A set of terms that are all true (i.e., = 1)
         'ℕ': Naturals(),
         'verbose': Num(0),
         'ω': Num(OmegaOrd()),
