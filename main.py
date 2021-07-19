@@ -41,9 +41,9 @@ class LangTransformer(Transformer):
                 return f(*args)
         return go
 
-    def parse_op(op_name, op):
+    def parse_op(op_name):
         def go(*args):
-            return BinArithOp(op_name, op, *args)
+            return reduce(lambda lhs,rhs: Op(lhs, op_name, operators[op_name], rhs), args)
         return go
 
     def rule(self, lhs, rhs):
@@ -52,14 +52,14 @@ class LangTransformer(Transformer):
     def rule_assuming(self, lhs, rhs, *assumptions):
         return Rule(lhs, rhs, list(assumptions))
 
-    def start(self, *args)
+    def start(self, *args):
         return list(args)
 
-    praline_add = ignore_singleton(parse_op('Add', add))
-    praline_sub = ignore_singleton(parse_op('Sub', sub))
-    praline_mul = ignore_singleton(parse_op('Mul', mul))
-    praline_div = ignore_singleton(parse_op('Div', divide))
-    praline_mod = ignore_singleton(parse_op('Mod', mod))
+    praline_add = ignore_singleton(parse_op('+'))
+    praline_sub = ignore_singleton(parse_op('-'))
+    praline_mul = ignore_singleton(parse_op('*'))
+    praline_div = ignore_singleton(parse_op('/'))
+    praline_mod = ignore_singleton(parse_op('%'))
 
     def section(self):
         return Section()
@@ -67,7 +67,7 @@ class LangTransformer(Transformer):
     def praline_string(self, s):
         return Str(s)
 
-    praline_exp = ignore_singleton(Exp)
+    praline_exp = ignore_singleton(lambda *xs: reduce(Exp, xs))
 
     def elem(self, arg):
         x, domain = arg
@@ -79,8 +79,8 @@ class LangTransformer(Transformer):
     def sequence(self, sym, *defs):
         return Sequence(list(defs))
 
-    or_op = ignore_singleton(lambda *args: reduce(lambda a, b: Operator(a, 'or', operators['or'], b), args))
-    and_op = ignore_singleton(lambda *args: reduce(lambda a, b: Operator(a, 'and', operators['and'], b), args))
+    or_op = ignore_singleton(lambda *args: reduce(lambda a, b: Op(a, 'or', operators['or'], b), args))
+    and_op = ignore_singleton(lambda *args: reduce(lambda a, b: Op(a, 'and', operators['and'], b), args))
 
     def image(self, f, arg):
         return Image(f, arg)
@@ -103,7 +103,7 @@ class LangTransformer(Transformer):
         return Num(val)
 
     def operator(self, lhs, op, rhs):
-        return Operator(lhs, op, operators.get(op), rhs).simplify()
+        return Op(lhs, op, operators.get(op), rhs).simplify()
 
     def praline_var(self, name):
         return VarRef(str(name))
@@ -196,7 +196,7 @@ class LangTransformer(Transformer):
         return RangeSet(low, high, Num(1))
 
     def range_set_step(self, low, step, high):
-        return RangeSet(low, high, BinArithOp('Sub', sub, step, low))
+        return RangeSet(low, high, Op(step, '-', operators['-'], low))
 
     def definition(self, name, body):
         return Definition(name, body)
@@ -218,6 +218,22 @@ parser = Lark_StandAlone(transformer=LangTransformer())
 def animate(a, args):
     assert len(args) == 1
     args[0].animate()
+
+def execute(stmt, main_env):
+    # print('>', str(stmt))
+    stmt = rewrite_with(main_env['rules'], stmt)
+    print('>', str(stmt))
+    # print('simpl>', str(stmt))
+    start = time.time()
+    res = stmt.eval(main_env)
+    if res is not None:
+        res = res.simplify()
+    # if res is not None:
+    #     res = rewrite_with(main_env['rules'], res)
+    end = time.time()
+    if res is not None:
+        print(str(res))
+        print('Elapsed: {:.3f}'.format(end - start))
 
 if __name__ == '__main__':
     main_env = {
@@ -248,6 +264,7 @@ if __name__ == '__main__':
         '⋂': Builtin('⋂', lambda a, args: Intersection(list(args[0].eval(a).enumerate(a))).eval(a)),
         'sort': Builtin('sort', lambda a, args: List(sorted(list(args[0].eval(a).enumerate(a))))),
         'n_smallest': Builtin('n_smallest', n_smallest),
+        'int': Builtin('int', lambda a, args: Num(args[0].eval(a).as_int())),
         'cf': Builtin('cf', eval_cf),
         'print': Builtin('print', print_val),
         'μ': Builtin('μ', minimize),
@@ -267,21 +284,23 @@ if __name__ == '__main__':
     with open(sys.argv[1]) as f:
         parsed = parser.parse(f.read())
 
+    interactive = '-i' in sys.argv
+
     all_start = time.time()
     for stmt in parsed:
-        # print('>', str(stmt))
-        stmt = rewrite_with(main_env['rules'], stmt)
-        print('>', str(stmt))
-        # print('simpl>', str(stmt))
-        if isinstance(stmt, lark_parser.Tree):
-            print('no_eval')
-        else:
-            start = time.time()
-            res = stmt.eval(main_env)
-            end = time.time()
-            if res is not None:
-                print(str(res))
-                print('Elapsed: {:.3f}'.format(end - start))
+        execute(stmt, main_env)
+
+    try:
+        while interactive:
+            try:
+                s = input('> ')
+                for stmt in parser.parse(s):
+                    execute(stmt, main_env)
+            except KeyboardInterrupt:
+                pass
+    except EOFError:
+        pass
+
     all_end = time.time()
 
     print('Total elapsed: {:.3f}'.format(all_end - all_start))

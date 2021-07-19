@@ -2,6 +2,7 @@ Let '++' := (a,b) |-> a + b .
 Let '--' := (a,b) |-> a - b .
 Let '**' := (a,b) |-> a * b .
 Let '|' := (a,b) |-> b % a = 0 .
+Let '∘' := (f,g) |-> x |-> f(g(x)) .
 
 Rule $a + 0 => a .
 Rule 0 + $a => a .
@@ -20,6 +21,9 @@ Rule $f[{$x, $y}] => { f(x), f(y) } .
 Rule $f[{$x, $y, $z}] => { f(x), f(y), f(z) } .
 
 Rule $A^2 => A × A .
+
+Rule [$a, $b](0) => a .
+Rule [$a, $b](1) => b .
 
 // Currently this rule will never trigger due to how ComprehensionSet works.
 // Rule { [$x, $y] ∈ $X × $X : x < y } => increasing_pairs(X) .
@@ -102,9 +106,13 @@ Hint(factor_list, "finite"). // Currently doesn't do anything
 max(factors(600851475143))
 
 // Project Euler 4
-Let int_log := n |-> μ(m |-> n < 10^(m + 1)) .
+Let int_log := n |-> μ(m |-> n < 10^m, 1) .
 Let nth_dig := n |-> i |-> (n / 10^(int_log(n) - i)) % 10 .
-Let digits := n |-> (nth_dig(n))[sort({0...int_log(n)})] .
+// Let digits := n |-> (nth_dig(n))[sort({0...int_log(n)})] .
+Let old_digits := n |-> (nth_dig(n))[sort({0...int_log(n)})] .
+Let rev_digits := n |-> if n < 10 then [int(n)] else [n % 10] @ rev_digits(n / 10) .
+Let digits := n |-> reverse(rev_digits(n)) .
+digits(1091481974182047214)
 Let is_palindrome := n |-> digits(n) = reverse(digits(n)) .
 
 // max({ n ∈ Π[{10...99}^2] : is_palindrome(n) })
@@ -144,11 +152,11 @@ Let Tri := n |-> n*(n+1)/2 .
 // Let τ := n |-> card(divisors(n)) .
 // The below uses the prime factorization and is much faster.
 Let τ := n |-> Π((p |-> p(1) + 1)[list(factor(n))]) .
-// Tri(μ(n |-> τ(Tri(n + 2)) > 500) + 2)
+// Tri(μ(n |-> τ(Tri(n)) > 500, 2))
 
 // TODO: How is this not faster?
 Let τTri := n |-> if 2 | n then τ(num(n / 2)) * τ(n + 1) else τ(n) * τ(num((n + 1) / 2)) .
-// Tri(μ(n |-> τTri(n + 2) > 500) + 2)
+// Tri(μ(n |-> τTri(n) > 500, 2))
 
 // Project Euler 14
 Let collatz := n |->
@@ -205,11 +213,12 @@ Section
 Σ { n ∈ {1...28123} : not (n ∈ abundant_sums) }
 
 // Project Euler 25
-// μ(n |-> print(card(digits(fib(n+1)))) > 100) + 1
+Let fib_helper := (a,b,n) |-> if n = 0 then [a] else [a] @ fib_helper(b,a+b,n-1) .
+Let fibs := n |-> fib_helper(0,1,n).
+μ(n |-> print(card(digits(fib(n)))) >= 1000, 1, n |-> 1000 + n)
 
 // Project Euler 27
 Let conseq_primes := f |-> μ(n |-> not is_prime(f(n))) .
 conseq_primes(n |-> n^2 + n + 41)
-Max({ let f := n |-> n^2 + a*n + b in [conseq_primes(f), f] : a ∈ {-99...99}, b ∈ {-100...100} })
-// Max({ let f := n |-> n^2 + a*n + b in [conseq_primes(f), f] : a ∈ {-999...999}, b ∈ {-1000...1000} })
+// Max({ let f := n |-> n^2 + a*n + b in [conseq_primes(f), f] : a ∈ {-1000...1000}, b ∈ {0...1000}, is_prime(b) })
 

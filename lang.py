@@ -21,6 +21,11 @@ operators = {
     '×': lambda a, lhs, rhs: CartProd(lhs.eval(a), rhs.eval(a)).eval(a),
     '∪': lambda a, lhs, rhs: Union([lhs.eval(a), rhs.eval(a)]).eval(a),
     '∩': lambda a, lhs, rhs: Intersection([lhs.eval(a), rhs.eval(a)]).eval(a),
+    '+': lambda a, lhs, rhs: Num(add(lhs.eval(a).val, rhs.eval(a).val)),
+    '-': lambda a, lhs, rhs: Num(sub(lhs.eval(a).val, rhs.eval(a).val)),
+    '*': lambda a, lhs, rhs: Num(mul(lhs.eval(a).val, rhs.eval(a).val)),
+    '/': lambda a, lhs, rhs: Num(divide(lhs.eval(a).val, rhs.eval(a).val)),
+    '%': lambda a, lhs, rhs: Num(mod(lhs.eval(a).val, rhs.eval(a).val)),
 }
 
 # From: https://stackoverflow.com/a/1482316/1498618
@@ -211,6 +216,7 @@ class Function(AST):
         else:
             self.args = [args]
         self.body = body
+        self.calls = 0
 
     def map(self, f):
         return Function(self.args, f(self.body.map(f)), name=self.name)
@@ -222,14 +228,17 @@ class Function(AST):
         if isinstance(self.body, App) and self.body.args == self.args:
             return self.body.func
         else:
-            return self
+            return Function(self.args, self.body.simplify(), name=self.name)
 
     def substitute(self, subs):
         new_subs = dict(subs)
         for arg in self.args:
             if arg.name in new_subs:
                 new_subs.pop(arg.name)
-        return Function(self.args, self.body.substitute(new_subs), name=self.name)
+        if len(new_subs) == 0:
+            return self
+        else:
+            return Function(self.args, self.body.substitute(new_subs), name=self.name)
 
     def prepare_call(self, evaled_args):
         subs = { formal.name: arg for formal, arg in zip(self.args, evaled_args) }
@@ -238,6 +247,9 @@ class Function(AST):
         return self.body.substitute(subs)
 
     def call(self, a, actual_args):
+        self.calls += 1
+        if self.calls == 5: # Use == to only call this once.
+            self.body = self.body.simplify()
         return self.prepare_call(arg.eval(a) for arg in actual_args).eval(a)
 
     def as_function(self):
@@ -263,6 +275,15 @@ class Function(AST):
 
     def __hash__(self):
         return hash((tuple(self.args), self.body, self.name))
+
+    def __lt__(self, other):
+        return False
+    def __gt__(self, other):
+        return False
+    def __ge__(self, other):
+        return self == other
+    def __le__(self, other):
+        return self == other
 
 class IfThenElse(AST):
     def __init__(self, cond, t, e):
@@ -322,7 +343,7 @@ class Sequence(AST):
             else:
                 # This matches anything, so we don't need to add a branch for this
                 if not isinstance(arg, VarRef):
-                    body = IfThenElse(Operator(x, '=', operators['='], arg), rhs, body)
+                    body = IfThenElse(Op(x, '=', operators['='], arg), rhs, body)
                 else:
                     body = body.substitute({ arg.name: x })
 
@@ -414,6 +435,32 @@ def minimize(a, args):
     # This version is slightly different in that it finds the smallest value for which the function does not return 0 (i.e., false)
     n = 0
     f = args[0].eval(a)
+    if len(args) > 1:
+        n = args[1].eval(a).as_int()
+    if len(args) > 2:
+        m = args[2].eval(a)
+
+        # If it's a function, then we do binary search.
+        # Because the upper bound can be arbitrarily large (but maybe not known ahead of time)
+        # we use the function provided to find the upper bound, then search as normal.
+        if isinstance(m, Function):
+            bound_func = m
+            m = n
+            while f.call(a, [Num(m)]).as_int() == 0:
+                m = bound_func.call(a, [Num(m)]).as_int()
+            while m - n > 1:
+                guess = (n + m) // 2
+                if f.call(a, [Num(guess)]).as_int() == 0:
+                    n = guess
+                else:
+                    m = guess
+            return Num(m)
+        else:
+            m = m.as_int()
+            for i in range(n, m + 1):
+                if f.call(a, [Num(i)]).as_int() == 1:
+                    break
+            return Num(i)
     while f.call(a, [Num(n)]).as_int() == 0:
         n += 1
     return Num(n)
@@ -439,10 +486,14 @@ class App(AST):
 
     def simplify(self):
         # This will take something like (n |-> n + 2)(x) and convert it into x + 2.
-        if isinstance(self.func, Function) and all([ isinstance(arg, VarRef) for arg in self.args]):
-            return self.func.prepare_call(self.args)
-        else:
-            return self
+        if isinstance(self.func, Function):
+            if all([ isinstance(arg, VarRef) for arg in self.args]):
+                return self.func.prepare_call(self.args)
+        elif isinstance(self.func, List):
+            if len(self.args) == 1 and isinstance(self.args[0], Num) and self.args[0].is_int():
+                return self.func.elems[self.args[0].as_int()]
+
+        return self
 
     def unify(self, other, subs):
         if not isinstance(other, App):
@@ -646,99 +697,38 @@ class Min(AST):
     def __hash__(self):
         return hash(tuple(self.args))
 
-class BinArithOp(AST):
-    def __init__(self, op_name, op, *args):
-        self.op_name = op_name
-        self.op = op
-        self.args = list(args)
-
-    def eval(self, a):
-        res = None
-        for arg in self.args:
-            if res is None:
-                res = arg.eval(a).val
-            else:
-                res = self.op(res, arg.eval(a).val)
-        return Num(res)
-
-    def unify(self, other, subs):
-        if not isinstance(other, BinArithOp):
-            return False
-
-        if len(self.args) != len(other.args):
-            return False
-
-        if self.op_name != other.op_name:
-            return False
-
-        return all([ a.unify(b, subs) for a, b in zip(self.args, other.args)])
-
-    def is_finite(self):
-        return all([ arg.is_finite() for arg in self.args ])
+class Exp(AST):
+    def __init__(self, base, exp):
+        self.base = base
+        self.exp = exp
 
     def substitute(self, subs):
-        return BinArithOp(self.op_name, self.op, *[ v.substitute(subs) for v in self.args ])
+        return Exp(self.base.substitute(subs), self.exp.substitute(subs))
 
     def map(self, f):
-        return BinArithOp(self.op_name, self.op, *[ f(arg.map(f)) for arg in self.args ])
+        return Exp(f(self.base.map(f)), f(self.exp.map(f)))
+
+    def eval(self, a):
+        base = self.base.eval(a)
+        if isinstance(base, Set):
+            return CartProd(*[ base for i in range(self.exp.eval(a).as_int()) ])
+        else:
+            return Num(base.val**self.exp.eval(a).val)
 
     def free_vars(self):
-        return { v for arg in self.args for v in arg.free_vars() }
-
-    def as_function(self):
-        x = VarRef(self.fresh())
-        return Function([x], BinArithOp(self.op_name, self.op, *[ App(arg, x) for arg in self.args ]))
+        return self.base.free_vars() | self.exp.free_vars()
 
     def __repr__(self):
-        return '{}({})'.format(self.op_name, self.args)
+        return 'Exp({}, {})'.format(self.base, self.exp)
 
     def __str__(self):
-        op = ' {} '.format(self.op_name)
-        return '(' + op.join(map(str, self.args)) + ')'
+        return '({}^{})'.format(str(self.base), str(self.exp))
 
     def __eq__(self, other):
-        return other is not None and type(other) is self.__class__ and self.op_name == other.op_name and self.args == other.args
+        return other is not None and type(other) is self.__class__ and self.base == other.base and self.exp == other.exp
 
     def __hash__(self):
-        return hash((self.op_name, tuple(self.args)))
-
-class Exp(AST):
-    def __init__(self, *args):
-        self.args = list(args)
-
-    def substitute(self, subs):
-        return Exp(*[ v.substitute(subs) for v in self.args ])
-
-    def map(self, f):
-        return Exp(*[ f(arg.map(f)) for arg in self.args ])
-
-    def eval(self, a):
-        vals = [ arg.eval(a) for arg in self.args ]
-        if all([ isinstance(v, Num) for v in vals ]):
-            # Go backwards because a^b^c = a^(b^c) not (a^b)^c
-            return Num(reduce(lambda a,b: b ** a, [ v.val for v in vals ][::-1]))
-        elif any([ isinstance(v, Function) for v in vals ]):
-            return Exp(*[ v.as_function() for v in vals ]).as_function().eval(a)
-        elif isinstance(vals[0], Set) and isinstance(vals[1], Num) and len(vals) == 2:
-            return CartProd(*[ vals[0] for i in range(vals[1].eval(a).as_int())]).eval(a)
-        else:
-            raise Exception('')
-
-    def free_vars(self):
-        return { v for arg in self.args for v in arg.free_vars() }
-
-    def as_function(self):
-        x = VarRef(self.fresh())
-        return Function([x], Exp(*[ App(arg, x) for arg in self.args ]))
-
-    def __repr__(self):
-        return 'Exp({})'.format(self.args)
-
-    def __eq__(self, other):
-        return other is not None and type(other) is self.__class__ and self.args == other.args
-
-    def __hash__(self):
-        return hash(tuple(self.args))
+        return hash((self.base, self.exp))
 
 class Factorial(AST):
     def __init__(self, arg):
@@ -1298,12 +1288,15 @@ class VarRef(AST):
     def __hash__(self):
         return hash(self.name)
 
-class Operator(AST):
+class Op(AST):
     def __init__(self, lhs, op, f, rhs):
         self.lhs = lhs
         self.op = op
         self.f = f
         self.rhs = rhs
+
+    def simplify(self):
+        return Op(self.lhs.simplify(), self.op, self.f, self.rhs.simplify())
 
     def eval(self, a):
         if self.f is None:
@@ -1312,10 +1305,10 @@ class Operator(AST):
             return self.f(a, self.lhs, self.rhs)
 
     def map(self, f):
-        return Operator(f(self.lhs.map(f)), self.op, self.f, f(self.rhs.map(f)))
+        return Op(f(self.lhs.map(f)), self.op, self.f, f(self.rhs.map(f)))
 
     def unify(self, other, subs):
-        if not isinstance(other, Operator):
+        if not isinstance(other, Op):
             return False
 
         if self.op != other.op:
@@ -1327,14 +1320,14 @@ class Operator(AST):
         # TODO: For the moment, this assumes natural numbers...
         if self.op == '<':
             if var == self.lhs and var.name not in self.rhs.free_vars():
-                return RangeSet(Num(0), BinArithOp('Sub', sub, self.rhs, Num(1)), Num(1))
+                return RangeSet(Num(0), Op(self.rhs, '-', operators['-'], Num(1)), Num(1))
             elif var == self.rhs and var.name not in self.lhs.free_vars():
-                return RangeSet(BinArithOp('Add', add, self.lhs, Num(1)), Num(OmegaOrd()), Num(1))
+                return RangeSet(Op(self.lhs, '+', operators['+'], Num(1)), Num(OmegaOrd()), Num(1))
         elif self.op == '>':
             if var == self.lhs and var.name not in self.rhs.free_vars():
-                return RangeSet(BinArithOp('Add', add, self.rhs, Num(1)), Num(OmegaOrd()), Num(1))
+                return RangeSet(Op(self.rhs, '+', operators['+'], Num(1)), Num(OmegaOrd()), Num(1))
             elif var == self.rhs and var.name not in self.lhs.free_vars():
-                return RangeSet(Num(0), BinArithOp('Sub', sub, self.lhs, Num(1)), Num(1))
+                return RangeSet(Num(0), Op(self.lhs, '-', operators['-'], Num(1)), Num(1))
         elif self.op == '<=':
             if var == self.lhs and var.name not in self.rhs.free_vars():
                 return RangeSet(Num(0), self.rhs, Num(1))
@@ -1357,14 +1350,14 @@ class Operator(AST):
         return self.lhs.free_vars() | self.rhs.free_vars()
 
     def substitute(self, subs):
-        return Operator(self.lhs.substitute(subs), self.op, self.f, self.rhs.substitute(subs))
+        return Op(self.lhs.substitute(subs), self.op, self.f, self.rhs.substitute(subs))
 
     def as_function(self):
         x = VarRef(self.fresh())
-        return Function([x], Operator(App(self.lhs.as_function(), x), self.op, self.f, App(self.rhs.as_function(), x)))
+        return Function([x], Op(App(self.lhs.as_function(), x), self.op, self.f, App(self.rhs.as_function(), x)))
 
     def __repr__(self):
-        return 'Operator({}, {}, {})'.format(self.lhs, self.op, self.rhs)
+        return 'Op({}, {}, {})'.format(self.lhs, self.op, self.rhs)
 
     def __str__(self):
         return '({} {} {})'.format(self.lhs, self.op, self.rhs)
@@ -1559,6 +1552,9 @@ class FinSet(Set):
         if self.evaled:
             return self
         return FinSet([ e.eval(a) for e in self.elems ], evaled=True)
+
+    def simplify(self):
+        return FinSet([ e.simplify() for e in self.elems ], evaled=self.evaled)
 
     def enumerate(self, a):
         for v in self.elems:
@@ -1851,7 +1847,7 @@ class ComprehensionSet(Set):
         return all([ x.unify(y, subs) and xdom.unify(ydom, subs) for (x, xdom), (y, ydom) in zip(self.var_doms, other.var_doms) ]) and all([ c1.unify(c2, subs) for c1, c2 in zip(self.clauses, other.clauses) ])
 
     def extract_clauses(self, expr):
-        if isinstance(expr, Operator) and expr.op == 'and':
+        if isinstance(expr, Op) and expr.op == 'and':
             return self.extract_clauses(expr.lhs) + self.extract_clauses(expr.rhs)
         else:
             return [expr]
@@ -2351,7 +2347,7 @@ class Reduce(AST):
             if final_res is None:
                 final_res = v
             else:
-                final_res = Operator(final_res, self.op, self.f, v).eval(a)
+                final_res = Op(final_res, self.op, self.f, v).eval(a)
 
         return final_res
 
@@ -2635,6 +2631,18 @@ class List(AST):
     def call(self, a, args):
         idx = args[0].eval(a)
         return self.elems[idx.as_int()].eval(a)
+
+    def unify(self, other, subs):
+        if not isinstance(other, List):
+            return False
+
+        if len(self.elems) != len(other.elems):
+            return False
+
+        return all([ a.unify(b, subs) for a, b in zip(self.elems, other.elems) ])
+
+    def simplify(self):
+        return List([ e.simplify() for e in self.elems ])
 
     def __repr__(self):
         return 'List({})'.format(self.elems)
