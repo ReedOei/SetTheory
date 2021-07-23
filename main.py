@@ -117,6 +117,12 @@ class LangTransformer(Transformer):
     def operator_sym(self, *syms):
         return ''.join(map(str, syms))
 
+    def prove(self, term):
+        return Prove(term, [])
+
+    def prove_hints(self, term, *hints):
+        return Prove(term, list(hints))
+
     def praline_true(self):
         return Num(1)
 
@@ -230,7 +236,8 @@ def animate(a, args):
 
 def execute(stmt, main_env):
     # print('>', str(stmt))
-    stmt = rewrite_with(main_env['rules'], stmt)
+    if not isinstance(stmt, Rule):
+        stmt = rewrite_with(main_env['rules'], stmt)
     print('>', str(stmt))
     # print('simpl>', str(stmt))
     start = time.time()
@@ -254,15 +261,15 @@ if __name__ == '__main__':
         'ω': Num(OmegaOrd()),
         'p': PrimeSeq(),
         'increasing_pairs': Builtin('increasing_pairs', increasing_pairs),
-        'powerset': Builtin('powerset', lambda a, args: FinSet([ FinSet(xs) for xs in powerset(args[0].eval(a).enumerate(a)) ])),
-        'powerlist': Builtin('powerlist', lambda a, args: FinSet([ List(xs) for xs in powerset(args[0].eval(a).enumerate(a)) ])),
+        'powerset': Builtin('powerset', lambda a, args: FinSet([ FinSet(xs) for xs in powerset(args[0].enumerate(a)) ])),
+        'powerlist': Builtin('powerlist', lambda a, args: FinSet([ List(xs) for xs in powerset(args[0].enumerate(a)) ])),
         'choose': Builtin('choose', lambda a, args: args[0].eval(a).arbitrary(a)),
         'gcd': Builtin('gcd', lambda a, args: Num(gcd(args[0].eval(a).as_int(), args[1].eval(a).as_int()))),
         'next': Builtin('next', lambda a, args: args[0].eval(a).next_elem(args[1].eval(a), a)),
         'card': Builtin('card', lambda a, args: args[0].eval(a).cardinality(a)),
         'reverse': Builtin('reverse', lambda a, args: List(args[0].eval(a).elems[::-1])),
-        'set': Builtin('set', lambda a, args: FinSet(args[0].eval(a).enumerate(a))),
-        'list': Builtin('list', lambda a, args: List(args[0].eval(a).enumerate(a))),
+        'set': Builtin('set', lambda a, args: FinSet(args[0].enumerate(a))),
+        'list': Builtin('list', lambda a, args: List(args[0].enumerate(a))),
         'num': Builtin('num', lambda a, args: Num(args[0].eval(a).as_rat().n)),
         'denom': Builtin('denom', lambda a, args: Num(args[0].eval(a).as_rat().d)),
         'min_elem': Builtin('min_elem', lambda a, args: args[0].eval(a).min_elem(a)),
@@ -270,9 +277,9 @@ if __name__ == '__main__':
         'cached_function': Builtin('cached_functon', lambda a, args: CachedFunction(args[0].eval(a).val, args[1].substitute(a)).eval(a)),
         'sequence': Builtin('sequence', lambda a, args: SetSequence(args[0].eval(a)).eval(a)),
         'cached_values': Builtin('cached_values', lambda a, args: args[0].eval(a).cached_values()),
-        '⋃': Builtin('⋃', lambda a, args: Union(list(args[0].eval(a).enumerate(a))).eval(a)),
-        '⋂': Builtin('⋂', lambda a, args: Intersection(list(args[0].eval(a).enumerate(a))).eval(a)),
-        'sort': Builtin('sort', lambda a, args: List(sorted(list(args[0].eval(a).enumerate(a))))),
+        '⋃': Builtin('⋃', lambda a, args: Union(list(args[0].enumerate(a))).eval(a)),
+        '⋂': Builtin('⋂', lambda a, args: Intersection(list(args[0].enumerate(a))).eval(a)),
+        'sort': Builtin('sort', lambda a, args: List(sorted(list(args[0].enumerate(a))))),
         'n_smallest': Builtin('n_smallest', n_smallest),
         'int': Builtin('int', lambda a, args: Num(args[0].eval(a).as_int())),
         'cf': Builtin('cf', eval_cf),
@@ -283,9 +290,9 @@ if __name__ == '__main__':
         'memo': Builtin('memo', make_memo),
         'take_lt': Builtin('take_lt', take_lt),
         'take_map_lt': Builtin('take_map_lt', take_map_lt),
-        'Max': Builtin('Max', lambda a, args: Max(list(args[0].eval(a).enumerate(a))).eval(a)),
-        'Min': Builtin('Min', lambda a, args: Min(list(args[0].eval(a).enumerate(a))).eval(a)),
-        'force_set_eval': Builtin('force_set_eval', lambda a, args: FinSet(args[0].eval(a).enumerate(a))),
+        'Max': Builtin('Max', lambda a, args: Max(list(args[0].enumerate(a))).eval(a)),
+        'Min': Builtin('Min', lambda a, args: Min(list(args[0].enumerate(a))).eval(a)),
+        'force_set_eval': Builtin('force_set_eval', lambda a, args: FinSet(args[0].enumerate(a))),
         'show_set_eval': Builtin('show_set_eval', show_set_eval)
     }
 

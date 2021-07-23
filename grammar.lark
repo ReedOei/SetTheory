@@ -8,6 +8,8 @@ definition: "Let" var _IS term "."
           | "Proof" "Rule" term "=>" term "." -> proof_rule
           | "Proof" "Rule" term "=>" term "assuming" (assumption ","?)+ "." -> proof_rule_assuming
           | "Assume" assumption "." -> assumption
+          | "Prove" term "." -> prove
+          | "Prove" term ":" (term ","?)+ "." -> prove_hints
 
 assumption: term "has" "property" term -> assume_property
           | "that" term -> assume_that

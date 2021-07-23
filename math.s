@@ -11,6 +11,19 @@ Rule 0 * $a => 0 .
 Rule 1 * $a => a .
 Rule $a * 1 => a .
 
+Rule $a ==> $a => 1 .
+
+Rule $a * $a => a^2 .
+Rule $a + $a => 2*a .
+Rule $a*$b + $b => (a + 1)*b .
+
+Rule $a = $a => 1 .
+Rule $a + $b = $a + $c => b = c .
+Rule 0 ==> $p => 1 .
+Rule $p ==> 1 => 1 .
+
+Rule $a^1 => a .
+
 Rule $f[{}] => {} .
 
 Rule {} × $a => {} .
@@ -20,7 +33,7 @@ Rule $f[{$x}] => { f(x) } .
 Rule $f[{$x, $y}] => { f(x), f(y) } .
 Rule $f[{$x, $y, $z}] => { f(x), f(y), f(z) } .
 
-Rule $A^2 => A × A .
+// Rule $A^2 => A × A . // TODO: Only for sets, need some way to detect this.
 
 Rule [$a, $b](0) => a .
 Rule [$a, $b](1) => b .
@@ -85,12 +98,12 @@ smallest_div(42)
 
 Let int_sqrt := n |-> μ(m |-> m^2 >= n) .
 int_sqrt(10)
-Let is_prime := n |-> n = 2 or (n > 1 and (not (2 | n)) and (not (exists m ∈ {3,5...int_sqrt(n)} . m | n))) .
+Let is_prime := n |-> n ∈ p. // n = 2 or (n > 1 and (not (2 | n)) and (not (exists m ∈ {3,5...int_sqrt(n)} . m | n))) .
 
-Let primes := cached_set("primes", { n ∈ ℕ : is_prime(n) }) .
-min_elem(primes)
-choose(primes)
-n_smallest(100, primes)
+// Let primes := cached_set("primes", { n ∈ ℕ : is_prime(n) }) .
+// min_elem(primes)
+// choose(primes)
+// n_smallest(100, primes)
 
 Let factor_seq := n |-> i |->
     if i = 0
@@ -221,10 +234,19 @@ Section
 // Project Euler 25
 Let fib_helper := (a,b,n) |-> if n = 0 then [a] else [a] @ fib_helper(b,a+b,n-1) .
 Let fibs := n |-> fib_helper(0,1,n).
-μ(n |-> card(digits(fib(n))) >= 1000, 1, n |-> 1000 + n)
+// μ(n |-> card(digits(fib(n))) >= 1000, 1, n |-> 1000 + n)
 
 // Project Euler 27
-Let conseq_primes := f |-> μ(n |-> not is_prime(f(n))) .
+Let conseq_primes := f |-> μ(n |-> not (f(n) ∈ p)) .
 conseq_primes(n |-> n^2 + n + 41)
-Max({ let f := n |-> n^2 + a*n + b in [conseq_primes(f), f] : a ∈ {-1000...1000}, b ∈ {0...1000}, is_prime(b) })
+// Max({ let f := n |-> n^2 + a*n + b in [conseq_primes(f), f] : a ∈ {-1000...1000}, b ∈ {0...1000}, is_prime(b) })
+
+// Project Euler 29
+card({ a^b : a ∈ {2...100}, b ∈ {2...100} })
+
+// Project Euler 30
+// { n ∈ {10...10^6} : (Σ (d |-> d^5)[rev_digits(n)]) = n }
+
+// Project Euler 31
+2^(3/2)
 

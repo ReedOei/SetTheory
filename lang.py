@@ -62,7 +62,7 @@ def powerset(iterable):
     return list(it.chain.from_iterable(it.combinations(s, r) for r in range(len(s)+1)))
 
 def increasing_pairs(a, args):
-    xs = sorted(args[0].eval(a).enumerate(a))
+    xs = sorted(args[0].enumerate(a))
 
     res = []
     for i, x in enumerate(xs):
@@ -74,7 +74,8 @@ def increasing_pairs(a, args):
 def rewrite_with(rules, t):
     def go(x):
         for r in rules:
-            x = r.rewrite(x).simplify()
+            if not 'proof rule' in r.attrs:
+                x = r.rewrite(x).simplify()
         yield x
 
     while True:
@@ -84,24 +85,57 @@ def rewrite_with(rules, t):
         t = new_t
     return t
 
-def prove(rules, t):
+def prove(rules, a, t, hints=None, verbose=False):
     def go(x):
         for r in rules:
-            new_x = r.rewrite(x).simplify()
-            if new_x != x:
-                yield new_x
+            if not 'proof rule' in r.attrs:
+                x = r.rewrite(x).simplify()
+        for r in rules:
+            if 'proof rule' in r.attrs:
+                new_x = r.rewrite(x)
+                if new_x != x:
+                    yield new_x
         yield x
 
-    seen = set()
+    if hints is None:
+        hints = []
+
+    parent = {}
+    parent[t] = None
     todo = [t]
     while len(todo) > 0:
         t = todo.pop(0)
+        if verbose:
+            print(len(todo), t)
         if t == Num(1):
+            prf = [t]
+
+            while parent[t] != None:
+                t = parent[t]
+                prf.insert(0, t)
+
+            if verbose:
+                print('Proof:')
+                for p in prf:
+                    print(p)
+
             return True
+
+        # Once we find a hint, we made it to a step of the proof that we're told works, so discard everything else.
+        if t in hints:
+            idx = hints.index(t)
+            if verbose:
+                print('Reached hint (#{}): {}; dropping {} terms'.format(idx + 1, str(t), len(todo)))
+            hints = hints[idx + 1:] # Drop the previous hints
+            for t in todo:
+                parent.pop(t)
+            todo = []
+
         for new_t in bind(go, t.map(go)):
-            if new_t not in seen:
-                seen.add(new_t)
+            if new_t not in parent:
+                parent[new_t] = t
                 todo.append(new_t)
+
     return False
 
 def take_map_lt(a, args):
@@ -216,7 +250,7 @@ def gcd(a,b):
 
 def show_set_eval(a, args):
     res = set()
-    for x in args[0].eval(a).enumerate(a):
+    for x in args[0].enumerate(a):
         if x not in res:
             res.add(x)
             print(x)
@@ -246,6 +280,11 @@ class AST:
 
     def simplify(self):
         return self
+
+    # This provides a useful default for things that aren't already sets.
+    # But for things that are sets, it can save time to just call enumerate, so we don't have to allocate a list/set to store the elements if we don't need.
+    def enumerate(self, a):
+        return self.eval(a).enumerate(a)
 
     def as_set_restriction(self, var):
         # If implemented, this returns a Set s such that
@@ -313,10 +352,13 @@ class Function(AST):
             return 'Function({}, {})'.format(self.args, self.body)
 
     def __str__(self):
+        args_str = '{}'.format(', '.join(map(str, self.args)))
+        if len(self.args) > 1:
+            args_str = '(' + args_str + ')'
         if self.name is not None:
-            return '{}: ({}) |-> {}'.format(self.name, ', '.join(map(str, self.args)), str(self.body))
+            return '{}: {} |-> {}'.format(self.name, args_str, str(self.body))
         else:
-            return '({}) |-> {}'.format(', '.join(map(str, self.args)), str(self.body))
+            return '{} |-> {}'.format(args_str, str(self.body))
 
     def __eq__(self, other):
         return other is not None and type(other) is self.__class__ and self.args == other.args and self.body == other.body and self.name == other.name
@@ -457,7 +499,7 @@ class Builtin(AST):
 
 def group(a, args):
     res = {}
-    for x in args[0].eval(a).enumerate(a):
+    for x in args[0].enumerate(a):
         if not x in res:
             res[x] = 0
         res[x] += 1
@@ -775,12 +817,26 @@ class Exp(AST):
             for new_exp in bind(f, self.exp.map(f)):
                 yield Exp(new_base, new_exp)
 
+    def unify(self, other, subs):
+        if not isinstance(other, Exp):
+            return False
+
+        return self.base.unify(other.base, subs) and self.exp.unify(other.exp, subs)
+
     def eval(self, a):
         base = self.base.eval(a)
         if isinstance(base, Set):
             return CartProd(*[ base for i in range(self.exp.eval(a).as_int()) ])
         else:
-            return Num(base.val**self.exp.eval(a).val)
+            base = base.val
+            exponent = self.exp.eval(a).val
+            if isinstance(exponent, Rat):
+                return Num(Exponential(base, exponent).simplify())
+            else:
+                return Num(base**exponent)
+
+    def is_finite(self):
+        return self.base.is_finite() and self.exp.is_finite()
 
     def free_vars(self):
         return self.base.free_vars() | self.exp.free_vars()
@@ -949,7 +1005,7 @@ class Num(AST):
         return Function([VarRef(self.fresh())], Num(self.val))
 
     def as_int(self):
-        if self.is_int():
+        if isinstance(self.val, int):
             return self.val
         elif isinstance(self.val, NatOrd):
             return self.val.n
@@ -957,7 +1013,7 @@ class Num(AST):
             return self.val.n // self.val.d
 
     def as_rat(self):
-        if self.is_int():
+        if isinstance(self.val, int):
             return Rat(self.val, 1)
         elif isinstance(self.val, NatOrd):
             return Rat(self.val.n, 1)
@@ -1234,6 +1290,34 @@ class Rat:
     def __hash__(self):
         return hash((self.n, self.d))
 
+class Exponential:
+    def __init__(self, base, exponent):
+        self.base = base
+        self.exponent = exponent
+
+    def simplify(self):
+        if isinstance(self.base, int) and self.exponent.n > 1:
+            return Exponential(self.base**self.exponent.n, Rat(1, self.exponent.d))
+        if self.exponent.d == 1:
+            return self.base**self.exponent.n
+        return self
+
+    def __repr__(self):
+        return 'Exponential({}, {})'.format(self.base, self.exponent)
+
+    def __str__(self):
+        return '{}^({})'.format(self.base, self.exponent)
+
+    def __eq__(self, other):
+        return other is not None and type(other) is self.__class__ and self.base == other.base and self.exponent == other.exponent
+
+    def __hash__(self):
+        return hash((self.base, self.exponent))
+
+class Algebraic:
+    def __init__(self):
+        pass
+
 class Rule(AST):
     def __init__(self, lhs, rhs, assumptions, env=None, attrs=None):
         self.lhs = lhs
@@ -1262,7 +1346,6 @@ class Rule(AST):
     def eval(self, a):
         a['rules'].append(self)
         self.env = a
-        return self
 
     def rewrite(self, term):
         subs = {}
@@ -1323,6 +1406,43 @@ class HasProperty(AST):
     def __hash__(self):
         return hash((self.a, self.b))
 
+class Prove(AST):
+    def __init__(self, t, hints):
+        self.t = t
+        self.hints = hints
+
+    def substitute(self, subs):
+        return Prove(self.t.substitute(subs), [ hint.substitute(subs) for hint in self.hints ])
+
+    def map(self, f):
+        for new_t in bind(f, self.t.map(f)):
+            for new_hints in it.product(*[ bind(f, hint.map(f)) for hint in self.hints ]):
+                yield Prove(new_t, new_hints)
+
+    def eval(self, a):
+        if len(a['context']) > 0:
+            ctx = reduce(lambda lhs, rhs: Op(lhs, 'and', operators['and'], rhs), a['context'])
+            res = prove(a['rules'], a, Op(ctx, '==>', operators['==>'], self.t), hints=self.hints, verbose=True)
+        else:
+            res = prove(a['rules'], a, self.t, hints=self.hints, verbose=True)
+
+        if res:
+            print('Proved: ', self.t)
+        else:
+            print('Failed to prove: ', self.t)
+
+    def free_vars(self):
+        return self.t.free_vars()
+
+    def __repr__(self):
+        return 'Prove({}, {})'.format(self.t, self.hints)
+
+    def __eq__(self, other):
+        return other is not None and type(other) is self.__class__ and self.t == other.t and self.hints == other.hints
+
+    def __hash__(self):
+        return hash((self.t, tuple(self.hints)))
+
 class AssumeTerm(AST):
     def __init__(self, t):
         self.t = t
@@ -1340,9 +1460,9 @@ class AssumeTerm(AST):
     def check(self, a, subs):
         if len(a['context']) > 0:
             ctx = reduce(lambda lhs, rhs: Op(lhs, 'and', operators['and'], rhs), a['context'])
-            res = prove(a['rules'], Op(ctx, '==>', operators['==>'], self.t.substitute(subs)))
+            res = prove(a['rules'], a, Op(ctx, '==>', operators['==>'], self.t.substitute(subs)))
         else:
-            res = prove(a['rules'], self.t.substitute(subs))
+            res = prove(a['rules'], a, self.t.substitute(subs))
         return res
 
     def free_vars(self):
@@ -1406,7 +1526,7 @@ class VarRef(AST):
                 subs[name] = other
             else:
                 if subs[name] == self:
-                    return True
+                    return subs[name] == other
                 return subs[name].unify(other, subs)
             return True
         else:
@@ -1536,6 +1656,9 @@ class Complement(AST):
     def __repr__(self):
         return 'Complement({})'.format(self.t)
 
+    def __str__(self):
+        return '(¬{})'.format(self.t)
+
     def __eq__(self, other):
         return other is not None and type(other) is self.__class__ and self.t == other.t
 
@@ -1549,7 +1672,7 @@ class Exists(AST):
 
     def eval(self, a):
         # TODO: Deal with infinite sets?
-        for y in self.domain.eval(a).enumerate(a):
+        for y in self.domain.enumerate(a):
             new_a = dict(a)
             new_a[self.x.name] = y
 
@@ -1561,7 +1684,7 @@ class Exists(AST):
     def map(self, f):
         for new_domain in bind(f, self.domain.map(f)):
             for new_body in bind(f, self.body.map(f)):
-                yield Exists(self.x, new_domain, new_body)
+                yield Exists((self.x, new_domain), new_body)
 
     def substitute(self, subs):
         new_subs = dict(subs)
@@ -1593,11 +1716,11 @@ class Forall(AST):
     def map(self, f):
         for new_domain in bind(f, self.domain.map(f)):
             for new_body in bind(f, self.body.map(f)):
-                yield Forall(self.x, new_domain, new_body)
+                yield Forall((self.x, new_domain), new_body)
 
     def eval(self, a):
         # TODO: Deal with infinite sets?
-        for y in self.domain.eval(a).enumerate(a):
+        for y in self.domain.enumerate(a):
             new_a = dict(a)
             new_a[self.x.name] = y
 
@@ -1756,7 +1879,7 @@ class RangeSet(Set):
         for new_low in bind(f, self.low.map(f)):
             for new_high in bind(f, self.high.map(f)):
                 for new_step in bind(f, self.step.map(f)):
-                    yield RangeSet(new_log, new_high, new_step)
+                    yield RangeSet(new_low, new_high, new_step)
 
     def eval(self, a):
         hval = self.high.eval(a)
@@ -1894,10 +2017,10 @@ class CartProd(Set):
 
     def enumerate(self, a):
         if len(self.sets) == 1:
-            for x in self.sets[0].eval(a).enumerate(a):
+            for x in self.sets[0].enumerate(a):
                 yield x
         else:
-            for xs in cart_prod(*[ s.eval(a).enumerate(a) for s in self.sets]):
+            for xs in cart_prod(*[ s.enumerate(a) for s in self.sets]):
                 yield List(xs)
 
     # Inspired by: https://stackoverflow.com/a/20516638/1498618
@@ -2332,7 +2455,7 @@ class CachedSet(Set):
         for x in self.known_elements:
             yield x
         if not self.fully_known:
-            for x in self.base_set.eval(a).enumerate(a):
+            for x in self.base_set.enumerate(a):
                 if x not in self.known_elements:
                     yield self.add_to_cache(x)
             self.fully_known = True
@@ -2384,6 +2507,7 @@ class PrimeSeq(AST):
         super().__init__()
         self.max = 3
         self.primes = [2]
+        self.primes_set = {2}
         self.sieve = [ False, False, True ]
 
         self.cache_name = 'prime_seq'
@@ -2403,6 +2527,14 @@ class PrimeSeq(AST):
     def free_vars(self):
         return set()
 
+    def contains(self, n, a):
+        val = n.eval(a).as_int()
+
+        if val > self.primes[-1]:
+            self.run_sieve(val + 1 - self.max)
+
+        return val in self.primes_set
+
     def call(self, a, args):
         idx = args[0].eval(a).as_int()
 
@@ -2420,12 +2552,14 @@ class PrimeSeq(AST):
     def run_sieve(self, increment):
         self.sieve.extend([ True ] * increment)
         new_max = self.max + increment
+        print('primes', new_max)
         for p, b in enumerate(self.sieve):
             if b:
                 start = max(p*p, p * (self.max // p + 1))
                 self.sieve[start::p] = [ False ] * len(self.sieve[start::p])
                 if p >= self.max:
                     self.primes.append(p)
+                    self.primes_set.add(p)
         self.max += increment
         return self
 
@@ -2436,6 +2570,7 @@ class PrimeSeq(AST):
     def load_from_cache(self):
         try:
             self.max, self.sieve, self.primes = pickle.load(self.cache_file('rb'))
+            self.primes_set = set(self.primes)
         except FileNotFoundError as e:
             # This is fine, we just will create a new cache file.
             pass
@@ -2546,14 +2681,19 @@ class Image(Set):
         return self.f.unify(other.f, subs) and self.arg_set.unify(other.arg_set, subs)
 
     def eval(self, a):
-        arg_set = self.arg_set.eval(a)
+        if isinstance(self.arg_set, Set) and self.arg_set.is_finite():
+            return FinSet(self.enumerate(a, arg_set=self.arg_set))
+        elif isinstance(self.arg_set, List):
+            return List(self.enumerate(a, arg_set=self.arg_set))
+        else:
+            arg_set = self.arg_set.eval(a)
 
-        if arg_set.is_finite():
-            if isinstance(arg_set, List):
-                return List(self.enumerate(a, arg_set=arg_set))
-            return FinSet(self.enumerate(a, arg_set=arg_set))
+            if arg_set.is_finite():
+                if isinstance(arg_set, List):
+                    return List(self.enumerate(a, arg_set=arg_set))
+                return FinSet(self.enumerate(a, arg_set=arg_set))
 
-        return self
+            return self
 
     def enumerate(self, a, arg_set=None):
         if arg_set is None:
