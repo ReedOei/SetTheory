@@ -18,6 +18,7 @@ struct LangParser;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum AST {
+    Skip(),
     Int(BigInt),
     FinSet(Vec<AST>),
     List(Vec<AST>),
@@ -27,7 +28,8 @@ pub enum AST {
     Sub(Box<AST>, Box<AST>),
     App(Box<AST>, Vec<AST>),
     Var(String),
-    Function(Vec<AST>, Box<AST>)
+    Function(Vec<AST>, Box<AST>),
+    Image(Box<AST>, Box<AST>)
 }
 
 pub fn to_ast(pair : Pair<Rule>) -> Result<AST, String> {
@@ -105,6 +107,15 @@ pub fn to_ast(pair : Pair<Rule>) -> Result<AST, String> {
             return Ok(AST::Function(args, Box::new(last)));
         }
 
+        Rule::image => {
+            let mut it = pair.into_inner();
+            let f = to_ast(it.next().unwrap())?;
+            let arg = to_ast(it.next().unwrap())?;
+            return Ok(AST::Image(Box::new(f), Box::new(arg)));
+        }
+
+        Rule::EOI => Ok(AST::Skip()),
+
         _ => Err("Unimplemented".to_string())
     }
 }
@@ -134,8 +145,6 @@ pub fn subs(expr : AST, to_subs : &AST, var : &AST) -> AST {
     }
 
     match expr {
-        AST::Int(n) => AST::Int(n),
-
         AST::FinSet(elems) => AST::FinSet(elems.into_iter().map(| e | subs(e, to_subs, var)).collect()),
 
         AST::List(elems) => AST::List(elems.into_iter().map(| e | subs(e, to_subs, var)).collect()),
@@ -151,8 +160,6 @@ pub fn subs(expr : AST, to_subs : &AST, var : &AST) -> AST {
         AST::Sub(a, b) => AST::Sub(Box::new(subs(*a, to_subs, var)),
                                    Box::new(subs(*b, to_subs, var))),
 
-        AST::Var(x) => AST::Var(x),
-
         AST::App(f, args) => AST::App(Box::new(subs(*f, to_subs, var)),
                                       args.into_iter().map(| e | subs(e, to_subs, var)).collect()),
 
@@ -163,11 +170,102 @@ pub fn subs(expr : AST, to_subs : &AST, var : &AST) -> AST {
                 AST::Function(formal_args, body)
             }
         }
+
+        AST::Image(f, arg) => AST::Image(Box::new(subs(*f, to_subs, var)),
+                                         Box::new(subs(*arg, to_subs, var))),
+
+        AST::Int(n) => AST::Int(n),
+        AST::Var(x) => AST::Var(x),
+        AST::Skip() => AST::Skip()
+    }
+}
+
+pub fn is_list(expr : &AST) -> bool {
+    match expr {
+        AST::List(_) => true,
+        AST::Image(_, arg) => is_list(&*arg),
+
+        _ => false
+    }
+}
+
+pub fn is_finite(expr : &AST) -> bool {
+    match expr {
+        AST::Int(_) => true,
+        AST::List(_) => true,
+        AST::FinSet(_) => true,
+        AST::Skip() => true,
+
+        AST::Var(_) => false,
+        AST::App(_, _) => false,
+        AST::Function(_, _) => false,
+
+        AST::Image(_, arg) => is_finite(arg),
+        AST::Add(a, b) => is_finite(a) && is_finite(b),
+        AST::Mul(a, b) => is_finite(a) && is_finite(b),
+        AST::Sub(a, b) => is_finite(a) && is_finite(b),
+        AST::RangeSet(start, end, _) => is_finite(start) && is_finite(end),
+    }
+}
+
+struct RangeSetIterator {
+    cur_val : BigInt,
+    end_val : BigInt,
+    step : BigInt
+}
+
+impl RangeSetIterator {
+    fn new(cur_val : BigInt, end_val : BigInt, step : BigInt) -> RangeSetIterator {
+        return RangeSetIterator { cur_val: cur_val, end_val: end_val, step: step };
+    }
+}
+
+impl Iterator for RangeSetIterator {
+    type Item = AST;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.cur_val > self.end_val {
+            return None;
+        }
+
+        let old_val = self.cur_val.clone();
+        self.cur_val += self.step.clone();
+        return Some(AST::Int(old_val));
+    }
+}
+
+pub fn enumerate(expr : AST) -> Result<Box<dyn std::iter::Iterator<Item=Result<AST, String>>>, String> {
+    match expr {
+        AST::FinSet(elems) => Ok(Box::new(elems.into_iter().map(Ok))),
+        AST::List(elems) => Ok(Box::new(elems.into_iter().map(Ok))),
+
+        AST::RangeSet(start, end, step) => {
+            let start_val = as_int(eval(*start)?)?;
+            let end_val = as_int(eval(*end)?)?;
+            let step_val = as_int(eval(*step)?)?;
+            return Ok(Box::new(RangeSetIterator::new(start_val, end_val, step_val).map(Ok)));
+        }
+
+        AST::Add(a, b) => enumerate(eval(AST::Add(a, b))?),
+        AST::Mul(a, b) => enumerate(eval(AST::Mul(a, b))?),
+        AST::Sub(a, b) => enumerate(eval(AST::Sub(a, b))?),
+        AST::App(f, args) => enumerate(eval(AST::App(f, args))?),
+
+        AST::Image(f, arg) => {
+            let func = eval(*f)?;
+            return Ok(Box::new(
+                        enumerate(*arg)?
+                        .map(move |x| eval(AST::App(Box::new(func.clone()), vec!(x?))))));
+        }
+
+        expr => Err(format!("Cannot enumerate: {:?}", expr)),
     }
 }
 
 pub fn eval(expr : AST) -> Result<AST, String> {
     match expr {
+        AST::Skip() => Ok(AST::Skip()),
+
         AST::Int(n) => Ok(AST::Int(n)),
 
         AST::FinSet(elems) => {
@@ -188,12 +286,11 @@ pub fn eval(expr : AST) -> Result<AST, String> {
 
         AST::RangeSet(start, end, step) => {
             let mut elems = Vec::new();
-            let mut cur_val = as_int(eval(*start)?)?;
+            let start_val = as_int(eval(*start)?)?;
             let end_val = as_int(eval(*end)?)?;
-            let step = as_int(eval(*step)?)?;
-            while cur_val <= end_val {
-                elems.push(AST::Int(cur_val.clone()));
-                cur_val += step.clone();
+            let step_val = as_int(eval(*step)?)?;
+            for elem in RangeSetIterator::new(start_val, end_val, step_val) {
+                elems.push(elem);
             }
             return Ok(AST::FinSet(elems));
         }
@@ -226,7 +323,29 @@ pub fn eval(expr : AST) -> Result<AST, String> {
 
         AST::Var(x) => Ok(AST::Var(x)),
 
-        AST::Function(formal_args, body) => Ok(AST::Function(formal_args, body))
+        AST::Function(formal_args, body) => Ok(AST::Function(formal_args, body)),
+
+        AST::Image(f, arg) => {
+            let mut vals = Vec::new();
+            let arg_is_finite = is_finite(&arg);
+
+            if arg_is_finite {
+                return Ok(AST::Image(Box::new(eval(*f)?), Box::new(eval(*arg)?)));
+            }
+
+            let arg_is_list = is_list(&arg);
+
+            let func = eval(*f)?;
+            for val in enumerate(*arg)? {
+                vals.push(eval(AST::App(Box::new(func.clone()), vec!(val?.clone())))?);
+            }
+
+            if arg_is_list && arg_is_finite {
+                return Ok(AST::List(vals));
+            } else {
+                return Ok(AST::FinSet(vals));
+            }
+        }
     }
 }
 

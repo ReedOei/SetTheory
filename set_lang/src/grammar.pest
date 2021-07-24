@@ -1,10 +1,11 @@
-main = _{ term* }
+main = _{ SOI ~ term* ~ EOI }
 
 term = _{ app }
 
-app = _{ atom | call }
+app = _{ atom | call | image }
 
 call = { atom ~ "(" ~ (term ~ ("," ~ term)*)? ~ ")" }
+image = { atom ~ "[" ~ term ~ "]" }
 
 atom = _{ int
         | "(" ~ term ~ ")"
