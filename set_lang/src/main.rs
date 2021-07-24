@@ -4,27 +4,244 @@ extern crate pest_derive;
 
 use pest::Parser;
 use pest::error::Error;
+use pest::iterators::Pair;
 use num_bigint::BigInt;
+use num_traits::{Zero, One};
+
+use std::collections::{HashSet, HashMap};
+use std::env;
+use std::fs;
 
 #[derive(Parser)]
 #[grammar = "grammar.pest"]
 struct LangParser;
 
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum AST {
-    Int(BigInt)
+    Int(BigInt),
+    FinSet(Vec<AST>),
+    List(Vec<AST>),
+    RangeSet(Box<AST>, Box<AST>, Box<AST>),
+    Add(Box<AST>, Box<AST>),
+    Mul(Box<AST>, Box<AST>),
+    Sub(Box<AST>, Box<AST>),
+    App(Box<AST>, Vec<AST>),
+    Var(String),
+    Function(Vec<AST>, Box<AST>)
 }
 
-pub fn parse(source: &str) { // -> Result<Vec<AST>, Error<Rule>> {
-    let pairs = LangParser::parse(Rule::main, source).unwrap();
+pub fn to_ast(pair : Pair<Rule>) -> Result<AST, String> {
+    println!("Rule:    {:?}", pair.as_rule());
+    println!("Span:    {:?}", pair.as_span());
+    println!("Text:    {:?}", pair.as_str());
+    match pair.as_rule() {
+        Rule::int => {
+            return match BigInt::parse_bytes(pair.as_str().as_bytes(), 10) {
+                Some(n) => Ok(AST::Int(n)),
+                None => Err(format!("Failed to parse string '{}' as integer", pair.as_str()))
+            }
+        }
+
+        Rule::finset => {
+            let mut elems = Vec::new();
+            for elem in pair.into_inner() {
+                elems.push(to_ast(elem)?);
+            }
+            return Ok(AST::FinSet(elems));
+        }
+
+        Rule::rangeset => {
+            let mut it = pair.into_inner();
+            let start = to_ast(it.next().unwrap())?;
+            let end = to_ast(it.next().unwrap())?;
+            return Ok(AST::RangeSet(Box::new(start), Box::new(end), Box::new(AST::Int(One::one()))));
+        }
+
+        Rule::rangeset_step => {
+            let mut it = pair.into_inner();
+            let start = to_ast(it.next().unwrap())?;
+            let second = to_ast(it.next().unwrap())?;
+            let end = to_ast(it.next().unwrap())?;
+            return Ok(AST::RangeSet(Box::new(start.clone()),
+                                    Box::new(end),
+                                    Box::new(AST::Sub(Box::new(second), Box::new(start)))));
+        }
+
+        Rule::list => {
+            let mut elems = Vec::new();
+            for elem in pair.into_inner() {
+                elems.push(to_ast(elem)?);
+            }
+            return Ok(AST::List(elems));
+        }
+
+        Rule::call => {
+            let mut it = pair.into_inner();
+            let func = to_ast(it.next().unwrap())?;
+            let mut args = Vec::new();
+
+            for arg in it {
+                args.push(to_ast(arg)?);
+            }
+
+            return Ok(AST::App(Box::new(func), args));
+        }
+
+        Rule::var => Ok(AST::Var(pair.as_str().to_string())),
+
+        Rule::fun_single_arg => {
+            let mut it = pair.into_inner();
+            let arg = to_ast(it.next().unwrap())?;
+            let body = to_ast(it.next().unwrap())?;
+            return Ok(AST::Function(vec![arg], Box::new(body)));
+        }
+
+        Rule::fun_multi_arg => {
+            let mut args = Vec::new();
+            for arg in pair.into_inner() {
+                args.push(to_ast(arg)?);
+            }
+            let last = args.pop().unwrap();
+            return Ok(AST::Function(args, Box::new(last)));
+        }
+
+        _ => Err("Unimplemented".to_string())
+    }
+}
+
+pub fn parse(source : &str) -> Result<Vec<AST>, String> {
+    let pairs = LangParser::parse(Rule::main, source).expect("parse error");
+
+    let mut res = Vec::new();
 
     for pair in pairs {
-        println!("Rule:    {:?}", pair.as_rule());
-        println!("Span:    {:?}", pair.as_span());
-        println!("Text:    {}", BigInt::new(pair.as_str()));
+        res.push(to_ast(pair)?);
+    }
+
+    return Ok(res);
+}
+
+pub fn as_int(expr : AST) -> Result<BigInt, String> {
+    match expr {
+        AST::Int(n) => Ok(n),
+        _ => Err(format!("Expected integer but got {:?}", expr))
+    }
+}
+
+pub fn subs(expr : AST, to_subs : &AST, var : &AST) -> AST {
+    if expr == *var {
+        return to_subs.clone();
+    }
+
+    match expr {
+        AST::Int(n) => AST::Int(n),
+
+        AST::FinSet(elems) => AST::FinSet(elems.into_iter().map(| e | subs(e, to_subs, var)).collect()),
+
+        AST::List(elems) => AST::List(elems.into_iter().map(| e | subs(e, to_subs, var)).collect()),
+
+        AST::RangeSet(start, end, step) => AST::RangeSet(Box::new(subs(*start, to_subs, var)),
+                                                         Box::new(subs(*end, to_subs, var)),
+                                                         Box::new(subs(*step, to_subs, var))),
+
+        AST::Add(a, b) => AST::Add(Box::new(subs(*a, to_subs, var)),
+                                   Box::new(subs(*b, to_subs, var))),
+        AST::Mul(a, b) => AST::Mul(Box::new(subs(*a, to_subs, var)),
+                                   Box::new(subs(*b, to_subs, var))),
+        AST::Sub(a, b) => AST::Sub(Box::new(subs(*a, to_subs, var)),
+                                   Box::new(subs(*b, to_subs, var))),
+
+        AST::Var(x) => AST::Var(x),
+
+        AST::App(f, args) => AST::App(Box::new(subs(*f, to_subs, var)),
+                                      args.into_iter().map(| e | subs(e, to_subs, var)).collect()),
+
+        AST::Function(formal_args, body) => {
+            if !formal_args.contains(var) {
+                AST::Function(formal_args, Box::new(subs(*body, to_subs, var)))
+            } else {
+                AST::Function(formal_args, body)
+            }
+        }
+    }
+}
+
+pub fn eval(expr : AST) -> Result<AST, String> {
+    match expr {
+        AST::Int(n) => Ok(AST::Int(n)),
+
+        AST::FinSet(elems) => {
+            let mut new_elems = Vec::new();
+            for e in elems {
+                new_elems.push(eval(e)?);
+            }
+            return Ok(AST::FinSet(new_elems));
+        }
+
+        AST::List(elems) => {
+            let mut new_elems = Vec::new();
+            for e in elems {
+                new_elems.push(eval(e)?);
+            }
+            return Ok(AST::List(new_elems));
+        }
+
+        AST::RangeSet(start, end, step) => {
+            let mut elems = Vec::new();
+            let mut cur_val = as_int(eval(*start)?)?;
+            let end_val = as_int(eval(*end)?)?;
+            let step = as_int(eval(*step)?)?;
+            while cur_val <= end_val {
+                elems.push(AST::Int(cur_val.clone()));
+                cur_val += step.clone();
+            }
+            return Ok(AST::FinSet(elems));
+        }
+
+        AST::Add(a, b) => {
+            return Ok(AST::Int(as_int(eval(*a)?)? + as_int(eval(*b)?)?));
+        }
+
+        AST::Mul(a, b) => {
+            return Ok(AST::Int(as_int(eval(*a)?)? * as_int(eval(*b)?)?));
+        }
+
+        AST::Sub(a, b) => {
+            return Ok(AST::Int(as_int(eval(*a)?)? - as_int(eval(*b)?)?));
+        }
+
+        AST::App(func, args) => {
+            match eval(*func)? {
+                AST::Function(formal_args, body) => {
+                    let mut new_body = *body;
+                    for (formal, actual) in formal_args.iter().zip(args) {
+                        new_body = subs(new_body, &formal, &actual);
+                    }
+                    return eval(new_body);
+                }
+
+                res => Err(format!("Expected a function in function application expression, got {:?}", res))
+            }
+        }
+
+        AST::Var(x) => Ok(AST::Var(x)),
+
+        AST::Function(formal_args, body) => Ok(AST::Function(formal_args, body))
     }
 }
 
 fn main() {
-    parse("1239")
+    let args: Vec<String> = env::args().collect();
+    let contents = fs::read_to_string(&args[1])
+        .expect("Something went wrong reading the file");
+
+    match parse(&contents) {
+        Ok(exprs) => {
+            for expr in exprs {
+                println!("{:?} ->* {:?}", expr.clone(), eval(expr));
+            }
+        }
+        _ => ()
+    }
 }
 

@@ -260,6 +260,7 @@ if __name__ == '__main__':
         'verbose': Num(0),
         'ω': Num(OmegaOrd()),
         'p': PrimeSeq(),
+        'dig_test': Builtin('dig_test', lambda a, args: List([ Num(int(d)) for d in str(args[0].eval(a).as_int()) ])),
         'increasing_pairs': Builtin('increasing_pairs', increasing_pairs),
         'powerset': Builtin('powerset', lambda a, args: FinSet([ FinSet(xs) for xs in powerset(args[0].enumerate(a)) ])),
         'powerlist': Builtin('powerlist', lambda a, args: FinSet([ List(xs) for xs in powerset(args[0].enumerate(a)) ])),

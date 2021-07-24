@@ -1,10 +1,37 @@
 main = _{ term* }
 
-term = _{ int }
+term = _{ app }
+
+app = _{ atom | call }
+
+call = { atom ~ "(" ~ (term ~ ("," ~ term)*)? ~ ")" }
+
+atom = _{ int
+        | "(" ~ term ~ ")"
+        | finset | rangeset | rangeset_step
+        | list
+        | fun_single_arg | fun_multi_arg
+        | var
+        }
+
+fun_single_arg = { var ~ "|->" ~ term }
+fun_multi_arg = { "(" ~ var ~ ("," ~ var)* ~ ")" ~ "|->" ~ term }
+
+finset = { "{" ~ (term ~ ("," ~ term)*)? ~ "}" }
+list = { "[" ~ (term ~ ("," ~ term)*)? ~ "]" }
+rangeset = { "{" ~ term ~ "..." ~ term ~ "}" }
+rangeset_step = { "{" ~ term ~ "," ~ term ~ "..." ~ term ~ "}" }
 
 int = @{ "-"? ~ ASCII_DIGIT+ }
 
 is = { "are" | "is" | "∈" | "be" | ":=" }
 WHITESPACE = _{ " " | "\t" | "\n" }
 COMMENT = _{ "//" ~ (!"\n" ~ ANY)* }
+
+special = { "ℕ" | "𝕀" | "ℙ" | "ℂ" | "ℚ" | "ω" | "ℝ" | "π"
+          | "σ" | "τ" | "Π" | "ξ" | "μ" | "δ" | "θ" | "γ"
+          | "β" | "α" | "$" | "⋃" | "⋂" | "_" }
+start_char = { ASCII_ALPHA | special }
+char = { ASCII_ALPHANUMERIC | special }
+var = @{ start_char ~ char* }
 

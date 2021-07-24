@@ -245,7 +245,15 @@ conseq_primes(n |-> n^2 + n + 41)
 card({ a^b : a ∈ {2...100}, b ∈ {2...100} })
 
 // Project Euler 30
-// { n ∈ {10...10^6} : (Σ (d |-> d^5)[rev_digits(n)]) = n }
+// Let sum_of_nth_pows := n |-> { m ∈ {10...10^(n+1)} : (Σ (d |-> d^n)[rev_digits(m)]) = m } .
+Let sum_of_nth_pows := n |-> { m ∈ {10...10^(n+1)} : (Σ (d |-> d^n)[dig_test(m)]) = m } .
+show_set_eval(sum_of_nth_pows(1))
+show_set_eval(sum_of_nth_pows(2))
+show_set_eval(sum_of_nth_pows(3))
+show_set_eval(sum_of_nth_pows(4))
+show_set_eval(sum_of_nth_pows(5)) // Was 191
+show_set_eval(sum_of_nth_pows(6))
+show_set_eval(sum_of_nth_pows(7))
 
 // Project Euler 31
 2^(3/2)

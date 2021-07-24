@@ -243,6 +243,7 @@ name = "set_lang"
 version = "0.1.0"
 dependencies = [
  "num-bigint",
+ "num-traits",
  "pest",
  "pest_derive",
  "rand",
