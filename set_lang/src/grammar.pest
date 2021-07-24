@@ -1,6 +1,18 @@
 main = _{ SOI ~ term* ~ EOI }
 
-term = _{ app }
+term = _{ add }
+
+add = { sub ~ ("+" ~ sub)* }
+sub = { mul ~ ("-" ~ mul)* }
+mul = { div ~ ("*" ~ div)* }
+div = { mod_term ~ ("/" ~ mod_term)* }
+mod_term = { exp_term ~ ("%" ~ exp_term)* }
+
+exp_term = _{ exp | factorial_term }
+exp = { factorial_term ~ "^" ~ factorial_term }
+
+factorial_term = _{ factorial | app }
+factorial = { app ~ "!" }
 
 app = _{ atom | call | image }
 
@@ -26,7 +38,8 @@ rangeset_step = { "{" ~ term ~ "," ~ term ~ "..." ~ term ~ "}" }
 int = @{ "-"? ~ ASCII_DIGIT+ }
 
 is = { "are" | "is" | "∈" | "be" | ":=" }
-WHITESPACE = _{ " " | "\t" | "\n" }
+
+WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
 COMMENT = _{ "//" ~ (!"\n" ~ ANY)* }
 
 special = { "ℕ" | "𝕀" | "ℙ" | "ℂ" | "ℚ" | "ω" | "ℝ" | "π"

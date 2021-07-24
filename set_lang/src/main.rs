@@ -7,6 +7,7 @@ use pest::error::Error;
 use pest::iterators::Pair;
 use num_bigint::BigInt;
 use num_traits::{Zero, One};
+use num_traits::Pow;
 
 use std::collections::{HashSet, HashMap};
 use std::env;
@@ -19,17 +20,27 @@ struct LangParser;
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum AST {
     Skip(),
+
     Int(BigInt),
+
+    Var(String),
+
     FinSet(Vec<AST>),
     List(Vec<AST>),
     RangeSet(Box<AST>, Box<AST>, Box<AST>),
+
     Add(Box<AST>, Box<AST>),
-    Mul(Box<AST>, Box<AST>),
     Sub(Box<AST>, Box<AST>),
+    Mul(Box<AST>, Box<AST>),
+    Div(Box<AST>, Box<AST>),
+    Mod(Box<AST>, Box<AST>),
+    Exp(Box<AST>, Box<AST>),
+
     App(Box<AST>, Vec<AST>),
-    Var(String),
     Function(Vec<AST>, Box<AST>),
-    Image(Box<AST>, Box<AST>)
+    Image(Box<AST>, Box<AST>),
+
+    Factorial(Box<AST>)
 }
 
 pub fn to_ast(pair : Pair<Rule>) -> Result<AST, String> {
@@ -114,7 +125,79 @@ pub fn to_ast(pair : Pair<Rule>) -> Result<AST, String> {
             return Ok(AST::Image(Box::new(f), Box::new(arg)));
         }
 
+        Rule::factorial => {
+            let mut it = pair.into_inner();
+            let arg = to_ast(it.next().unwrap())?;
+            return Ok(AST::Factorial(Box::new(arg)));
+        }
+
         Rule::EOI => Ok(AST::Skip()),
+
+        Rule::add => {
+            let mut it = pair.into_inner();
+            let mut res = to_ast(it.next().unwrap())?;
+
+            for term in it {
+                res = AST::Add(Box::new(res), Box::new(to_ast(term)?));
+            }
+
+            return Ok(res);
+        }
+
+        Rule::sub => {
+            let mut it = pair.into_inner();
+            let mut res = to_ast(it.next().unwrap())?;
+
+            for term in it {
+                res = AST::Sub(Box::new(res), Box::new(to_ast(term)?));
+            }
+
+            return Ok(res);
+        }
+
+        Rule::mul => {
+            let mut it = pair.into_inner();
+            let mut res = to_ast(it.next().unwrap())?;
+
+            for term in it {
+                res = AST::Mul(Box::new(res), Box::new(to_ast(term)?));
+            }
+
+            return Ok(res);
+        }
+
+        Rule::div => {
+            let mut it = pair.into_inner();
+            let mut res = to_ast(it.next().unwrap())?;
+
+            for term in it {
+                res = AST::Div(Box::new(res), Box::new(to_ast(term)?));
+            }
+
+            return Ok(res);
+        }
+
+        Rule::mod_term => {
+            let mut it = pair.into_inner();
+            let mut res = to_ast(it.next().unwrap())?;
+
+            for term in it {
+                res = AST::Mod(Box::new(res), Box::new(to_ast(term)?));
+            }
+
+            return Ok(res);
+        }
+
+        Rule::exp => {
+            let mut it = pair.into_inner();
+            let mut res = to_ast(it.next().unwrap())?;
+
+            for term in it {
+                res = AST::Exp(Box::new(res), Box::new(to_ast(term)?));
+            }
+
+            return Ok(res);
+        }
 
         _ => Err("Unimplemented".to_string())
     }
@@ -155,9 +238,15 @@ pub fn subs(expr : AST, to_subs : &AST, var : &AST) -> AST {
 
         AST::Add(a, b) => AST::Add(Box::new(subs(*a, to_subs, var)),
                                    Box::new(subs(*b, to_subs, var))),
+        AST::Sub(a, b) => AST::Sub(Box::new(subs(*a, to_subs, var)),
+                                   Box::new(subs(*b, to_subs, var))),
         AST::Mul(a, b) => AST::Mul(Box::new(subs(*a, to_subs, var)),
                                    Box::new(subs(*b, to_subs, var))),
-        AST::Sub(a, b) => AST::Sub(Box::new(subs(*a, to_subs, var)),
+        AST::Div(a, b) => AST::Div(Box::new(subs(*a, to_subs, var)),
+                                   Box::new(subs(*b, to_subs, var))),
+        AST::Mod(a, b) => AST::Mod(Box::new(subs(*a, to_subs, var)),
+                                   Box::new(subs(*b, to_subs, var))),
+        AST::Exp(a, b) => AST::Exp(Box::new(subs(*a, to_subs, var)),
                                    Box::new(subs(*b, to_subs, var))),
 
         AST::App(f, args) => AST::App(Box::new(subs(*f, to_subs, var)),
@@ -173,6 +262,8 @@ pub fn subs(expr : AST, to_subs : &AST, var : &AST) -> AST {
 
         AST::Image(f, arg) => AST::Image(Box::new(subs(*f, to_subs, var)),
                                          Box::new(subs(*arg, to_subs, var))),
+
+        AST::Factorial(arg) => AST::Factorial(Box::new(subs(*arg, to_subs, var))),
 
         AST::Int(n) => AST::Int(n),
         AST::Var(x) => AST::Var(x),
@@ -200,10 +291,14 @@ pub fn is_finite(expr : &AST) -> bool {
         AST::App(_, _) => false,
         AST::Function(_, _) => false,
 
+        AST::Factorial(n) => is_finite(n),
         AST::Image(_, arg) => is_finite(arg),
         AST::Add(a, b) => is_finite(a) && is_finite(b),
-        AST::Mul(a, b) => is_finite(a) && is_finite(b),
         AST::Sub(a, b) => is_finite(a) && is_finite(b),
+        AST::Mul(a, b) => is_finite(a) && is_finite(b),
+        AST::Div(a, b) => is_finite(a) && is_finite(b),
+        AST::Mod(a, b) => is_finite(a) && is_finite(b),
+        AST::Exp(a, b) => is_finite(a) && is_finite(b),
         AST::RangeSet(start, end, _) => is_finite(start) && is_finite(end),
     }
 }
@@ -299,12 +394,23 @@ pub fn eval(expr : AST) -> Result<AST, String> {
             return Ok(AST::Int(as_int(eval(*a)?)? + as_int(eval(*b)?)?));
         }
 
+        AST::Sub(a, b) => {
+            return Ok(AST::Int(as_int(eval(*a)?)? - as_int(eval(*b)?)?));
+        }
+
         AST::Mul(a, b) => {
             return Ok(AST::Int(as_int(eval(*a)?)? * as_int(eval(*b)?)?));
         }
 
-        AST::Sub(a, b) => {
-            return Ok(AST::Int(as_int(eval(*a)?)? - as_int(eval(*b)?)?));
+        AST::Mod(a, b) => {
+            return Ok(AST::Int(as_int(eval(*a)?)? % as_int(eval(*b)?)?));
+        }
+
+        AST::Exp(a, b) => {
+            return match as_int(eval(*b)?)?.to_biguint() {
+                Some(n) => Ok(AST::Int(Pow::pow(as_int(eval(*a)?)?, n))),
+                None => Err("Cannot raise integer to negative power!".to_string())
+            };
         }
 
         AST::App(func, args) => {
@@ -346,6 +452,20 @@ pub fn eval(expr : AST) -> Result<AST, String> {
                 return Ok(AST::FinSet(vals));
             }
         }
+
+        AST::Factorial(arg) => {
+            let n = as_int(eval(*arg)?)?;
+
+            let mut res = One::one();
+            let mut i : BigInt = One::one();
+            while i <= n {
+                res *= i.clone();
+                i += 1;
+            }
+            return Ok(AST::Int(res));
+        }
+
+        expr => Err(format!("Unimplemented expression variant: {:?}", expr))
     }
 }
 
