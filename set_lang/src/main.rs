@@ -5,7 +5,7 @@ extern crate pest_derive;
 use pest::Parser;
 use pest::iterators::Pair;
 use pest::prec_climber::{Assoc, Operator, PrecClimber};
-use num_bigint::BigInt;
+use num_bigint::{BigInt, ToBigInt};
 use num_traits::{Zero, One, Pow};
 
 use std::collections::{HashSet, HashMap};
@@ -655,6 +655,49 @@ pub fn make_val(to_subs : &HashMap<String, AST>,
     }
 
     return AST::List(res);
+}
+
+pub fn simplify(expr : AST) -> AST {
+    match expr {
+        AST::Add(a, b) =>
+            if *a == AST::Int(Zero::zero()) {
+                *b
+            } else if *b == AST::Int(Zero::zero()) {
+                *a
+            } else if *a == *b {
+                AST::Mul(Box::new(AST::Int(ToBigInt::to_bigint(&2).unwrap())), a)
+            } else {
+                AST::Add(a, b)
+            }
+
+        AST::Mul(a, b) =>
+            if *a == AST::Int(One::one()) {
+                *b
+            } else if *b == AST::Int(One::one()) {
+                *a
+            } else if *a == AST::Int(Zero::zero()) {
+                AST::Int(Zero::zero())
+            } else if *b == AST::Int(Zero::zero()) {
+                AST::Int(Zero::zero())
+            } else if *a == *b {
+                AST::Exp(a, Box::new(AST::Int(ToBigInt::to_bigint(&2).unwrap())))
+            } else {
+                AST::Add(a, b)
+            }
+
+        AST::Sub(a, b) =>
+            if *a == AST::Int(Zero::zero()) {
+                AST::Negate(b)
+            } else if *b == AST::Int(Zero::zero()) {
+                *a
+            } else if *a == *b {
+                AST::Int(Zero::zero())
+            } else {
+                AST::Sub(a, b)
+            }
+
+        other => other
+    }
 }
 
 pub fn eval(expr : AST) -> Result<AST, String> {
