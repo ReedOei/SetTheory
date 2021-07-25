@@ -1,11 +1,24 @@
 main = _{ SOI ~ (term ~ ".")* ~ EOI }
 
-term = _{ definition | and_op }
+term = _{ definition
+        | ite
+        | sum
+        | bool_term }
 
-and_op = { or_op ~ ("and" ~ or_op)* }
-or_op = { complement_term ~ ("or" ~ complement_term)* }
-complement_term = _{ complement | compare | arith }
-complement = { "!" ~ compare | "!" ~ arith }
+ite = { "if" ~ term ~ "then" ~ term ~ "else" ~ term }
+
+sum = { sum_sym ~ term }
+sum_sym = _{ "Σ" | "∑" }
+
+bool_term = { complement_term ~ (infix_bool_op ~ complement_term)* }
+infix_bool_op = _{ elem | and_op | or_op }
+elem = { "∈" }
+and_op = { "and" }
+or_op = { "or" }
+
+complement_term = _{ complement | compare_term }
+complement = { "!" ~ compare_term }
+compare_term = _{ compare | arith }
 compare = { arith ~ compare_op ~ arith }
 compare_op = _{ ne_sym | eq_sym | le_sym | lt_sym | ge_sym | gt_sym }
 
@@ -21,16 +34,18 @@ disj_sym = { "|" | "\\/" | "∨" | "or" }
 
 definition = { "Let" ~ var ~ is ~ term }
 
-arith = _{ negate | add }
-negate = { "-" ~ add }
-add = { sub ~ ("+" ~ sub)* }
-sub = { mul ~ ("-" ~ mul)* }
-mul = { div ~ ("*" ~ div)* }
-div = { mod_term ~ ("/" ~ mod_term)* }
-mod_term = { exp_term ~ ("%" ~ exp_term)* }
+arith = _{ negate | bin_arith }
+negate = { "-" ~ bin_arith }
 
-exp_term = _{ exp | factorial_term }
-exp = { factorial_term ~ "^" ~ factorial_term }
+bin_arith = { factorial_term ~ (bin_op ~ factorial_term)* }
+
+bin_op = _{ add | sub | mul | div | mod_op | exp }
+add = { "+" }
+sub = { "-" }
+mul = { "*" }
+div = { "/" }
+mod_op = { "%" }
+exp = { "^" }
 
 factorial_term = _{ factorial | app }
 factorial = { app ~ "!" }
@@ -42,7 +57,7 @@ image = { atom ~ "[" ~ term ~ "]" }
 
 atom = _{ int
         | "(" ~ term ~ ")"
-        | finset | rangeset | rangeset_step
+        | finset | rangeset | rangeset_step | comp_set
         | list
         | fun_single_arg | fun_multi_arg
         | var
@@ -55,10 +70,11 @@ finset = { "{" ~ (term ~ ("," ~ term)*)? ~ "}" }
 list = { "[" ~ (term ~ ("," ~ term)*)? ~ "]" }
 rangeset = { "{" ~ term ~ "..." ~ term ~ "}" }
 rangeset_step = { "{" ~ term ~ "," ~ term ~ "..." ~ term ~ "}" }
+comp_set = { "{" ~ term ~ ":" ~ term ~ ("," ~ term)* ~ "}" }
 
 int = @{ "-"? ~ ASCII_DIGIT+ }
 
-is = _{ "are" | "is" | "∈" | "be" | ":=" }
+is = _{ "are" | "is" | "be" | ":=" }
 
 WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
 COMMENT = _{ "//" ~ (!"\n" ~ ANY)* }
