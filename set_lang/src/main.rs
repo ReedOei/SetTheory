@@ -28,8 +28,6 @@ pub enum AST {
 
     Var(String),
 
-    Builtin(String),
-
     FinSet(Vec<AST>),
     List(Vec<AST>),
     RangeSet(Box<AST>, Box<AST>, Box<AST>),
@@ -329,8 +327,6 @@ pub fn subs(expr : AST, to_subs : &HashMap<String, AST>) -> AST {
                 AST::RangeSet(Box::new(subs(*start, to_subs)),
                               Box::new(subs(*end, to_subs)),
                               Box::new(subs(*step, to_subs))),
-
-        AST::Builtin(name) => AST::Builtin(name),
 
         AST::CompSet(var_doms, clauses) => {
             let mut new_subs = to_subs.clone();
@@ -812,7 +808,7 @@ pub fn eval(expr : AST) -> Result<AST, String> {
                     return eval(subs(*body, &to_subs));
                 }
 
-                AST::Builtin(name) => {
+                AST::Var(name) => {
                     match name.as_str() {
                         "set" => {
                             let mut res = Vec::new();
@@ -830,7 +826,28 @@ pub fn eval(expr : AST) -> Result<AST, String> {
                             return Ok(AST::List(res));
                         }
 
-                        _ => Err(format!("Unknown Builtin: {}", name))
+                        "card" => {
+                            let mut n = Zero::zero();
+                            for _ in enumerate(args[0].clone())? {
+                                n += 1;
+                            }
+                            return Ok(AST::Int(n));
+                        }
+
+                        "gcd" => {
+                            let mut a = as_int(eval(args[0].clone())?)?;
+                            let mut b = as_int(eval(args[0].clone())?)?;
+
+                            while b != Zero::zero() {
+                                let temp = a;
+                                a = b.clone();
+                                b = temp % b;
+                            }
+
+                            return Ok(AST::Int(a));
+                        }
+
+                        _ => Ok(AST::App(Box::new(AST::Var(name)), args))
                     }
                 }
 
@@ -887,6 +904,7 @@ pub fn eval(expr : AST) -> Result<AST, String> {
                 res *= i.clone();
                 i += 1;
             }
+
             return Ok(AST::Int(res));
         }
 

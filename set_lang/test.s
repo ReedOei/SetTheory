@@ -13,3 +13,7 @@ if x <= 10 or x > 10 then 1 else 2.
 // Project Euler 1
 ∑ { x ∈ {1...999} : x % 3 = 0 or x % 5 = 0 } .
 
+card({1...10000}) .
+
+Let lcm := (a,b) |-> (a*b) / gcd(a,b) .
+
