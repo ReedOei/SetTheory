@@ -1,7 +1,28 @@
-main = _{ SOI ~ term* ~ EOI }
+main = _{ SOI ~ (term ~ ".")* ~ EOI }
 
-term = _{ add }
+term = _{ definition | and_op }
 
+and_op = { or_op ~ ("and" ~ or_op)* }
+or_op = { complement_term ~ ("or" ~ complement_term)* }
+complement_term = _{ complement | compare | arith }
+complement = { "!" ~ compare | "!" ~ arith }
+compare = { arith ~ compare_op ~ arith }
+compare_op = _{ ne_sym | eq_sym | le_sym | lt_sym | ge_sym | gt_sym }
+
+lt_sym = { "<" }
+le_sym = { "<=" | "≤" }
+gt_sym = { ">" }
+ge_sym = { ">=" | "≥" }
+eq_sym = { "=" }
+ne_sym = { "!=" | "≠" }
+
+conj_sym = _{ "&" | "/\\" | "∧" | "and" }
+disj_sym = { "|" | "\\/" | "∨" | "or" }
+
+definition = { "Let" ~ var ~ is ~ term }
+
+arith = _{ negate | add }
+negate = { "-" ~ add }
 add = { sub ~ ("+" ~ sub)* }
 sub = { mul ~ ("-" ~ mul)* }
 mul = { div ~ ("*" ~ div)* }
@@ -14,7 +35,7 @@ exp = { factorial_term ~ "^" ~ factorial_term }
 factorial_term = _{ factorial | app }
 factorial = { app ~ "!" }
 
-app = _{ atom | call | image }
+app = _{ call | image | atom }
 
 call = { atom ~ "(" ~ (term ~ ("," ~ term)*)? ~ ")" }
 image = { atom ~ "[" ~ term ~ "]" }
@@ -37,7 +58,7 @@ rangeset_step = { "{" ~ term ~ "," ~ term ~ "..." ~ term ~ "}" }
 
 int = @{ "-"? ~ ASCII_DIGIT+ }
 
-is = { "are" | "is" | "∈" | "be" | ":=" }
+is = _{ "are" | "is" | "∈" | "be" | ":=" }
 
 WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
 COMMENT = _{ "//" ~ (!"\n" ~ ANY)* }

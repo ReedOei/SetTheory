@@ -21,6 +21,8 @@ struct LangParser;
 pub enum AST {
     Skip(),
 
+    Definition(String, Box<AST>),
+
     Int(BigInt),
 
     Var(String),
@@ -36,11 +38,23 @@ pub enum AST {
     Mod(Box<AST>, Box<AST>),
     Exp(Box<AST>, Box<AST>),
 
+    Lt(Box<AST>, Box<AST>),
+    Le(Box<AST>, Box<AST>),
+    Gt(Box<AST>, Box<AST>),
+    Ge(Box<AST>, Box<AST>),
+    Equals(Box<AST>, Box<AST>),
+    NotEquals(Box<AST>, Box<AST>),
+
+    And(Box<AST>, Box<AST>),
+    Or(Box<AST>, Box<AST>),
+
     App(Box<AST>, Vec<AST>),
     Function(Vec<AST>, Box<AST>),
     Image(Box<AST>, Box<AST>),
 
-    Factorial(Box<AST>)
+    Factorial(Box<AST>),
+    Negate(Box<AST>),
+    Complement(Box<AST>)
 }
 
 pub fn to_ast(pair : Pair<Rule>) -> Result<AST, String> {
@@ -48,6 +62,46 @@ pub fn to_ast(pair : Pair<Rule>) -> Result<AST, String> {
     println!("Span:    {:?}", pair.as_span());
     println!("Text:    {:?}", pair.as_str());
     match pair.as_rule() {
+        Rule::definition => {
+            let mut it = pair.into_inner();
+            let var = match to_ast(it.next().unwrap())? {
+                AST::Var(x) => Ok(x),
+                expr => Err(format!("Unexpected term {:?} on LHS of definition", expr))
+            }?;
+            let body = to_ast(it.next().unwrap())?;
+
+            return Ok(AST::Definition(var, Box::new(body)));
+        }
+
+        Rule::compare => {
+            let mut it = pair.into_inner();
+            let lhs = to_ast(it.next().unwrap())?;
+            let op = to_ast(it.next().unwrap())?;
+            let rhs = to_ast(it.next().unwrap())?;
+
+            let op_str = match op {
+                AST::Var(s) => Ok(s),
+                _ => Err(format!("Unknown operator {:?} in compare operation", op))
+            }?;
+
+            return match op_str.as_str() {
+                "<" => Ok(AST::Lt(Box::new(lhs), Box::new(rhs))),
+                "<=" => Ok(AST::Le(Box::new(lhs), Box::new(rhs))),
+                ">" => Ok(AST::Gt(Box::new(lhs), Box::new(rhs))),
+                ">=" => Ok(AST::Ge(Box::new(lhs), Box::new(rhs))),
+                "=" => Ok(AST::Equals(Box::new(lhs), Box::new(rhs))),
+                "!=" => Ok(AST::NotEquals(Box::new(lhs), Box::new(rhs))),
+                s => Err(format!("Unknown operator {:?} in compare operation", s))
+            };
+        }
+
+        Rule::lt_sym => Ok(AST::Var("<".to_string())),
+        Rule::le_sym => Ok(AST::Var("<=".to_string())),
+        Rule::gt_sym => Ok(AST::Var(">".to_string())),
+        Rule::ge_sym => Ok(AST::Var(">=".to_string())),
+        Rule::eq_sym => Ok(AST::Var("=".to_string())),
+        Rule::ne_sym => Ok(AST::Var("!=".to_string())),
+
         Rule::int => {
             return match BigInt::parse_bytes(pair.as_str().as_bytes(), 10) {
                 Some(n) => Ok(AST::Int(n)),
@@ -131,7 +185,41 @@ pub fn to_ast(pair : Pair<Rule>) -> Result<AST, String> {
             return Ok(AST::Factorial(Box::new(arg)));
         }
 
+        Rule::negate => {
+            let mut it = pair.into_inner();
+            let arg = to_ast(it.next().unwrap())?;
+            return Ok(AST::Negate(Box::new(arg)));
+        }
+
+        Rule::complement => {
+            let mut it = pair.into_inner();
+            let arg = to_ast(it.next().unwrap())?;
+            return Ok(AST::Complement(Box::new(arg)));
+        }
+
         Rule::EOI => Ok(AST::Skip()),
+
+        Rule::and_op => {
+            let mut it = pair.into_inner();
+            let mut res = to_ast(it.next().unwrap())?;
+
+            for term in it {
+                res = AST::And(Box::new(res), Box::new(to_ast(term)?));
+            }
+
+            return Ok(res);
+        }
+
+        Rule::or_op => {
+            let mut it = pair.into_inner();
+            let mut res = to_ast(it.next().unwrap())?;
+
+            for term in it {
+                res = AST::Or(Box::new(res), Box::new(to_ast(term)?));
+            }
+
+            return Ok(res);
+        }
 
         Rule::add => {
             let mut it = pair.into_inner();
@@ -199,7 +287,9 @@ pub fn to_ast(pair : Pair<Rule>) -> Result<AST, String> {
             return Ok(res);
         }
 
-        _ => Err("Unimplemented".to_string())
+        Rule::is => Ok(AST::Skip()),
+
+        _ => Err(format!("Unimplemented: {:?}", pair))
     }
 }
 
@@ -228,6 +318,8 @@ pub fn subs(expr : AST, to_subs : &AST, var : &AST) -> AST {
     }
 
     match expr {
+        AST::Definition(name, body) => AST::Definition(name, Box::new(subs(*body, to_subs, var))),
+
         AST::FinSet(elems) => AST::FinSet(elems.into_iter().map(| e | subs(e, to_subs, var)).collect()),
 
         AST::List(elems) => AST::List(elems.into_iter().map(| e | subs(e, to_subs, var)).collect()),
@@ -249,6 +341,24 @@ pub fn subs(expr : AST, to_subs : &AST, var : &AST) -> AST {
         AST::Exp(a, b) => AST::Exp(Box::new(subs(*a, to_subs, var)),
                                    Box::new(subs(*b, to_subs, var))),
 
+        AST::Lt(a, b) => AST::Lt(Box::new(subs(*a, to_subs, var)),
+                                 Box::new(subs(*b, to_subs, var))),
+        AST::Le(a, b) => AST::Le(Box::new(subs(*a, to_subs, var)),
+                                 Box::new(subs(*b, to_subs, var))),
+        AST::Gt(a, b) => AST::Gt(Box::new(subs(*a, to_subs, var)),
+                                 Box::new(subs(*b, to_subs, var))),
+        AST::Ge(a, b) => AST::Ge(Box::new(subs(*a, to_subs, var)),
+                                 Box::new(subs(*b, to_subs, var))),
+        AST::Equals(a, b) => AST::Equals(Box::new(subs(*a, to_subs, var)),
+                                         Box::new(subs(*b, to_subs, var))),
+        AST::NotEquals(a, b) => AST::NotEquals(Box::new(subs(*a, to_subs, var)),
+                                               Box::new(subs(*b, to_subs, var))),
+
+        AST::And(a, b) => AST::And(Box::new(subs(*a, to_subs, var)),
+                                   Box::new(subs(*b, to_subs, var))),
+        AST::Or(a, b) => AST::Or(Box::new(subs(*a, to_subs, var)),
+                                 Box::new(subs(*b, to_subs, var))),
+
         AST::App(f, args) => AST::App(Box::new(subs(*f, to_subs, var)),
                                       args.into_iter().map(| e | subs(e, to_subs, var)).collect()),
 
@@ -264,11 +374,33 @@ pub fn subs(expr : AST, to_subs : &AST, var : &AST) -> AST {
                                          Box::new(subs(*arg, to_subs, var))),
 
         AST::Factorial(arg) => AST::Factorial(Box::new(subs(*arg, to_subs, var))),
+        AST::Negate(arg) => AST::Negate(Box::new(subs(*arg, to_subs, var))),
+        AST::Complement(arg) => AST::Complement(Box::new(subs(*arg, to_subs, var))),
 
         AST::Int(n) => AST::Int(n),
         AST::Var(x) => AST::Var(x),
         AST::Skip() => AST::Skip()
     }
+}
+
+pub fn subs_many(expr : AST, subs_pairs : Vec<(&AST, &AST)>) -> AST {
+    let mut new_expr = expr;
+
+    for (to_subs, var) in subs_pairs {
+        new_expr = subs(new_expr, to_subs, var);
+    }
+
+    return new_expr;
+}
+
+pub fn subs_many_owned(expr : AST, subs_pairs : &Vec<(AST, AST)>) -> AST {
+    let mut new_expr = expr;
+
+    for (to_subs, var) in subs_pairs {
+        new_expr = subs(new_expr, to_subs, var);
+    }
+
+    return new_expr;
 }
 
 pub fn is_list(expr : &AST) -> bool {
@@ -286,12 +418,15 @@ pub fn is_finite(expr : &AST) -> bool {
         AST::List(_) => true,
         AST::FinSet(_) => true,
         AST::Skip() => true,
-
-        AST::Var(_) => false,
-        AST::App(_, _) => false,
-        AST::Function(_, _) => false,
+        AST::Lt(_, _) => true,
+        AST::Le(_, _) => true,
+        AST::Gt(_, _) => true,
+        AST::Ge(_, _) => true,
+        AST::Equals(_, _) => true,
+        AST::NotEquals(_, _) => true,
 
         AST::Factorial(n) => is_finite(n),
+        AST::Negate(n) => is_finite(n),
         AST::Image(_, arg) => is_finite(arg),
         AST::Add(a, b) => is_finite(a) && is_finite(b),
         AST::Sub(a, b) => is_finite(a) && is_finite(b),
@@ -300,6 +435,8 @@ pub fn is_finite(expr : &AST) -> bool {
         AST::Mod(a, b) => is_finite(a) && is_finite(b),
         AST::Exp(a, b) => is_finite(a) && is_finite(b),
         AST::RangeSet(start, end, _) => is_finite(start) && is_finite(end),
+
+        _ => false
     }
 }
 
@@ -413,12 +550,79 @@ pub fn eval(expr : AST) -> Result<AST, String> {
             };
         }
 
+        AST::Equals(a, b) => {
+            if eval(*a)? == eval(*b)? {
+                return Ok(AST::Int(One::one()));
+            } else {
+                return Ok(AST::Int(Zero::zero()));
+            }
+        }
+
+        AST::NotEquals(a, b) => {
+            if eval(*a)? != eval(*b)? {
+                return Ok(AST::Int(One::one()));
+            } else {
+                return Ok(AST::Int(Zero::zero()));
+            }
+        }
+
+        AST::Lt(a, b) => {
+            if as_int(eval(*a)?)? < as_int(eval(*b)?)? {
+                return Ok(AST::Int(One::one()));
+            } else {
+                return Ok(AST::Int(Zero::zero()));
+            }
+        }
+
+        AST::Le(a, b) => {
+            if as_int(eval(*a)?)? <= as_int(eval(*b)?)? {
+                return Ok(AST::Int(One::one()));
+            } else {
+                return Ok(AST::Int(Zero::zero()));
+            }
+        }
+
+        AST::Gt(a, b) => {
+            if as_int(eval(*a)?)? > as_int(eval(*b)?)? {
+                return Ok(AST::Int(One::one()));
+            } else {
+                return Ok(AST::Int(Zero::zero()));
+            }
+        }
+
+        AST::Ge(a, b) => {
+            if as_int(eval(*a)?)? >= as_int(eval(*b)?)? {
+                return Ok(AST::Int(One::one()));
+            } else {
+                return Ok(AST::Int(Zero::zero()));
+            }
+        }
+
+        AST::Or(a, b) => {
+            let lval = as_int(eval(*a)?)?;
+            if lval != Zero::zero() {
+                return Ok(AST::Int(lval));
+            } else {
+                return eval(*b);
+            }
+        }
+
+        AST::And(a, b) => {
+            let lval = as_int(eval(*a)?)?;
+
+            if lval == Zero::zero() {
+                return Ok(AST::Int(lval));
+            } else {
+                return eval(*b);
+            }
+        }
+
         AST::App(func, args) => {
             match eval(*func)? {
                 AST::Function(formal_args, body) => {
                     let mut new_body = *body;
                     for (formal, actual) in formal_args.iter().zip(args) {
-                        new_body = subs(new_body, &formal, &actual);
+                        new_body = subs(new_body, &actual, &formal);
                     }
                     return eval(new_body);
                 }
@@ -435,7 +639,7 @@ pub fn eval(expr : AST) -> Result<AST, String> {
             let mut vals = Vec::new();
             let arg_is_finite = is_finite(&arg);
 
-            if arg_is_finite {
+            if !arg_is_finite {
                 return Ok(AST::Image(Box::new(eval(*f)?), Box::new(eval(*arg)?)));
             }
 
@@ -465,6 +669,16 @@ pub fn eval(expr : AST) -> Result<AST, String> {
             return Ok(AST::Int(res));
         }
 
+        AST::Negate(arg) => Ok(AST::Int(-as_int(eval(*arg)?)?)),
+
+        AST::Complement(arg) => {
+            if as_int(eval(*arg)?)? == Zero::zero() {
+                return Ok(AST::Int(One::one()));
+            } else {
+                return Ok(AST::Int(Zero::zero()));
+            }
+        }
+
         expr => Err(format!("Unimplemented expression variant: {:?}", expr))
     }
 }
@@ -476,11 +690,23 @@ fn main() {
 
     match parse(&contents) {
         Ok(exprs) => {
+            let mut defs = Vec::new();
+
             for expr in exprs {
-                println!("{:?} ->* {:?}", expr.clone(), eval(expr));
+                // println!("{:?}", defs.clone());
+                println!("> {:?}", expr.clone());
+                match expr {
+                    AST::Definition(name, body) => {
+                        defs.push((subs_many_owned(*body, &defs), AST::Var(name)));
+                    }
+
+                    _ => {
+                        println!("{:?}", eval(subs_many_owned(expr, &defs)));
+                    }
+                }
             }
         }
-        _ => ()
+        Err(err) => println!("Error: {}", err)
     }
 }
 
