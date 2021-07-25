@@ -6,7 +6,11 @@
 Let x := 10.
 
 Let square := n |-> n^2 .
+Let sum := X |-> Σ X.
+Let minℕ := X |-> μ(x |-> x ∈ X) .
+
 square[{3,5...100}] .
+minℕ({100...500}).
 
 if x <= 10 or x > 10 then 1 else 2.
 

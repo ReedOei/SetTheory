@@ -616,6 +616,31 @@ pub fn enumerate(expr : AST) -> Result<Box<dyn Iterator<Item=Result<AST, String>
     }
 }
 
+pub fn enum_contains(enumerable : AST, search_val : AST) -> Result<bool, String> {
+    match enumerable {
+        AST::RangeSet(start, end, step) => {
+            match search_val {
+                AST::Int(n) => {
+                    let start_val = as_int(eval(*start)?)?;
+                    let end_val = as_int(eval(*end)?)?;
+                    let step_val = as_int(eval(*step)?)?;
+                    return Ok(n >= start_val && n <= end_val && (n - start_val) % step_val == Zero::zero());
+                }
+                _ => Ok(false)
+            }
+        }
+
+        other => {
+            for val in enumerate(other)? {
+                if search_val == val? {
+                    return Ok(true);
+                }
+            }
+            return Ok(false);
+        }
+    }
+}
+
 pub fn make_val(to_subs : &HashMap<String, AST>,
                 var_doms : &Vec<(String, AST)>) -> AST {
     if var_doms.len() == 1 {
@@ -630,40 +655,6 @@ pub fn make_val(to_subs : &HashMap<String, AST>,
     }
 
     return AST::List(res);
-}
-
-pub fn eval_comp_set(i : usize,
-                     to_subs : &mut HashMap<String, AST>,
-                     var_doms : &Vec<(String, AST)>,
-                     clauses : &Vec<AST>) -> Result<Vec<AST>, String> {
-    let (x, dom) = &var_doms[i];
-    let mut vals = Vec::new();
-
-    if i == var_doms.len() - 1 {
-        for x_val in enumerate(dom.clone())? {
-            to_subs.insert(x.clone(), x_val?);
-            let mut res = true;
-            for clause in clauses {
-                if as_int(eval(subs(clause.clone(), to_subs))?)? == Zero::zero() {
-                    res = false;
-                    break;
-                }
-            }
-            if res {
-                vals.push(make_val(to_subs, var_doms));
-            }
-        }
-        return Ok(vals);
-    }
-
-    for x_val in enumerate(dom.clone())? {
-        to_subs.insert(x.clone(), x_val?);
-        for val in eval_comp_set(i + 1, to_subs, var_doms, clauses)? {
-            vals.push(val);
-        }
-    }
-
-    return Ok(vals);
 }
 
 pub fn eval(expr : AST) -> Result<AST, String> {
@@ -697,8 +688,22 @@ pub fn eval(expr : AST) -> Result<AST, String> {
             return Ok(AST::FinSet(elems));
         }
 
-        AST::CompSet(var_doms, clauses) =>
-            Ok(AST::FinSet(eval_comp_set(0, &mut HashMap::new(), &var_doms, &clauses)?)),
+        AST::Elem(x, dom) => {
+            let xval = eval(*x)?;
+            if enum_contains(*dom, xval)? {
+                return Ok(AST::Int(One::one()));
+            } else{
+                return Ok(AST::Int(Zero::zero()));
+            }
+        }
+
+        AST::CompSet(var_doms, clauses) => {
+            let mut elems = Vec::new();
+            for val in enumerate(AST::CompSet(var_doms, clauses))? {
+                elems.push(val?);
+            }
+            return Ok(AST::FinSet(elems));
+        }
 
         AST::IfThenElse(cond, then_expr, else_expr) => {
             if as_int(eval(*cond)?)? != Zero::zero() {
@@ -845,6 +850,45 @@ pub fn eval(expr : AST) -> Result<AST, String> {
                             }
 
                             return Ok(AST::Int(a));
+                        }
+
+                        "μ" => {
+                            let mut n = Zero::zero();
+                            let f = eval(args[0].clone())?;
+                            if args.len() > 1 {
+                                n = as_int(eval(args[1].clone())?)?;
+                            }
+                            if args.len() > 2 {
+                                let mut m = match eval(args[2].clone())? {
+                                    AST::Function(args, body) => {
+                                        let bound_func = AST::Function(args, body);
+                                        let mut upper = n.clone();
+                                        while as_int(eval(AST::App(Box::new(f.clone()), vec!(AST::Int(upper.clone()))))?)? == Zero::zero() {
+                                            upper = as_int(eval(AST::App(Box::new(bound_func.clone()), vec!(AST::Int(upper.clone()))))?)?;
+                                        }
+                                        Ok(upper)
+                                    }
+
+                                    AST::Int(k) => Ok(k),
+
+                                    expr => Err(format!("Minimization operator expected either Function or Int as its third argument, but got: {:?}", expr))
+                                }?;
+
+                                while (m.clone() - n.clone()) > One::one() {
+                                    // TODO: Some of these clones should be unnecessary...
+                                    let guess : BigInt = (n.clone() + m.clone()) / 2;
+                                    if as_int(eval(AST::App(Box::new(f.clone()), vec!(AST::Int(guess.clone()))))?)? == Zero::zero() {
+                                        n = guess;
+                                    } else {
+                                        m = guess;
+                                    }
+                                }
+                            }
+
+                            while as_int(eval(AST::App(Box::new(f.clone()), vec!(AST::Int(n.clone()))))?)? == Zero::zero() {
+                                n += 1;
+                            }
+                            return Ok(AST::Int(n));
                         }
 
                         _ => Ok(AST::App(Box::new(AST::Var(name)), args))
