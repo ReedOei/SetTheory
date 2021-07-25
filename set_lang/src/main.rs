@@ -28,6 +28,8 @@ pub enum AST {
 
     Var(String),
 
+    Builtin(String),
+
     FinSet(Vec<AST>),
     List(Vec<AST>),
     RangeSet(Box<AST>, Box<AST>, Box<AST>),
@@ -328,6 +330,8 @@ pub fn subs(expr : AST, to_subs : &HashMap<String, AST>) -> AST {
                               Box::new(subs(*end, to_subs)),
                               Box::new(subs(*step, to_subs))),
 
+        AST::Builtin(name) => AST::Builtin(name),
+
         AST::CompSet(var_doms, clauses) => {
             let mut new_subs = to_subs.clone();
             let mut new_var_doms = Vec::new();
@@ -426,7 +430,6 @@ pub fn is_finite(expr : &AST) -> bool {
         AST::Int(_) => true,
         AST::List(_) => true,
         AST::FinSet(_) => true,
-        AST::Skip() => true,
         AST::Lt(_, _) => true,
         AST::Le(_, _) => true,
         AST::Gt(_, _) => true,
@@ -523,7 +526,7 @@ impl Iterator for CompSetIterator {
         loop {
             let mut skip = false;
             for j in self.i..self.var_doms.len() {
-                let (x, _) = &self.var_doms[j];
+                let (x, dom) = &self.var_doms[j];
                 match (*self.cur_its[j]).next() {
                     // If this iterator has a next value, then we simply take it and add it to the
                     // hashmap.
@@ -542,6 +545,10 @@ impl Iterator for CompSetIterator {
                             return None;
                         } else {
                             self.i -= 1;
+                            self.cur_its[j] = match enumerate(dom.clone()) {
+                                Ok(it) => it,
+                                Err(err) => return Some(Err(err))
+                            };
                             skip = true;
                             break;
                         }
@@ -566,6 +573,7 @@ impl Iterator for CompSetIterator {
                     Err(err) => return Some(Err(err))
                 }
             }
+
             if res {
                 return Some(Ok(make_val(&self.to_subs,&self.var_doms)));
             } else {
@@ -664,8 +672,6 @@ pub fn eval_comp_set(i : usize,
 
 pub fn eval(expr : AST) -> Result<AST, String> {
     match expr {
-        AST::Skip() => Ok(AST::Skip()),
-
         AST::Int(n) => Ok(AST::Int(n)),
 
         AST::FinSet(elems) => {
@@ -806,6 +812,28 @@ pub fn eval(expr : AST) -> Result<AST, String> {
                     return eval(subs(*body, &to_subs));
                 }
 
+                AST::Builtin(name) => {
+                    match name.as_str() {
+                        "set" => {
+                            let mut res = Vec::new();
+                            for val in enumerate(args[0].clone())? {
+                                res.push(val?);
+                            }
+                            return Ok(AST::FinSet(res));
+                        }
+
+                        "list" => {
+                            let mut res = Vec::new();
+                            for val in enumerate(args[0].clone())? {
+                                res.push(val?);
+                            }
+                            return Ok(AST::List(res));
+                        }
+
+                        _ => Err(format!("Unknown Builtin: {}", name))
+                    }
+                }
+
                 res => Err(format!("Expected a function in function application expression, got {:?}", res))
             }
         }
@@ -899,7 +927,11 @@ fn main() {
 
             for expr in exprs {
                 // println!("{:?}", defs.clone());
-                println!("> {:?}", expr.clone());
+                match expr.clone() {
+                    AST::Skip() => continue,
+                    other => println!("> {:?}", other)
+                }
+
                 match expr {
                     AST::Definition(name, body) => {
                         defs.insert(name, subs(*body, &defs));
