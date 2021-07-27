@@ -1,9 +1,15 @@
 main = _{ SOI ~ (term ~ ".")* ~ EOI }
 
 term = _{ definition
+        | proof_rule
+        | rule
         | ite
         | sum
         | bool_term }
+
+definition = { "Let" ~ var ~ is ~ term }
+rule = { "Rule" ~ term ~ "=>" ~ term }
+proof_rule = { "Proof" ~ "Rule" ~ term ~ "=>" ~ term }
 
 ite = { "if" ~ term ~ "then" ~ term ~ "else" ~ term }
 
@@ -17,7 +23,7 @@ and_op = { "and" }
 or_op = { "or" }
 
 complement_term = _{ complement | compare_term }
-complement = { "!" ~ compare_term }
+complement = { ("not" | "!") ~ compare_term }
 compare_term = _{ compare | arith }
 compare = { arith ~ compare_op ~ arith }
 compare_op = _{ ne_sym | eq_sym | le_sym | lt_sym | ge_sym | gt_sym }
@@ -32,20 +38,19 @@ ne_sym = { "!=" | "≠" }
 conj_sym = _{ "&" | "/\\" | "∧" | "and" }
 disj_sym = { "|" | "\\/" | "∨" | "or" }
 
-definition = { "Let" ~ var ~ is ~ term }
-
 arith = _{ negate | bin_arith }
 negate = { "-" ~ bin_arith }
 
 bin_arith = { factorial_term ~ (bin_op ~ factorial_term)* }
 
-bin_op = _{ add | sub | mul | div | mod_op | exp }
+bin_op = _{ add | sub | mul | div | mod_op | exp | concat }
 add = { "+" }
 sub = { "-" }
 mul = { "*" }
 div = { "/" }
 mod_op = { "%" }
 exp = { "^" }
+concat = { "@" }
 
 factorial_term = _{ factorial | app }
 factorial = { app ~ "!" }

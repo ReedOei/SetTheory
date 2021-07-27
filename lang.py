@@ -2551,8 +2551,6 @@ class PrimeSeq(AST):
 
     def run_sieve(self, increment):
         self.sieve.extend([ True ] * increment)
-        new_max = self.max + increment
-        print('primes', new_max)
         for p, b in enumerate(self.sieve):
             if b:
                 start = max(p*p, p * (self.max // p + 1))
