@@ -25,5 +25,6 @@ Rule $coeff($int(a), $var(x)) + $coeff($int(b), $var(x)) => (a + b)*x.
 
 2*a + 3*a.
 2*a + 3*b.
-a + 3*a = 4*a.
+assert_true(a + 3*a = 4*a).
+assert_true(5*a + a + 3*a = 4*a).
 

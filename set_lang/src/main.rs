@@ -14,7 +14,7 @@ use pest::iterators::Pair;
 use pest::prec_climber::{Assoc, Operator, PrecClimber};
 
 use std::cell::RefCell;
-use std::collections::{HashSet, HashMap};
+use std::collections::{HashSet, HashMap, VecDeque};
 use std::cmp::max;
 use std::env;
 use std::fs;
@@ -1749,12 +1749,262 @@ impl Iterator for ASTMapper {
     }
 }
 
+struct Positions {
+    pos_queue : VecDeque<(AST, Vec<usize>)>
+}
+
+fn concat_pos(pos : Vec<usize>, i : usize) -> Vec<usize> {
+    let mut new_pos = pos;
+    new_pos.push(i);
+    return new_pos;
+}
+
+impl Iterator for Positions {
+    type Item = Vec<usize>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            match self.pos_queue.pop_front() {
+                None => return None,
+                Some((expr, pos)) => {
+                    match expr {
+                        AST::Skip() => (),
+                        AST::Int(_) => (),
+                        AST::Var(_) => (),
+                        AST::Seq(_, _) => (),
+
+                        AST::FinSet(elems) => {
+                            for (i, e) in elems.into_iter().enumerate() {
+                                self.pos_queue.push_back((e, concat_pos(pos.clone(), i)));
+                            }
+                        }
+
+                        AST::List(elems) => {
+                            for (i, e) in elems.into_iter().enumerate() {
+                                self.pos_queue.push_back((e, concat_pos(pos.clone(), i)));
+                            }
+                        }
+
+                        AST::Memo(_, _, body, _) => self.pos_queue.push_back((*body, concat_pos(pos.clone(), 0))),
+                        AST::Function(_, _, body) => self.pos_queue.push_back((*body, concat_pos(pos.clone(), 0))),
+
+                        AST::App(func, xs) => {
+                            self.pos_queue.push_back((*func, concat_pos(pos.clone(), 0)));
+                            for (i, x) in xs.into_iter().enumerate() {
+                                self.pos_queue.push_back((x, concat_pos(pos.clone(), i + 1)));
+                            }
+                        }
+
+                        AST::RangeSet(start, end, step) => {
+                            self.pos_queue.push_back((*start, concat_pos(pos.clone(), 0)));
+                            self.pos_queue.push_back((*end, concat_pos(pos.clone(), 1)));
+                            self.pos_queue.push_back((*step, concat_pos(pos.clone(), 2)));
+                        }
+
+                        AST::IfThenElse(cond, then_expr, else_expr) => {
+                            self.pos_queue.push_back((*cond, concat_pos(pos.clone(), 0)));
+                            self.pos_queue.push_back((*then_expr, concat_pos(pos.clone(), 1)));
+                            self.pos_queue.push_back((*else_expr, concat_pos(pos.clone(), 2)));
+                        }
+
+                        AST::CompSet(var_doms, clauses) => {
+                            let n = var_doms.len();
+                            for (i, (_, dom)) in var_doms.into_iter().enumerate() {
+                                self.pos_queue.push_back((dom, concat_pos(pos.clone(), i)));
+                            }
+                            for (i, clause) in clauses.into_iter().enumerate() {
+                                self.pos_queue.push_back((clause, concat_pos(pos.clone(), n + i)));
+                            }
+                        }
+
+                        AST::Bin(_, a, b) => {
+                            self.pos_queue.push_back((*a, concat_pos(pos.clone(), 0)));
+                            self.pos_queue.push_back((*b, concat_pos(pos.clone(), 1)));
+                        }
+
+                        AST::Image(a, b) => {
+                            self.pos_queue.push_back((*a, concat_pos(pos.clone(), 0)));
+                            self.pos_queue.push_back((*b, concat_pos(pos.clone(), 1)));
+                        }
+
+                        AST::Complement(a) => self.pos_queue.push_back((*a, concat_pos(pos.clone(), 0))),
+                        AST::Sum(a) => self.pos_queue.push_back((*a, concat_pos(pos.clone(), 0))),
+                        AST::Negate(a) => self.pos_queue.push_back((*a, concat_pos(pos.clone(), 0))),
+                        AST::Factorial(a) => self.pos_queue.push_back((*a, concat_pos(pos.clone(), 0))),
+
+                        AST::Definition(_, body) => self.pos_queue.push_back((*body, concat_pos(pos.clone(), 0))),
+
+                        AST::Rule(_, lhs, rhs) => {
+                            self.pos_queue.push_back((*lhs, concat_pos(pos.clone(), 0)));
+                            self.pos_queue.push_back((*rhs, concat_pos(pos.clone(), 1)));
+                        }
+                    }
+
+                    return Some(pos);
+                }
+            }
+        }
+    }
+}
+
+fn map<F>(expr : AST, pos : Vec<usize>, i : usize, f : F) -> Box<dyn Iterator<Item=AST>> where F : Fn(AST) -> Box<dyn Iterator<Item=AST>> {
+    if i >= pos.len() {
+        return f(expr);
+    }
+    let idx = pos[i];
+    match expr {
+        AST::Skip() => Box::new(std::iter::empty()),
+        AST::Int(_) => Box::new(std::iter::empty()),
+        AST::Var(_) => Box::new(std::iter::empty()),
+        AST::Seq(_, _) => Box::new(std::iter::empty()),
+
+        AST::FinSet(elems) =>
+            Box::new(map(elems[idx].clone(), pos, i + 1, f).map(move |t| {
+                let mut new_elems = elems.clone();
+                new_elems[idx] = t;
+                return AST::FinSet(new_elems);
+            })),
+
+        AST::List(elems) =>
+            Box::new(map(elems[idx].clone(), pos, i + 1, f).map(move |t| {
+                let mut new_elems = elems.clone();
+                new_elems[idx] = t;
+                return AST::FinSet(new_elems);
+            })),
+
+        AST::Memo(name, args, body, memo) =>
+            Box::new(map(*body, pos, i + 1, f).map(move |t| AST::Memo(name.clone(), args.clone(), Box::new(t), memo.clone()))),
+        AST::Function(name, args, body) =>
+            Box::new(map(*body, pos, i + 1, f).map(move |t| AST::Function(name.clone(), args.clone(), Box::new(t)))),
+
+        AST::App(func, xs) => {
+            if idx == 0 {
+                return Box::new(map(*func, pos, i + 1, f).map(move |t| AST::App(Box::new(t), xs.clone())));
+            } else {
+                let xs_idx = idx - 1;
+                return Box::new(map(xs[xs_idx].clone(), pos, i + 1, f).map(move |t| {
+                    let mut new_xs = xs.clone();
+                    new_xs[xs_idx] = t;
+                    return AST::App(func.clone(), new_xs);
+                }));
+            }
+        }
+
+        AST::RangeSet(start, end, step) => {
+            if idx == 0 {
+                return Box::new(map(*start, pos, i + 1, f).map(move |t| AST::RangeSet(Box::new(t), end.clone(), step.clone())));
+            } else if idx == 1 {
+                return Box::new(map(*end, pos, i + 1, f).map(move |t| AST::RangeSet(start.clone(), Box::new(t), step.clone())));
+            } else {
+                return Box::new(map(*step, pos, i + 1, f).map(move |t| AST::RangeSet(start.clone(), end.clone(), Box::new(t))));
+            }
+        }
+
+        AST::IfThenElse(cond, then_expr, else_expr) => {
+            if idx == 0 {
+                return Box::new(map(*cond, pos, i + 1, f).map(move |t| AST::IfThenElse(Box::new(t), then_expr.clone(), else_expr.clone())));
+            } else if idx == 1 {
+                return Box::new(map(*then_expr, pos, i + 1, f).map(move |t| AST::IfThenElse(cond.clone(), Box::new(t), else_expr.clone())));
+            } else {
+                return Box::new(map(*else_expr, pos, i + 1, f).map(move |t| AST::IfThenElse(cond.clone(), then_expr.clone(), Box::new(t))));
+            }
+        }
+
+        AST::CompSet(var_doms, clauses) => {
+            if idx < var_doms.len() {
+                return Box::new(map(var_doms[idx].1.clone(), pos, i + 1, f).map(move |t| {
+                    let mut new_var_doms = var_doms.clone();
+                    new_var_doms[idx] = (new_var_doms[idx].0.clone(), t);
+                    return AST::CompSet(new_var_doms, clauses.clone());
+                }));
+            } else {
+                let clause_idx = idx - var_doms.len();
+                return Box::new(map(clauses[idx].clone(), pos, i + 1, f).map(move |t| {
+                    let mut new_clauses = clauses.clone();
+                    new_clauses[clause_idx] = t;
+                    return AST::CompSet(var_doms.clone(), new_clauses);
+                }));
+            }
+        }
+
+        AST::Bin(op, a, b) => {
+            if idx == 0 {
+                return Box::new(map(*a, pos, i + 1, f).map(move |t| AST::Bin(op, Box::new(t), b.clone())));
+            } else {
+                return Box::new(map(*b, pos, i + 1, f).map(move |t| AST::Bin(op, a.clone(), Box::new(t))));
+            }
+        }
+
+        AST::Image(a, b) => {
+            if idx == 0 {
+                return Box::new(map(*a, pos, i + 1, f).map(move |t| AST::Image(Box::new(t), b.clone())));
+            } else {
+                return Box::new(map(*b, pos, i + 1, f).map(move |t| AST::Image(a.clone(), Box::new(t))));
+            }
+        }
+
+        AST::Complement(a) => Box::new(map(*a, pos, i + 1, f).map(|t| AST::Complement(Box::new(t)))),
+        AST::Sum(a) => Box::new(map(*a, pos, i + 1, f).map(|t| AST::Sum(Box::new(t)))),
+        AST::Negate(a) => Box::new(map(*a, pos, i + 1, f).map(|t| AST::Negate(Box::new(t)))),
+        AST::Factorial(a) => Box::new(map(*a, pos, i + 1, f).map(|t| AST::Factorial(Box::new(t)))),
+
+        AST::Definition(name, body) => Box::new(map(*body, pos, i + 1, f).map(move |t| AST::Definition(name.clone(), Box::new(t)))),
+
+        AST::Rule(attrs, lhs, rhs) => {
+            if idx == 0 {
+                return Box::new(map(*lhs, pos, i + 1, f).map(move |t| AST::Rule(attrs.clone(), Box::new(t), rhs.clone())));
+            } else {
+                return Box::new(map(*rhs, pos, i + 1, f).map(move |t| AST::Rule(attrs.clone(), lhs.clone(), Box::new(t))));
+            }
+        }
+    }
+}
+
+impl AST {
+    fn positions(&self) -> Positions {
+        let mut pos_queue = VecDeque::new();
+        pos_queue.push_back((self.clone(), vec!()));
+        return Positions { pos_queue: pos_queue };
+    }
+}
+
+fn rewrite_with(lhs : AST, rhs : AST, expr : AST) -> Box<dyn Iterator<Item=AST>> {
+    return Box::new(expr.positions().flat_map(move |pos| {
+        let l = lhs.clone();
+        let r = rhs.clone();
+        return map(expr.clone(), pos, 0, move |t| {
+            let r2 = r.clone();
+            let f = move |to_subs| subs(r2.clone(), &to_subs);
+            return Box::new(UnificationIterator::new(l.clone(), t.clone()).map(f));
+        });
+    }));
+}
+
+fn single_rewrite(rules : Vec<AST>, expr : AST) -> Box<dyn Iterator<Item=AST>> {
+    return Box::new(rules.into_iter().flat_map(move |rule| match rule {
+        AST::Rule(_, lhs, rhs) => rewrite_with(*lhs.clone(), *rhs.clone(), expr.clone()),
+        _ => Box::new(std::iter::empty()),
+    }));
+}
+
 fn rewrite(lhs : AST, rhs : AST, expr : AST) -> Box<dyn Iterator<Item=AST>> {
     return Box::new(ASTMapper::new(expr, Box::new(move |t| {
         let r = rhs.clone();
         let f = move |to_subs| subs(r.clone(), &to_subs);
         Box::new(UnificationIterator::new(lhs.clone(), t.clone()).map(f))
     })));
+}
+
+pub fn simplify_tree(expr : AST) -> AST {
+    // println!("e: {:?}, pos: {:?}", expr, expr.positions().collect::<Vec<Vec<usize>>>());
+    for pos in expr.positions() {
+        for new_expr in map(expr.clone(), pos, 0, |t| Box::new(std::iter::once(simplify(t)))) {
+            if new_expr != expr {
+                return new_expr;
+            }
+        }
+    }
+    return expr;
 }
 
 pub fn coerce_int(expr : &AST) -> BigInt {
@@ -1859,14 +2109,7 @@ fn full_simplify(expr : AST) -> AST {
     let mut res = expr;
     loop {
         let old_res = res.clone();
-
-        for t in ASTMapper::new(res.clone(), Box::new(|t| Box::new(std::iter::once(simplify(t.clone()))))) {
-            if t != old_res {
-                res = t;
-                break;
-            }
-        }
-
+        res = simplify_tree(res);
         if res == old_res {
             break;
         }
@@ -1884,7 +2127,7 @@ impl <'a> Iterator for TerminatingRewriter<'a> {
 
                 Some(expr) => {
                     let mut changed = false;
-                    for new_expr in Rewriter::new(self.rules, expr.clone()) {
+                    for new_expr in single_rewrite(self.rules.clone(), expr.clone()) {
                         if new_expr != expr {
                             self.exprs.push(full_simplify(new_expr));
                             changed = true;
