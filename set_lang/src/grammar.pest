@@ -3,6 +3,8 @@ main = _{ SOI ~ (term ~ ".")* ~ EOI }
 term = _{ definition
         | proof_rule
         | rule
+        | prove
+        | assumption
         | ite
         | sum
         | bool_term }
@@ -10,6 +12,8 @@ term = _{ definition
 definition = { "Let" ~ var ~ is ~ term }
 rule = { "Rule" ~ term ~ "=>" ~ term }
 proof_rule = { "Proof" ~ "Rule" ~ term ~ "=>" ~ term }
+prove = { "Prove" ~ term }
+assumption = { "Assume" ~ term }
 
 ite = { "if" ~ term ~ "then" ~ term ~ "else" ~ term }
 

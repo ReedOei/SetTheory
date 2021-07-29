@@ -21,10 +21,18 @@ Rule a = a => 1.
 Rule if 1 then a else b => a.
 Rule if 0 then a else b => b.
 
+Rule 1 and b => b.
+Rule a and 1 => a.
+
+Rule 0 and b => 0.
+Rule a and 0 => a.
+
 Rule $coeff($int(a), $var(x)) + $coeff($int(b), $var(x)) => (a + b)*x.
 
-2*a + 3*a.
-2*a + 3*b.
-assert_true(a + 3*a = 4*a).
-assert_true(5*a + a + 3*a = 4*a).
+Rule a ==> a => 1.
+
+Proof Rule a + b => b + a.
+Proof Rule (a and b) ==> c => a ==> c.
+Proof Rule (a and b) ==> c => b ==> c.
+Proof Rule a ==> (b and c) => (a ==> b) and (b ==> c) .
 

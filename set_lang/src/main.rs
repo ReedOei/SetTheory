@@ -169,6 +169,8 @@ pub enum AST {
 
     Definition(String, Box<AST>),
     Rule(Vec<String>, Box<AST>, Box<AST>),
+    Assumption(Box<AST>),
+    Prove(Box<AST>),
 
     Int(BigInt),
 
@@ -434,6 +436,9 @@ pub fn to_ast(pair : Pair<Rule>, arith_climber : &PrecClimber<Rule>, bool_climbe
             return Ok(AST::Image(Box::new(f), Box::new(arg)));
         }
 
+        Rule::assumption => Ok(AST::Assumption(Box::new(primary(pair.into_inner().next().unwrap())?))),
+        Rule::prove => Ok(AST::Prove(Box::new(primary(pair.into_inner().next().unwrap())?))),
+
         Rule::factorial => {
             let mut it = pair.into_inner();
             let arg = primary(it.next().unwrap())?;
@@ -519,6 +524,9 @@ pub fn subs(expr : AST, to_subs : &HashMap<String, AST>) -> AST {
         AST::Definition(name, body) => AST::Definition(name, Box::new(subs(*body, to_subs))),
         AST::Rule(attrs, lhs, rhs) => AST::Rule(attrs, Box::new(subs(*lhs, to_subs)),
                                                        Box::new(subs(*rhs, to_subs))),
+
+        AST::Assumption(t) => AST::Assumption(Box::new(subs(*t, to_subs))),
+        AST::Prove(t) => AST::Prove(Box::new(subs(*t, to_subs))),
 
         AST::FinSet(elems) => AST::FinSet(elems.into_iter().map(| e | subs(e, to_subs)).collect()),
 
@@ -1257,6 +1265,9 @@ pub fn vars(expr : &AST) -> HashSet<String> {
         AST::Skip() => HashSet::new(),
         AST::Int(_) => HashSet::new(),
 
+        AST::Assumption(t) => vars(t),
+        AST::Prove(t) => vars(t),
+
         AST::Var(x) => vec!(x.clone()).into_iter().collect(),
         AST::Definition(_, body) => vars(body),
         AST::Rule(_, lhs, rhs) => union(vars(lhs), vars(rhs)),
@@ -1517,6 +1528,9 @@ impl Iterator for Positions {
                         AST::Var(_) => (),
                         AST::Seq(_, _) => (),
 
+                        AST::Assumption(t) => self.pos_queue.push_back((*t, concat_pos(pos.clone(), 0))),
+                        AST::Prove(t) => self.pos_queue.push_back((*t, concat_pos(pos.clone(), 0))),
+
                         AST::FinSet(elems) => {
                             for (i, e) in elems.into_iter().enumerate() {
                                 self.pos_queue.push_back((e, concat_pos(pos.clone(), i)));
@@ -1601,6 +1615,9 @@ fn map<F>(expr : AST, pos : Vec<usize>, i : usize, f : F) -> Box<dyn Iterator<It
         AST::Int(_) => Box::new(std::iter::empty()),
         AST::Var(_) => Box::new(std::iter::empty()),
         AST::Seq(_, _) => Box::new(std::iter::empty()),
+
+        AST::Assumption(t) => Box::new(map(*t, pos, i + 1, f).map(|t| AST::Assumption(Box::new(t)))),
+        AST::Prove(t) => Box::new(map(*t, pos, i + 1, f).map(|t| AST::Prove(Box::new(t)))),
 
         AST::FinSet(elems) =>
             Box::new(map(elems[idx].clone(), pos, i + 1, f).map(move |t| {
@@ -1731,14 +1748,6 @@ fn single_rewrite(rules : Vec<AST>, expr : AST) -> Box<dyn Iterator<Item=AST>> {
     }));
 }
 
-fn rewrite(lhs : AST, rhs : AST, expr : AST) -> Box<dyn Iterator<Item=AST>> {
-    return Box::new(ASTMapper::new(expr, Box::new(move |t| {
-        let r = rhs.clone();
-        let f = move |to_subs| subs(r.clone(), &to_subs);
-        Box::new(UnificationIterator::new(lhs.clone(), t.clone()).map(f))
-    })));
-}
-
 pub fn simplify_tree(expr : AST) -> AST {
     // println!("e: {:?}, pos: {:?}", expr, expr.positions().collect::<Vec<Vec<usize>>>());
     for pos in expr.positions() {
@@ -1852,6 +1861,9 @@ fn main() {
             defs.insert("p".to_string(), AST::Seq("primes".to_string(), Rc::new(RefCell::new(PrimeSeq::new()))));
 
             let mut rules = Vec::new();
+            let mut proof_rules = Vec::new();
+
+            let mut assumptions = Vec::new();
 
             for expr in exprs {
                 // println!("{:?}", defs.clone());
@@ -1873,6 +1885,47 @@ fn main() {
                         }
                     }
 
+                    AST::Assumption(t) => assumptions.push(t),
+
+                    AST::Prove(t) => {
+                        let context = assumptions.iter().fold(AST::Int(One::one()), |a,b| AST::Bin(Op::And, Box::new(a), b.clone()));
+                        let to_prove = AST::Bin(Op::Imp, Box::new(context), t);
+                        let mut proof_tree = HashMap::new();
+                        let mut todo = VecDeque::new();
+                        proof_tree.insert(to_prove.clone(), None);
+                        todo.push_back(subs(to_prove, &defs));
+
+                        loop {
+                            match todo.pop_front() {
+                                None => {
+                                    println!("Failure!");
+                                    break;
+                                }
+
+                                Some(new_t) => {
+                                    if new_t == AST::Int(One::one()) {
+                                        let mut cur_term = Some(new_t);
+                                        while cur_term != None {
+                                            println!("{:?}", cur_term.as_ref().unwrap());
+                                            cur_term = proof_tree[&cur_term.unwrap()].clone();
+                                        }
+                                        println!("Success!");
+                                        break;
+                                    }
+
+                                    println!("Current term: {:?}", new_t);
+
+                                    for new_expr in single_rewrite(proof_rules.clone(), new_t.clone()).map(full_simplify) {
+                                        if !proof_tree.contains_key(&new_expr) {
+                                            proof_tree.insert(new_expr.clone(), Some(new_t.clone()));
+                                            todo.push_back(new_expr);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     AST::Rule(attrs, lhs, rhs) => {
                         let mut to_subs = HashMap::new();
                         for x in vars(&lhs) {
@@ -1881,8 +1934,12 @@ fn main() {
                                 fresh_counter += 1;
                             }
                         }
-                        rules.push(AST::Rule(attrs, Box::new(subs(*lhs, &to_subs)),
-                                                    Box::new(subs(*rhs, &to_subs))));
+                        let fresh_rule = AST::Rule(attrs.clone(), Box::new(subs(*lhs, &to_subs)),
+                                                                  Box::new(subs(*rhs, &to_subs)));
+                        if !attrs.contains(&"proof rule".to_string()) {
+                            rules.push(fresh_rule.clone());
+                        }
+                        proof_rules.push(fresh_rule);
                     }
 
                     _ => {
