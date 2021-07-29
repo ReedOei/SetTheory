@@ -17,10 +17,11 @@ sum = { sum_sym ~ term }
 sum_sym = _{ "Σ" | "∑" }
 
 bool_term = { complement_term ~ (infix_bool_op ~ complement_term)* }
-infix_bool_op = _{ elem | and_op | or_op }
+infix_bool_op = _{ elem | and_op | or_op | imp_op }
 elem = { "∈" }
 and_op = { "and" }
 or_op = { "or" }
+imp_op = { "==>" }
 
 complement_term = _{ complement | compare_term }
 complement = { ("not" | "!") ~ compare_term }

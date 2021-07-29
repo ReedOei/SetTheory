@@ -1,4 +1,5 @@
 #![feature(int_log)]
+#![feature(box_patterns)]
 
 #[macro_use]
 extern crate educe;
@@ -157,7 +158,8 @@ pub enum Op {
     NotEquals,
     Elem,
     Or,
-    And
+    And,
+    Imp
 }
 
 #[derive(Clone, Educe)]
@@ -368,6 +370,7 @@ pub fn to_ast(pair : Pair<Rule>, arith_climber : &PrecClimber<Rule>, bool_climbe
                 match op.as_rule() {
                     Rule::elem => Ok(AST::Bin(Op::Elem, Box::new(lhs?), Box::new(rhs?))),
                     Rule::and_op => Ok(AST::Bin(Op::And, Box::new(lhs?), Box::new(rhs?))),
+                    Rule::imp_op => Ok(AST::Bin(Op::Imp, Box::new(lhs?), Box::new(rhs?))),
                     Rule::or_op => Ok(AST::Bin(Op::Or, Box::new(lhs?), Box::new(rhs?))),
                     _ => unreachable!(),
                 };
@@ -492,6 +495,7 @@ pub fn parse(source : &str) -> Result<Vec<AST>, String> {
             Operator::new(Rule::exp, Assoc::Right)));
 
     let bool_climber = PrecClimber::new(vec!(
+            Operator::new(Rule::imp_op, Assoc::Right),
             Operator::new(Rule::elem, Assoc::Left),
             Operator::new(Rule::and_op, Assoc::Left),
             Operator::new(Rule::or_op, Assoc::Left)));
@@ -1314,19 +1318,23 @@ enum UnificationStatus {
 #[derive(PartialEq, Eq, Debug, Clone)]
 struct Unification {
     eqs : Vec<(AST, AST)>,
+    lhs_vars : HashSet<String>,
     subs : HashMap<String, AST>,
 }
 
 impl Unification {
     fn new(lhs : AST, rhs : AST) -> Unification {
+        let lhs_vars = vars(&lhs);
         return Unification {
             eqs: vec!((lhs, rhs)),
+            lhs_vars: lhs_vars,
             subs: HashMap::new(),
         };
     }
 
     fn step(&mut self, unifs : &mut Vec<Unification>) -> UnificationStatus {
-        println!("Equations: {:?}", self.eqs);
+        // println!("Equations: {:?}", self.eqs);
+        // println!("Substitution: {:?}", self.subs);
         match self.eqs.pop() {
             None => {
                 return UnificationStatus::Done;
@@ -1341,33 +1349,105 @@ impl Unification {
                     (AST::Var(x), t) => {
                         if x.starts_with("$") {
                             let name = x[1..].to_string();
-                            let mut new_subs = HashMap::new();
-                            new_subs.insert(name, t);
-                            for (a, b) in &mut self.eqs {
-                                *a = subs(a.clone(), &new_subs);
-                                *b = subs(b.clone(), &new_subs);
+                            if AST::Var(name) == t {
+                                return UnificationStatus::Running;
+                            } else {
+                                return UnificationStatus::Failed;
                             }
-                            return UnificationStatus::Running;
-                        } else {
+                        } else if !self.lhs_vars.contains(&x) {
                             if AST::Var(x) == t {
                                 return UnificationStatus::Running;
                             } else {
                                 return UnificationStatus::Failed;
                             }
+                        } else {
+                            let mut new_subs = HashMap::new();
+                            new_subs.insert(x, t);
+                            for (a, b) in &mut self.eqs {
+                                *a = subs(a.clone(), &new_subs);
+                                *b = subs(b.clone(), &new_subs);
+                            }
+                            self.subs.extend(new_subs);
+                            return UnificationStatus::Running;
                         }
-                    }
-
-                    (t, AST::Var(x)) => {
-                        self.eqs.push((AST::Var(x), t));
-                        return UnificationStatus::Running;
                     }
 
                     (AST::Bin(op1, a, b), AST::Bin(op2, c, d)) => {
                         if op1 != op2 {
                             return UnificationStatus::Failed;
                         }
+                        self.eqs.push((*a, *c));
+                        self.eqs.push((*b, *d));
+                        return UnificationStatus::Running;
+                    }
+
+                    (AST::App(f, xs), AST::Var(y)) => {
+                        if *f == AST::Var("$var".to_string()) {
+                            self.eqs.push((xs[0].clone(), AST::Var(y)));
+                            return UnificationStatus::Running;
+                        } else if *f == AST::Var("$coeff".to_string()) {
+                            self.eqs.push((xs[0].clone(), AST::Int(One::one())));
+                            self.eqs.push((xs[1].clone(), AST::Var(y)));
+                            return UnificationStatus::Running;
+                        } else {
+                            return UnificationStatus::Failed;
+                        }
+                    }
+
+                    (AST::App(f, xs), AST::Int(n)) => {
+                        if *f == AST::Var("$int".to_string()) {
+                            self.eqs.push((xs[0].clone(), AST::Int(n)));
+                            return UnificationStatus::Running;
+                        } else {
+                            return UnificationStatus::Failed;
+                        }
+                    }
+
+                    (AST::App(f, xs), AST::Bin(Op::Mul, a, b)) => {
+                        if *f == AST::Var("$coeff".to_string()) {
+                            self.eqs.push((xs[0].clone(), *a));
+                            self.eqs.push((xs[1].clone(), *b));
+                            return UnificationStatus::Running;
+                        } else {
+                            return UnificationStatus::Failed;
+                        }
+                    }
+
+                    (AST::App(f, xs), AST::App(g, ys)) => {
+                        if f != g {
+                            return UnificationStatus::Failed;
+                        } else {
+                            for (x, y) in xs.into_iter().zip(ys) {
+                                self.eqs.push((x, y));
+                            }
+                            return UnificationStatus::Running;
+                        }
+                    }
+
+                    (AST::IfThenElse(c1, t1, e1), AST::IfThenElse(c2, t2, e2)) => {
+                        self.eqs.push((*c1, *c2));
+                        self.eqs.push((*t1, *t2));
+                        self.eqs.push((*e1, *e2));
+                        return UnificationStatus::Running;
+                    }
+
+                    (AST::Factorial(a), AST::Factorial(b)) => {
                         self.eqs.push((*a, *b));
-                        self.eqs.push((*c, *d));
+                        return UnificationStatus::Running;
+                    }
+
+                    (AST::Sum(a), AST::Sum(b)) => {
+                        self.eqs.push((*a, *b));
+                        return UnificationStatus::Running;
+                    }
+
+                    (AST::Complement(a), AST::Complement(b)) => {
+                        self.eqs.push((*a, *b));
+                        return UnificationStatus::Running;
+                    }
+
+                    (AST::Negate(a), AST::Negate(b)) => {
+                        self.eqs.push((*a, *b));
                         return UnificationStatus::Running;
                     }
 
@@ -1677,37 +1757,73 @@ fn rewrite(lhs : AST, rhs : AST, expr : AST) -> Box<dyn Iterator<Item=AST>> {
     })));
 }
 
-struct Rewriter {
+pub fn coerce_int(expr : &AST) -> BigInt {
+    match expr {
+        AST::Int(n) => n.clone(),
+        _ => unreachable!()
+    }
+}
+
+pub fn simplify(expr : AST) -> AST {
+    match expr {
+        AST::Bin(Op::Add, box AST::Int(n), box AST::Int(m)) => AST::Int(n + m),
+        AST::Bin(Op::Sub, box AST::Int(n), box AST::Int(m)) => AST::Int(n - m),
+        AST::Bin(Op::Mul, box AST::Int(n), box AST::Int(m)) => AST::Int(n * m),
+        AST::Bin(Op::Div, box AST::Int(n), box AST::Int(m)) => AST::Int(n / m),
+        AST::Bin(Op::Mod, box AST::Int(n), box AST::Int(m)) => AST::Int(n % m),
+        AST::App(f, xs) => {
+            if *f == AST::Var("subs".to_string()) {
+                match &xs[..] {
+                    [e, v, AST::Var(x)] => {
+                        let mut new_subs = HashMap::new();
+                        new_subs.insert(x.clone(), v.clone());
+                        return subs(e.clone(), &new_subs);
+                    }
+                    _ => AST::App(f, xs)
+                }
+            } else {
+                AST::App(f, xs)
+            }
+        }
+        other => other
+    }
+}
+
+struct Rewriter<'a> {
     cur_rule : usize,
-    rules : Vec<AST>,
+    rules : &'a Vec<AST>,
     expr : AST,
     expr_it : Box<dyn Iterator<Item=AST>>,
 }
 
-impl Rewriter {
-    fn new(rules : Vec<AST>, expr : AST) -> Rewriter {
+impl <'a> Rewriter<'a> {
+    fn new(rules : &'a Vec<AST>, expr : AST) -> Rewriter<'a> {
         return Rewriter {
             cur_rule: 0,
             rules: rules,
-            expr: expr,
-            expr_it: Box::new(std::iter::empty()),
+            expr: expr.clone(),
+            expr_it: Box::new(std::iter::empty())
         };
     }
 }
 
-impl Iterator for Rewriter {
+impl <'a> Iterator for Rewriter<'a> {
     type Item = AST;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while self.cur_rule < self.rules.len() {
+        while self.cur_rule <= self.rules.len() {
             loop {
                 match self.expr_it.next() {
                     None => break,
                     Some(t) => {
-                        self.cur_rule = 0;
+                        // self.cur_rule = 0;
                         return Some(t);
                     }
                 }
+            }
+
+            if self.cur_rule >= self.rules.len() {
+                break;
             }
 
             match &self.rules[self.cur_rule] {
@@ -1722,6 +1838,64 @@ impl Iterator for Rewriter {
         }
 
         return None;
+    }
+}
+
+struct TerminatingRewriter<'a> {
+    rules : &'a Vec<AST>,
+    exprs : Vec<AST>
+}
+
+impl <'a> TerminatingRewriter<'a> {
+    fn new(rules : &'a Vec<AST>, expr : AST) -> TerminatingRewriter<'a> {
+        return TerminatingRewriter {
+            rules: rules,
+            exprs: vec!(expr)
+        };
+    }
+}
+
+fn full_simplify(expr : AST) -> AST {
+    let mut res = expr;
+    loop {
+        let old_res = res.clone();
+
+        for t in ASTMapper::new(res.clone(), Box::new(|t| Box::new(std::iter::once(simplify(t.clone()))))) {
+            if t != old_res {
+                res = t;
+                break;
+            }
+        }
+
+        if res == old_res {
+            break;
+        }
+    }
+    return res;
+}
+
+impl <'a> Iterator for TerminatingRewriter<'a> {
+    type Item = AST;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            match self.exprs.pop() {
+                None => return None,
+
+                Some(expr) => {
+                    let mut changed = false;
+                    for new_expr in Rewriter::new(self.rules, expr.clone()) {
+                        if new_expr != expr {
+                            self.exprs.push(full_simplify(new_expr));
+                            changed = true;
+                        }
+                    }
+                    if !changed {
+                        return Some(expr.clone());
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1740,7 +1914,9 @@ fn main() {
     let parse_start = now_millis();
     let parsed = parse(&contents);
     let parse_end = now_millis();
-    println!("Parse elapsed: {}ms", parse_end - parse_start);
+    println!("Parse time: {}ms", parse_end - parse_start);
+
+    let mut fresh_counter = 0;
 
     match parsed {
         Ok(exprs) => {
@@ -1770,14 +1946,26 @@ fn main() {
                     }
 
                     AST::Rule(attrs, lhs, rhs) => {
-                        rules.push(AST::Rule(attrs, lhs, rhs));
+                        let mut to_subs = HashMap::new();
+                        for x in vars(&lhs) {
+                            if !x.starts_with("$") {
+                                to_subs.insert(x.clone(), AST::Var(fresh_counter.to_string()));
+                                fresh_counter += 1;
+                            }
+                        }
+                        rules.push(AST::Rule(attrs, Box::new(subs(*lhs, &to_subs)),
+                                                    Box::new(subs(*rhs, &to_subs))));
                     }
 
                     _ => {
                         let expr_start = now_millis();
                         // println!("{:?}", eval(subs(expr, &defs)));
-                        for res in Rewriter::new(rules.clone(), subs(expr, &defs)) {
-                            println!("{:?}", res);
+                        let mut exprs = HashSet::new();
+                        for res in TerminatingRewriter::new(&rules, subs(expr, &defs)) {
+                            if !exprs.contains(&res) {
+                                println!("{:?}", res.clone());
+                                exprs.insert(res);
+                            }
                         }
                         let expr_end = now_millis();
                         println!("Elapsed: {}ms", expr_end - expr_start);
