@@ -9,11 +9,13 @@ term = _{ definition
         | sum
         | bool_term }
 
-definition = { "Let" ~ var ~ is ~ term }
+definition = { "Let" ~ (var | var_op) ~ is ~ term }
 rule = { "Rule" ~ term ~ "=>" ~ term }
 proof_rule = { "Proof" ~ "Rule" ~ term ~ "=>" ~ term }
 prove = { "Prove" ~ term }
 assumption = { "Assume" ~ term }
+
+var_op = { rel_op }
 
 ite = { "if" ~ term ~ "then" ~ term ~ "else" ~ term }
 
@@ -23,25 +25,14 @@ sum_sym = _{ "Σ" | "∑" }
 bool_term = { complement_term ~ (infix_bool_op ~ complement_term)* }
 infix_bool_op = _{ elem | and_op | or_op | imp_op }
 elem = { "∈" }
-and_op = { "and" }
-or_op = { "or" }
-imp_op = { "==>" }
+and_op = { "and" | "∧" }
+or_op = { "or" | "∨" }
+imp_op = { "==>" | "⇒" }
 
-complement_term = _{ complement | compare_term }
-complement = { ("not" | "!") ~ compare_term }
-compare_term = _{ compare | arith }
-compare = { arith ~ compare_op ~ arith }
-compare_op = _{ ne_sym | eq_sym | le_sym | lt_sym | ge_sym | gt_sym }
-
-lt_sym = { "<" }
-le_sym = { "<=" | "≤" }
-gt_sym = { ">" }
-ge_sym = { ">=" | "≥" }
-eq_sym = { "=" }
-ne_sym = { "!=" | "≠" }
-
-conj_sym = _{ "&" | "/\\" | "∧" | "and" }
-disj_sym = { "|" | "\\/" | "∨" | "or" }
+complement_term = _{ complement | rel }
+complement = { ("not" | "!") ~ rel }
+rel = { arith ~ (rel_op ~ arith)* }
+rel_op = @{ ("<" | "=" | "!" | "|-" | "|" | "≥" | "≤" | "∪" | "∩")+ }
 
 arith = _{ negate | bin_arith }
 negate = { "-" ~ bin_arith }
@@ -87,7 +78,8 @@ int = @{ "-"? ~ ASCII_DIGIT+ }
 is = _{ "are" | "is" | "be" | ":=" }
 
 WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
-COMMENT = _{ "//" ~ (!"\n" ~ ANY)* }
+COMMENT = _{ ("//" ~ (!"\n" ~ ANY)*)
+           | ("/*" ~ (!"*/" ~ ANY)* ~ "*/") }
 
 special = { "ℕ" | "𝕀" | "ℙ" | "ℂ" | "ℚ" | "ω" | "ℝ" | "π"
           | "σ" | "τ" | "Π" | "ξ" | "μ" | "δ" | "θ" | "γ"
