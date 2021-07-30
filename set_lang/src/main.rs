@@ -330,11 +330,11 @@ impl fmt::Display for AST {
             AST::Bin(Op::Prove, a, b) => write!(f, "({} |- {})", a, b),
 
             AST::Bin(Op::Lt, a, b) => write!(f, "({} < {})", a, b),
-            AST::Bin(Op::Le, a, b) => write!(f, "({} <= {})", a, b),
+            AST::Bin(Op::Le, a, b) => write!(f, "({} ≤ {})", a, b),
             AST::Bin(Op::Gt, a, b) => write!(f, "({} > {})", a, b),
-            AST::Bin(Op::Ge, a, b) => write!(f, "({} >= {})", a, b),
+            AST::Bin(Op::Ge, a, b) => write!(f, "({} ≥ {})", a, b),
             AST::Bin(Op::Equals, a, b) => write!(f, "({} = {})", a, b),
-            AST::Bin(Op::NotEquals, a, b) => write!(f, "({} != {})", a, b),
+            AST::Bin(Op::NotEquals, a, b) => write!(f, "({} ≠ {})", a, b),
 
             AST::CompSet(var_doms, clauses) => {
                 let mut s = String::new();
@@ -405,10 +405,13 @@ pub fn to_ast(pair : Pair<Rule>, arith_climber : &PrecClimber<Rule>, bool_climbe
                             "|-" => res = AST::Bin(Op::Prove, Box::new(res), Box::new(rhs)),
                             "<" => res = AST::Bin(Op::Lt, Box::new(res), Box::new(rhs)),
                             "<=" => res = AST::Bin(Op::Le, Box::new(res), Box::new(rhs)),
+                            "≤" => res = AST::Bin(Op::Le, Box::new(res), Box::new(rhs)),
                             ">" => res = AST::Bin(Op::Gt, Box::new(res), Box::new(rhs)),
                             ">=" => res = AST::Bin(Op::Ge, Box::new(res), Box::new(rhs)),
+                            "≥" => res = AST::Bin(Op::Ge, Box::new(res), Box::new(rhs)),
                             "=" => res = AST::Bin(Op::Equals, Box::new(res), Box::new(rhs)),
                             "!=" => res = AST::Bin(Op::NotEquals, Box::new(res), Box::new(rhs)),
+                            "≠" => res = AST::Bin(Op::NotEquals, Box::new(res), Box::new(rhs)),
                             s => res = AST::App(Box::new(AST::Var(s.to_string())), vec!(res, rhs)),
                         }
                     }
@@ -1400,6 +1403,11 @@ pub fn eval(expr : AST) -> Result<AST, String> {
                             return Ok(AST::List(items));
                         }
 
+                        "|" => {
+                            return eval(AST::Bin(Op::Equals, Box::new(AST::Bin(Op::Mod, Box::new(args[1].clone()), Box::new(args[0].clone()))),
+                                                             Box::new(AST::Int(Zero::zero()))));
+                        }
+
                         "μ" => {
                             let mut n = Zero::zero();
                             let f = eval(args[0].clone())?;
@@ -1727,6 +1735,29 @@ impl Unification {
                         } else {
                             return UnificationStatus::Failed;
                         }
+                    }
+
+                    (AST::App(f, xs), AST::FinSet(elems)) => {
+                        if *f == AST::Var("$elem".to_string()) {
+                            for (i, e) in elems.iter().enumerate() {
+                                let mut new_unif = self.clone();
+                                new_unif.eqs.push((xs[0].clone(), e.clone()));
+
+                                let other_elems = elems.iter().enumerate().filter(|(j,_)| i != *j).map(|(_,t)| t).cloned().collect();
+                                new_unif.eqs.push((xs[1].clone(), AST::FinSet(other_elems)));
+
+                                unifs.push(new_unif);
+                            }
+                            // This unification "failed", but we generated new unifications for each of
+                            // the elements of the set.
+                            return UnificationStatus::Failed;
+                        } else if *f == AST::Var("$union".to_string()) {
+                            // TODO: Should allow matching all possible partitions of the set into
+                            // two nonempty subsets.
+                            unreachable!();
+                        }
+
+                        return UnificationStatus::Failed;
                     }
 
                     (AST::App(f, xs), AST::App(g, ys)) => {
@@ -2186,6 +2217,19 @@ pub fn simplify(expr : AST) -> AST {
                     }
                     _ => AST::App(f, xs)
                 }
+            } else if *f == AST::Var("∪".to_string()) {
+                let mut ys = xs;
+                match (ys.pop(), ys.pop()) {
+                    (Some(AST::FinSet(ref mut es1)), Some(AST::FinSet(ref mut es2))) => {
+                        es1.append(es2);
+                        return AST::FinSet(es1.to_vec());
+                    }
+                    (y1, y2) => {
+                        ys.extend(y2.into_iter());
+                        ys.extend(y1.into_iter());
+                        return AST::App(f, ys)
+                    }
+                }
             } else {
                 AST::App(f, xs)
             }
@@ -2409,10 +2453,11 @@ fn main() {
                         loop {
                             match assignment_it.next() {
                                 Some(a) => {
+                                    print!("... Trying: {:?}", a);
                                     match eval(subs(to_prove.clone(), &a)) {
                                         Ok(AST::Int(n)) => {
                                             if n == Zero::zero() {
-                                                println!("\nTheorem is false! Counterexample: {:?}", a);
+                                                println!("\nFound counterexample: {:?}", a);
                                                 break;
                                             }
                                         }
@@ -2437,11 +2482,10 @@ fn main() {
                                             println!("{}", cur_term.as_ref().unwrap());
                                             cur_term = proof_tree[&cur_term.unwrap()].clone();
                                         }
-                                        println!("Success!");
                                         break;
                                     }
 
-                                    // println!("{} tried, {} left: {}", proof_tree.len() - todo.len(), todo.len(), new_t);
+                                    // println!("\n{} tried, {} left: {}", proof_tree.len() - todo.len(), todo.len(), new_t);
                                     print!("\r{} tried, {} left", proof_tree.len() - todo.len(), todo.len());
 
                                     for new_expr in single_rewrite(&proof_rules, &new_t).map(full_simplify) {

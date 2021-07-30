@@ -54,21 +54,25 @@ Proof Rule (S |- (P or Q)) => S |- Q.
 
 Proof Rule a^2 => a*a.
 
+Proof Rule a + b = a + c => b = c.
+Proof Rule b + a = c + a => b = c.
+
+Proof Rule a*b = a*c => b = c.
+Proof Rule b*a = c*a => b = c.
+
 // Proof Rule (n*x) % n => 0 .
 Proof Rule (a+b) % n => ((a % n) + (b % n)) % n.
 Proof Rule (a*b) % n => ((a % n) * (b % n)) % n.
 
 Proof Rule { x < n } |- P => { x < n } |- subs(P, x, x % n).
-
-Proof Rule {} |- P => P.
-
-Proof Rule { n | m } |- P => { $fresh(k, m = k*n) } |- P .
+Proof Rule $elem(n | m, S) |- P => ({ $fresh(k, m = k*n) } ∪ S) |- P .
 Proof Rule { P and Q } |- R => { P, Q } |- R .
 
 // TODO: Remember proofs as a list of steps, check proofs by rewriting, but only looking for those steps.
 // TODO: Remember what sequences of rules are often used in proofs, then try to come up with intermediate theorems based on those.
 //       Could eventually try adding rules based on that.
 // TODO: If we use a rule a bunch of times in a row, that's probably not going to be a successful proof, lower priority.
+// TODO: Change how the nat iterator works, so it will also randomly try some bigger numbers (but still never repeat anything).
 
 Prove 5*x = 2*x.
 Prove (n*k + m)^2 % n = m % n.
@@ -76,7 +80,9 @@ Prove (n*k + m)^2 % n = m % n.
 Prove (2 | (2*k)^2) .
 Prove (2*k + 1)^2 % 2 = 1.
 Prove { n | m } |- (n | m^2) .
-/* Prove (n*k + m) % n = m % n. */
-/* Proof Rule (n*k + m) % n => m % n. */
-/* Prove (n*k + m)^2 % n = m^2 % n. */
+Prove (n*k + m) % n = m % n.
+Proof Rule (n*k + m) % n => m % n.
+Prove (n*k + m)^2 % n = m^2 % n.
+
+Prove {n | (a + b)} |- ((n | a) and (n | b)).
 

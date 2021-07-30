@@ -32,7 +32,7 @@ imp_op = { "==>" | "⇒" }
 complement_term = _{ complement | rel }
 complement = { ("not" | "!") ~ rel }
 rel = { arith ~ (rel_op ~ arith)* }
-rel_op = @{ ("<" | "=" | "!" | "|-" | "|" | "≥" | "≤" | "∪" | "∩")+ }
+rel_op = @{ "<=" | ">=" | "<" | "=" | "≠" | "!" | "|-" | "|" | "≥" | ">" | "≤" | "∪" | "∩" }
 
 arith = _{ negate | bin_arith }
 negate = { "-" ~ bin_arith }
