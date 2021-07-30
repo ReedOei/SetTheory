@@ -1189,6 +1189,10 @@ pub fn eval(expr : AST) -> Result<AST, String> {
             let aval = as_int(eval(*a)?)?;
             let bval = as_int(eval(*b)?)?;
 
+            if bval == Zero::zero() {
+                return Err("Cannot divide by 0".to_string());
+            }
+
             if aval.clone() % bval.clone() == Zero::zero() {
                 return Ok(AST::Int(aval / bval));
             } else {
@@ -1197,7 +1201,11 @@ pub fn eval(expr : AST) -> Result<AST, String> {
         }
 
         AST::Bin(Op::Mod, a, b) => {
-            return Ok(AST::Int(as_int(eval(*a)?)? % as_int(eval(*b)?)?));
+            let bval = as_int(eval(*b)?)?;
+            if bval == Zero::zero() {
+                return Err("Cannot divide by 0".to_string());
+            }
+            return Ok(AST::Int(as_int(eval(*a)?)? % bval));
         }
 
         AST::Bin(Op::Exp, a, b) => {
@@ -1213,6 +1221,15 @@ pub fn eval(expr : AST) -> Result<AST, String> {
             } else {
                 return Ok(AST::Int(Zero::zero()));
             }
+        }
+
+        AST::Bin(Op::Prove, assms, b) => {
+            for assm in enumerate(*assms)? {
+                if as_int(eval(assm?)?)? == Zero::zero() {
+                    return Ok(AST::Int(One::one()));
+                }
+            }
+            return eval(*b);
         }
 
         AST::Bin(Op::NotEquals, a, b) => {
@@ -2064,10 +2081,83 @@ pub fn simplify_tree(expr : AST) -> AST {
 pub fn simplify(expr : AST) -> AST {
     match expr {
         AST::Bin(Op::Add, box AST::Int(n), box AST::Int(m)) => AST::Int(n + m),
+        AST::Bin(Op::Add, box AST::Int(n), b) =>
+            if n == Zero::zero() {
+                *b
+            } else {
+                AST::Bin(Op::Add, Box::new(AST::Int(n)), b)
+            }
+        AST::Bin(Op::Add, a, box AST::Int(m)) =>
+            if m == Zero::zero() {
+                *a
+            } else {
+                AST::Bin(Op::Add, a, Box::new(AST::Int(m)))
+            }
+
         AST::Bin(Op::Sub, box AST::Int(n), box AST::Int(m)) => AST::Int(n - m),
+
         AST::Bin(Op::Mul, box AST::Int(n), box AST::Int(m)) => AST::Int(n * m),
+        AST::Bin(Op::Mul, box AST::Int(n), b) =>
+            if n == Zero::zero() {
+                AST::Int(Zero::zero())
+            } else if n == One::one() {
+                *b
+            } else {
+                AST::Bin(Op::Mul, Box::new(AST::Int(n)), b)
+            }
+        AST::Bin(Op::Mul, a, box AST::Int(m)) =>
+            if m == Zero::zero() {
+                AST::Int(Zero::zero())
+            } else if m == One::one() {
+                *a
+            } else {
+                AST::Bin(Op::Mul, a, Box::new(AST::Int(m)))
+            }
+
+        AST::Bin(Op::And, box AST::Int(n), b) =>
+            if n == Zero::zero() {
+                AST::Int(Zero::zero())
+            } else if n == One::one() {
+                *b
+            } else {
+                AST::Bin(Op::And, Box::new(AST::Int(n)), b)
+            }
+        AST::Bin(Op::And, a, box AST::Int(m)) =>
+            if m == Zero::zero() {
+                AST::Int(Zero::zero())
+            } else if m == One::one() {
+                *a
+            } else {
+                AST::Bin(Op::And, a, Box::new(AST::Int(m)))
+            }
+
+        AST::Bin(Op::Or, box AST::Int(n), b) =>
+            if n == Zero::zero() {
+                *b
+            } else if n == One::one() {
+                AST::Int(One::one())
+            } else {
+                AST::Bin(Op::Or, Box::new(AST::Int(n)), b)
+            }
+        AST::Bin(Op::Or, a, box AST::Int(m)) =>
+            if m == Zero::zero() {
+                *a
+            } else if m == One::one() {
+                AST::Int(One::one())
+            } else {
+                AST::Bin(Op::Or, a, Box::new(AST::Int(m)))
+            }
+
         AST::Bin(Op::Div, box AST::Int(n), box AST::Int(m)) => AST::Int(n / m),
+
         AST::Bin(Op::Mod, box AST::Int(n), box AST::Int(m)) => AST::Int(n % m),
+        AST::Bin(Op::Mod, box AST::Bin(Op::Mod, a, b), c) =>
+            if b == c {
+                AST::Bin(Op::Mod, a, b)
+            } else {
+                AST::Bin(Op::Mod, Box::new(AST::Bin(Op::Mod, a, b)), c)
+            }
+
         AST::Bin(Op::Exp, box AST::Int(n), box AST::Int(m)) => match m.to_biguint() {
                 Some(b) => AST::Int(Pow::pow(n, b)),
                 None => AST::Bin(Op::Exp, Box::new(AST::Int(n)), Box::new(AST::Int(m)))
@@ -2078,6 +2168,14 @@ pub fn simplify(expr : AST) -> AST {
                 *p
             } else {
                 AST::Bin(Op::Prove, Box::new(AST::FinSet(assms)), p)
+            }
+
+        AST::Bin(Op::Equals, box AST::Int(n), box AST::Int(m)) => AST::Int(if n == m { One::one() } else { Zero::zero() }),
+        AST::Bin(Op::Equals, a, b) =>
+            if a == b {
+                AST::Int(One::one())
+            } else {
+                AST::Bin(Op::Equals, a, b)
             }
 
         AST::App(f, xs) => {
@@ -2092,6 +2190,7 @@ pub fn simplify(expr : AST) -> AST {
                 AST::App(f, xs)
             }
         }
+
         other => other
     }
 }
@@ -2154,6 +2253,107 @@ pub fn now_millis() -> u128 {
         .as_millis();
 }
 
+struct Nat {
+    n : BigInt
+}
+impl Iterator for Nat {
+    type Item = BigInt;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let v = self.n.clone();
+        self.n += 1;
+        return Some(v);
+    }
+}
+
+fn nat() -> Nat {
+    return Nat { n : Zero::zero() };
+}
+
+struct Assignments {
+    vars : Vec<String>,
+    items : VecDeque<HashMap<String, AST>>,
+    found_vals : HashMap<String, Vec<AST>>,
+    var_its : HashMap<String, Box<dyn Iterator<Item=AST>>>,
+    cur_idx : usize,
+    done: bool
+}
+
+impl Assignments {
+    fn new(vars : Vec<String>) -> Assignments {
+        let mut found_vals = HashMap::new();
+        let mut var_its : HashMap<String, Box<dyn Iterator<Item=AST>>> = HashMap::new();
+        // TODO: Eventually not all variables will be natural numbers...
+        for x in &vars {
+            found_vals.insert(x.clone(), vec!());
+            var_its.insert(x.clone(), Box::new(nat().map(|n| AST::Int(n))));
+        }
+        return Assignments {
+            vars: vars,
+            items: VecDeque::new(),
+            found_vals: found_vals,
+            var_its: var_its,
+            cur_idx: 0,
+            done: false
+        };
+    }
+
+    fn gen_product(&self, xi : usize, e : &AST, i : usize) -> Box<dyn Iterator<Item=HashMap<String, AST>>> {
+        if i == xi {
+            let mut a = HashMap::new();
+            a.insert(self.vars[xi].clone(), e.clone());
+            return Box::new(std::iter::once(a));
+        }
+
+        let x = self.vars[i].clone();
+        let vals = self.found_vals[&self.vars[i]].clone();
+        return Box::new(self.gen_product(xi, e, (i + 1) % self.vars.len()).flat_map(move |a| {
+            let x2 = x.clone();
+            return vals.clone().into_iter().map(move |vi| {
+                let mut b = a.clone();
+                b.insert(x2.clone(), vi);
+                return b;
+            })
+        }));
+    }
+}
+
+impl Iterator for Assignments {
+    type Item = HashMap<String, AST>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.done {
+            return None;
+        }
+
+        // See if there's any items left in the queue to pop
+        match self.items.pop_front() {
+            None => (),
+            Some(a) => return Some(a)
+        }
+
+        let orig_idx = self.cur_idx;
+        loop {
+            let x = self.vars[self.cur_idx].clone();
+            match (*self.var_its.entry(x.clone()).or_insert_with(|| Box::new(std::iter::empty()))).next() {
+                None => (), // continue and increment to the next to get a new item
+                Some(e) => {
+                    // Generate new items for the queue
+                    self.items.extend(self.gen_product(self.cur_idx, &e, (self.cur_idx + 1) % self.vars.len()));
+                    (*self.found_vals.entry(x).or_insert(vec!())).push(e.clone());
+                    self.cur_idx = (self.cur_idx + 1) % self.var_its.len();
+                    return self.next();
+                }
+            }
+            self.cur_idx = (self.cur_idx + 1) % self.var_its.len();
+            if self.cur_idx == orig_idx {
+                self.done = true;
+                return None;
+            }
+        }
+    }
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     let contents = fs::read_to_string(&args[1])
@@ -2197,22 +2397,41 @@ fn main() {
                     AST::Assumption(t) => assumptions.push(*t),
 
                     AST::Prove(t) => {
-                        let to_prove = AST::Bin(Op::Prove, Box::new(AST::FinSet(assumptions.clone())), t);
+                        let to_prove = subs(AST::Bin(Op::Prove, Box::new(AST::FinSet(assumptions.clone())), t), &defs);
                         let mut proof_tree = HashMap::new();
                         let mut todo = VecDeque::new();
                         proof_tree.insert(to_prove.clone(), None);
-                        todo.push_back(subs(to_prove, &defs));
+                        todo.push_back(subs(to_prove.clone(), &defs));
+
+                        let mut assignment_it = Assignments::new(vars(&to_prove).into_iter().collect());
 
                         let expr_start = now_millis();
                         loop {
+                            match assignment_it.next() {
+                                Some(a) => {
+                                    match eval(subs(to_prove.clone(), &a)) {
+                                        Ok(AST::Int(n)) => {
+                                            if n == Zero::zero() {
+                                                println!("\nTheorem is false! Counterexample: {:?}", a);
+                                                break;
+                                            }
+                                        }
+
+                                        _ => ()
+                                    }
+                                }
+                                None => ()
+                            }
+
                             match todo.pop_front() {
                                 None => {
-                                    println!("Failure!");
+                                    println!("\nFailure!");
                                     break;
                                 }
 
                                 Some(new_t) => {
                                     if new_t == AST::Int(One::one()) {
+                                        println!("\nFound proof:");
                                         let mut cur_term = Some(new_t);
                                         while cur_term != None {
                                             println!("{}", cur_term.as_ref().unwrap());
@@ -2222,7 +2441,8 @@ fn main() {
                                         break;
                                     }
 
-                                    println!("{} tried, {} left: {}", proof_tree.len(), todo.len(), new_t);
+                                    // println!("{} tried, {} left: {}", proof_tree.len() - todo.len(), todo.len(), new_t);
+                                    print!("\r{} tried, {} left", proof_tree.len() - todo.len(), todo.len());
 
                                     for new_expr in single_rewrite(&proof_rules, &new_t).map(full_simplify) {
                                         if !proof_tree.contains_key(&new_expr) {
