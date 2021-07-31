@@ -1675,94 +1675,113 @@ impl Unification {
                         return UnificationStatus::Running;
                     }
 
-                    (AST::App(f, xs), AST::Var(y)) => {
-                        if *f == AST::Var("$var".to_string()) {
-                            self.eqs.push((xs[0].clone(), AST::Var(y)));
-                            return UnificationStatus::Running;
-                        } else if *f == AST::Var("$coeff".to_string()) {
-                            self.eqs.push((xs[0].clone(), AST::Int(One::one())));
-                            self.eqs.push((xs[1].clone(), AST::Var(y)));
-                            return UnificationStatus::Running;
-                        } else {
+                    (AST::App(f, xs), rhs) => match *f {
+                        AST::Var(fname) if fname == "$var" => match rhs {
+                            AST::Var(y) => {
+                                self.eqs.push((xs[0].clone(), AST::Var(y)));
+                                return UnificationStatus::Running;
+                            }
+                            _ => return UnificationStatus::Failed
+                        }
+
+                        AST::Var(fname) if fname == "$free_var" => {
+                            for y in vars(&rhs) {
+                                let mut new_unif = self.clone();
+                                new_unif.eqs.push((xs[0].clone(), AST::Var(y)));
+                                new_unif.eqs.push((xs[1].clone(), rhs.clone()));
+                                unifs.push(new_unif);
+                            }
                             return UnificationStatus::Failed;
                         }
-                    }
 
-                    (AST::App(f, xs), AST::Int(n)) => {
-                        if *f == AST::Var("$int".to_string()) {
-                            self.eqs.push((xs[0].clone(), AST::Int(n)));
-                            return UnificationStatus::Running;
-                        } else if *f == AST::Var("$s".to_string()) {
-                            if n <= Zero::zero() {
-                                return UnificationStatus::Failed;
-                            } else {
+                        AST::Var(fname) if fname == "$coeff" => match rhs {
+                            AST::Var(y) => {
+                                self.eqs.push((xs[0].clone(), AST::Int(One::one())));
+                                self.eqs.push((xs[1].clone(), AST::Var(y)));
+                                return UnificationStatus::Running;
+                            }
+                            AST::Bin(Op::Mul, a, b) => {
+                                self.eqs.push((xs[0].clone(), *a));
+                                self.eqs.push((xs[1].clone(), *b));
+                                return UnificationStatus::Running;
+                            }
+                            _ => return UnificationStatus::Failed
+                        }
+
+                        AST::Var(fname) if fname == "$int" => match rhs {
+                            AST::Int(n) => {
+                                self.eqs.push((xs[0].clone(), AST::Int(n)));
+                                return UnificationStatus::Running;
+                            }
+                            _ => return UnificationStatus::Failed
+                        }
+
+                        AST::Var(fname) if fname == "$s" => match rhs {
+                            AST::Int(n) if n > Zero::zero() => {
                                 self.eqs.push((xs[0].clone(), AST::Int(n - 1)));
                                 return UnificationStatus::Running;
                             }
-                        } else if *f == AST::Var("$prime_factor".to_string()) {
-                            for p in factor(n.clone()) {
-                                if p == n {
-                                    break;
+                            _ => return UnificationStatus::Failed
+                        }
+
+                        AST::Var(fname) if fname == "$prime_factor" => match rhs {
+                            AST::Int(n) => {
+                                for p in factor(n.clone()) {
+                                    if p == n {
+                                        break;
+                                    }
+                                    let mut new_unif = self.clone();
+                                    new_unif.eqs.push((xs[0].clone(), AST::Int(p.clone())));
+                                    new_unif.eqs.push((xs[1].clone(), AST::Int(n.clone() / p)));
+                                    unifs.push(new_unif);
                                 }
-                                let mut new_unif = self.clone();
-                                new_unif.eqs.push((xs[0].clone(), AST::Int(p.clone())));
-                                new_unif.eqs.push((xs[1].clone(), AST::Int(n.clone() / p)));
-                                unifs.push(new_unif);
-                            }
-                            // We say failed because we actually transferred all the other
-                            // possibilities to the other unifications we created above.
-                            return UnificationStatus::Failed;
-                        } else if *f == AST::Var("$power".to_string()) {
-                            if n == One::one() {
-                                self.eqs.push((xs[1].clone(), AST::Int(Zero::zero())));
-                                return UnificationStatus::Running;
-                            } else {
+                                // We say failed because we transferred all the other possibilities to the other unifications we created above.
                                 return UnificationStatus::Failed;
                             }
-                        } else {
-                            return UnificationStatus::Failed;
+                            _ => return UnificationStatus::Failed
                         }
-                    }
 
-                    (AST::App(f, xs), AST::Bin(Op::Mul, a, b)) => {
-                        if *f == AST::Var("$coeff".to_string()) {
-                            self.eqs.push((xs[0].clone(), *a));
-                            self.eqs.push((xs[1].clone(), *b));
-                            return UnificationStatus::Running;
-                        } else {
-                            return UnificationStatus::Failed;
-                        }
-                    }
-
-                    (AST::App(f, xs), AST::FinSet(elems)) => {
-                        if *f == AST::Var("$elem".to_string()) {
-                            for (i, e) in elems.iter().enumerate() {
-                                let mut new_unif = self.clone();
-                                new_unif.eqs.push((xs[0].clone(), e.clone()));
-
-                                let other_elems = elems.iter().enumerate().filter(|(j,_)| i != *j).map(|(_,t)| t).cloned().collect();
-                                new_unif.eqs.push((xs[1].clone(), AST::FinSet(other_elems)));
-
-                                unifs.push(new_unif);
+                        AST::Var(fname) if fname == "$power" => match rhs {
+                            AST::Int(n) if n == One::one() => {
+                                self.eqs.push((xs[1].clone(), AST::Int(Zero::zero())));
+                                return UnificationStatus::Running;
                             }
-                            // This unification "failed", but we generated new unifications for each of
-                            // the elements of the set.
-                            return UnificationStatus::Failed;
-                        } else if *f == AST::Var("$union".to_string()) {
+                            _ => return UnificationStatus::Failed
+                        }
+
+                        AST::Var(fname) if fname == "$elem" => match rhs {
+                            AST::FinSet(elems) => {
+                                for (i, e) in elems.iter().enumerate() {
+                                    let mut new_unif = self.clone();
+                                    new_unif.eqs.push((xs[0].clone(), e.clone()));
+
+                                    let other_elems = elems.iter().enumerate().filter(|(j,_)| i != *j).map(|(_,t)| t).cloned().collect();
+                                    new_unif.eqs.push((xs[1].clone(), AST::FinSet(other_elems)));
+
+                                    unifs.push(new_unif);
+                                }
+                                // This unification "failed", but we generated new unifications for each of
+                                // the elements of the set.
+                                return UnificationStatus::Failed;
+                            }
+                            _ => return UnificationStatus::Failed
+                        }
+
+                        AST::Var(fname) if fname == "$union" => match rhs {
                             // TODO: Should allow matching all possible partitions of the set into
                             // two nonempty subsets.
-                            unreachable!();
+                            AST::FinSet(elems) => unreachable!(),
+                            _ => return UnificationStatus::Failed
                         }
 
-                        return UnificationStatus::Failed;
-                    }
-
-                    (AST::App(f, xs), AST::App(g, ys)) => {
-                        self.eqs.push((*f, *g));
-                        for (x, y) in xs.into_iter().zip(ys) {
-                            self.eqs.push((x, y));
+                        _ => match rhs {
+                            AST::App(g, ys) => {
+                                self.eqs.push((*f, *g));
+                                self.eqs.extend(xs.into_iter().zip(ys));
+                                return UnificationStatus::Running;
+                            }
+                            _ => return UnificationStatus::Failed
                         }
-                        return UnificationStatus::Running;
                     }
 
                     (AST::IfThenElse(c1, t1, e1), AST::IfThenElse(c2, t2, e2)) => {

@@ -9,8 +9,6 @@ Rule 1 ==> a => a .
 Rule a ==> 1 => 1 .
 Rule a ==> 0 => not a .
 
-Rule { $var(x) = a } |- P => { x = a } |- subs(P, a, x).
-
 Rule if 1 then a else b => a.
 Rule if 0 then a else b => b.
 
@@ -68,6 +66,8 @@ Proof Rule { x < n } |- P => { x < n } |- subs(P, x, x % n).
 Proof Rule $elem(n | m, S) |- P => ({ $fresh(k, m = k*n) } ∪ S) |- P .
 Proof Rule { P and Q } |- R => { P, Q } |- R .
 
+Proof Rule $elem($var = a, S) |- P => ({ x = a } ∪ S) |- subs(P, a, x).
+
 // TODO: Remember proofs as a list of steps, check proofs by rewriting, but only looking for those steps.
 // TODO: Remember what sequences of rules are often used in proofs, then try to come up with intermediate theorems based on those.
 //       Could eventually try adding rules based on that.
@@ -75,14 +75,17 @@ Proof Rule { P and Q } |- R => { P, Q } |- R .
 // TODO: Change how the nat iterator works, so it will also randomly try some bigger numbers (but still never repeat anything).
 // TODO: Add proof hints
 
+// TODO: Implement proof by induction.
+
+// False statements we should find counterexamples for
 Prove 5*x = 2*x.
 Prove (n*k + m)^2 % n = m % n.
+Prove {n | (a + b)} |- ((n | a) and (n | b)).
 
+// True statements to prove
 Prove (2 | (2*k)^2) .
 Prove (2*k + 1)^2 % 2 = 1.
-Prove { n | m } |- (n | m^2) .
+Prove { n | m } |- (n | m^2).
 Prove (n*k + m) % n = m % n.
 Prove (n*k + m)^2 % n = m^2 % n.
-
-Prove {n | (a + b)} |- ((n | a) and (n | b)).
 
