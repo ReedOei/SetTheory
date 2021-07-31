@@ -804,10 +804,7 @@ pub fn subs(expr : AST, to_subs : &HashMap<String, AST>) -> AST {
                 match args[0].clone() {
                     AST::Var(x) => {
                         let mut new_subs = to_subs.clone();
-                        unsafe {
-                            fresh_counter += 1;
-                            new_subs.insert(x.clone(), AST::Var(format!("v_{}", fresh_counter)));
-                        }
+                        new_subs.insert(x.clone(), fresh());
                         return subs(args[1].clone(), &new_subs);
                     }
                     _ => (),
@@ -2398,6 +2395,13 @@ impl Iterator for Assignments {
     }
 }
 
+pub fn fresh() -> AST {
+    unsafe {
+        fresh_counter += 1;
+        return AST::Var(format!("v_{}", fresh_counter));
+    }
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     let contents = fs::read_to_string(&args[1])
@@ -2415,6 +2419,21 @@ fn main() {
 
             let mut rules = Vec::new();
             let mut proof_rules = Vec::new();
+
+            pub fn add_rule(rules : &mut Vec<AST>, proof_rules : &mut Vec<AST>, attrs : Vec<String>, lhs : AST, rhs : AST) {
+                let mut to_subs = HashMap::new();
+                for x in vars(&lhs) {
+                    if !x.starts_with('$') && x.chars().next().unwrap().is_alphabetic() {
+                        to_subs.insert(x.clone(), fresh());
+                    }
+                }
+                let fresh_rule = AST::Rule(attrs.clone(), Box::new(subs(lhs, &to_subs)),
+                                                          Box::new(subs(rhs, &to_subs)));
+                if !attrs.contains(&"proof rule".to_string()) {
+                    rules.push(fresh_rule.clone());
+                }
+                proof_rules.push(fresh_rule);
+            }
 
             let mut assumptions = Vec::new();
 
@@ -2441,7 +2460,7 @@ fn main() {
                     AST::Assumption(t) => assumptions.push(*t),
 
                     AST::Prove(t) => {
-                        let to_prove = subs(AST::Bin(Op::Prove, Box::new(AST::FinSet(assumptions.clone())), t), &defs);
+                        let to_prove = full_simplify(subs(AST::Bin(Op::Prove, Box::new(AST::FinSet(assumptions.clone())), t), &defs));
                         let mut proof_tree = HashMap::new();
                         let mut todo = VecDeque::new();
                         proof_tree.insert(to_prove.clone(), None);
@@ -2476,7 +2495,40 @@ fn main() {
 
                                 Some(new_t) => {
                                     if new_t == AST::Int(One::one()) {
-                                        println!("\nFound proof:");
+                                        print!("\n");
+
+                                        // If we're proving some equality, add it as a rule.
+                                        match to_prove.clone() {
+                                            AST::Bin(Op::Equals, lhs, rhs) => {
+                                                println!("Adding proof rule: {} => {}", lhs, rhs);
+                                                add_rule(&mut rules, &mut proof_rules, vec!("proof rule".to_string()), *lhs, *rhs);
+                                            }
+
+                                            AST::Bin(Op::Prove, box AST::FinSet(assms), box AST::Bin(Op::Equals, lhs, rhs)) => {
+                                                let new_lhs;
+                                                let new_rhs;
+                                                if assms.len() == 0 {
+                                                    new_lhs = *lhs;
+                                                    new_rhs = *rhs;
+                                                } else {
+                                                    let rest = fresh();
+                                                    let mut context = AST::App(Box::new(AST::Var("$elem".to_string())), vec!(assms[0].clone(), rest.clone()));
+                                                    for assm in &assms[1..assms.len()] {
+                                                        context = AST::App(Box::new(AST::Var("$elem".to_string())), vec!(assm.clone(), context));
+                                                    }
+                                                    new_lhs = AST::Bin(Op::Prove, Box::new(context), lhs);
+
+                                                    let unbuild_context = AST::App(Box::new(AST::Var("∪".to_string())), vec!(AST::FinSet(assms.clone()), rest));
+                                                    new_rhs = AST::Bin(Op::Prove, Box::new(unbuild_context), rhs);
+                                                }
+
+                                                println!("Adding proof rule: {} => {}", new_lhs, new_rhs);
+                                                add_rule(&mut rules, &mut proof_rules, vec!("proof rule".to_string()), new_lhs, new_rhs);
+                                            }
+                                            _ => ()
+                                        }
+
+                                        println!("Found proof:");
                                         let mut cur_term = Some(new_t);
                                         while cur_term != None {
                                             println!("{}", cur_term.as_ref().unwrap());
@@ -2501,23 +2553,7 @@ fn main() {
                         println!("Elapsed: {}ms", expr_end - expr_start);
                     }
 
-                    AST::Rule(attrs, lhs, rhs) => {
-                        let mut to_subs = HashMap::new();
-                        for x in vars(&lhs) {
-                            if !x.starts_with('$') && x.chars().next().unwrap().is_alphabetic() {
-                                unsafe {
-                                    fresh_counter += 1;
-                                    to_subs.insert(x.clone(), AST::Var(format!("v_{}", fresh_counter)));
-                                }
-                            }
-                        }
-                        let fresh_rule = AST::Rule(attrs.clone(), Box::new(subs(*lhs, &to_subs)),
-                                                                  Box::new(subs(*rhs, &to_subs)));
-                        if !attrs.contains(&"proof rule".to_string()) {
-                            rules.push(fresh_rule.clone());
-                        }
-                        proof_rules.push(fresh_rule);
-                    }
+                    AST::Rule(attrs, lhs, rhs) => add_rule(&mut rules, &mut proof_rules, attrs, *lhs, *rhs),
 
                     _ => {
                         let expr_start = now_millis();

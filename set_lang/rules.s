@@ -73,6 +73,7 @@ Proof Rule { P and Q } |- R => { P, Q } |- R .
 //       Could eventually try adding rules based on that.
 // TODO: If we use a rule a bunch of times in a row, that's probably not going to be a successful proof, lower priority.
 // TODO: Change how the nat iterator works, so it will also randomly try some bigger numbers (but still never repeat anything).
+// TODO: Add proof hints
 
 Prove 5*x = 2*x.
 Prove (n*k + m)^2 % n = m % n.
@@ -81,7 +82,6 @@ Prove (2 | (2*k)^2) .
 Prove (2*k + 1)^2 % 2 = 1.
 Prove { n | m } |- (n | m^2) .
 Prove (n*k + m) % n = m % n.
-Proof Rule (n*k + m) % n => m % n.
 Prove (n*k + m)^2 % n = m^2 % n.
 
 Prove {n | (a + b)} |- ((n | a) and (n | b)).
