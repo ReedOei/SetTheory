@@ -58,7 +58,6 @@ Proof Rule b + a = c + a => b = c.
 Proof Rule a*b = a*c => b = c.
 Proof Rule b*a = c*a => b = c.
 
-// Proof Rule (n*x) % n => 0 .
 Proof Rule (a+b) % n => ((a % n) + (b % n)) % n.
 Proof Rule (a*b) % n => ((a % n) * (b % n)) % n.
 
@@ -90,4 +89,5 @@ Prove (2*k + 1)^2 % 2 = 1.
 Prove { n | m } |- (n | m^2).
 Prove (n*k + m) % n = m % n.
 // Prove (n*k + m)^2 % n = m^2 % n.
+// Prove (n*x) % n = 0 .
 
