@@ -17,8 +17,8 @@ use pest::iterators::Pair;
 use pest::prec_climber::{Assoc, Operator, PrecClimber};
 
 use std::cell::RefCell;
-use std::collections::{HashSet, HashMap, VecDeque};
-use std::cmp::{max, Ordering};
+use std::collections::{BinaryHeap, HashSet, HashMap, VecDeque};
+use std::cmp::{max, Ordering, Reverse};
 use std::env;
 use std::fs;
 use std::fmt;
@@ -807,7 +807,7 @@ pub fn subs(expr : AST, to_subs : &HashMap<String, AST>) -> AST {
 
         AST::App(f, args) => {
             if *f == AST::Var("$fresh".to_string()) {
-                return subs_expr(args[1].clone(), &fresh(), &args[0]);
+                return subs(subs_expr(args[1].clone(), &fresh(), &args[0]), to_subs);
             }
 
             return AST::App(Box::new(subs(*f, to_subs)),
@@ -2139,6 +2139,46 @@ impl AST {
     fn positions(&self) -> Positions {
         return Positions { pos_queue: vec!((self.clone(), vec!())) };
     }
+
+    fn size(&self) -> usize {
+        match self {
+            AST::Skip() => 1,
+            AST::Int(_) => 1,
+            AST::Var(_) => 1,
+            AST::Seq(_, _) => 1,
+
+            AST::Assumption(t) => 1 + t.size(),
+            AST::Prove(t) => 1 + t.size(),
+
+            AST::FinSet(elems) => elems.iter().map(|e| e.size()).sum::<usize>() + 1,
+            AST::List(elems) => elems.iter().map(|e| e.size()).sum::<usize>() + 1,
+
+            AST::Memo(_, _, body, _) => 1 + body.size(),
+            AST::Function(_, _, body) => 1 + body.size(),
+
+            AST::App(func, xs) => func.size() + xs.iter().map(|x| x.size()).sum::<usize>() + 1,
+
+            AST::RangeSet(start, end, step) => 1 + start.size() + end.size() + step.size(),
+
+            AST::IfThenElse(cond, then_expr, else_expr) => 1 + cond.size() + then_expr.size() + else_expr.size(),
+
+            AST::CompSet(var_doms, clauses) =>
+                var_doms.iter().map(|(_, dom)| 1 + dom.size()).sum::<usize>() +
+                clauses.iter().map(|c| c.size()).sum::<usize>() + 1,
+
+            AST::Bin(_, a, b) => 1 + a.size() + b.size(),
+
+            AST::Image(a, b) => 1 + a.size() + b.size(),
+            AST::Complement(a) => 1 + a.size(),
+            AST::Sum(a) => 1 + a.size(),
+            AST::Negate(a) => 1 + a.size(),
+            AST::Factorial(a) => 1 + a.size(),
+
+            AST::Definition(_, body) => 1 + body.size(),
+
+            AST::Rule(_, lhs, rhs) => 1 + lhs.size() + rhs.size()
+        }
+    }
 }
 
 struct RewriteRule {
@@ -2192,17 +2232,23 @@ pub fn simplify(expr : &AST) -> Option<AST> {
         AST::Bin(Op::Or, a, box AST::Int(m)) if m == &Zero::zero() => Some(*a.clone()),
         AST::Bin(Op::Or, _, box AST::Int(m)) if m == &One::one() => Some(AST::Int(One::one())),
 
-        AST::Bin(Op::Div, box AST::Int(n), box AST::Int(m)) => Some(AST::Int(n / m)),
+        AST::Bin(Op::Div, box AST::Int(n), box AST::Int(m)) if m != &Zero::zero() => Some(AST::Int(n / m)),
 
-        AST::Bin(Op::Mod, box AST::Int(n), box AST::Int(m)) => Some(AST::Int(n % m)),
+        AST::Bin(Op::Mod, box AST::Int(n), box AST::Int(m)) if m != &Zero::zero() => Some(AST::Int(n % m)),
         AST::Bin(Op::Mod, box AST::Bin(Op::Mod, a, b), c) if b == c => Some(AST::Bin(Op::Mod, a.clone(), b.clone())),
 
         AST::Bin(Op::Exp, box AST::Int(n), box AST::Int(m)) if m >= &Zero::zero() => Some(AST::Int(Pow::pow(n.clone(), m.clone().to_biguint().unwrap()))),
 
-        AST::Bin(Op::Prove, box AST::FinSet(assms), p) if assms.is_empty() => Some(*p.clone()),
+        // AST::Bin(Op::Prove, box AST::FinSet(assms), p) if assms.is_empty() => Some(*p.clone()),
 
         AST::Bin(Op::Equals, box AST::Int(n), box AST::Int(m)) => Some(AST::Int(if n == m { One::one() } else { Zero::zero() })),
         AST::Bin(Op::Equals, a, b) if a == b => Some(AST::Int(One::one())),
+
+        AST::Bin(Op::Lt, box AST::Int(n), box AST::Int(m)) => Some(AST::Int(if n < m { One::one() } else { Zero::zero() })),
+        AST::Bin(Op::Le, box AST::Int(n), box AST::Int(m)) => Some(AST::Int(if n <= m { One::one() } else { Zero::zero() })),
+        AST::Bin(Op::Gt, box AST::Int(n), box AST::Int(m)) => Some(AST::Int(if n > m { One::one() } else { Zero::zero() })),
+        AST::Bin(Op::Ge, box AST::Int(n), box AST::Int(m)) => Some(AST::Int(if n >= m { One::one() } else { Zero::zero() })),
+        AST::Bin(Op::NotEquals, box AST::Int(n), box AST::Int(m)) => Some(AST::Int(if n != m { One::one() } else { Zero::zero() })),
 
         AST::App(f, xs) => {
             if **f == AST::Var("subs".to_string()) {
@@ -2404,7 +2450,7 @@ impl Iterator for Assignments {
 pub fn fresh() -> AST {
     unsafe {
         FRESH_COUNTER += 1;
-        return AST::Var(format!("v_{}", FRESH_COUNTER));
+        return AST::Var(format!("v{}", FRESH_COUNTER));
     }
 }
 
@@ -2467,9 +2513,10 @@ fn main() {
                     AST::Prove(t) => {
                         let to_prove = full_simplify(subs(AST::Bin(Op::Prove, Box::new(AST::FinSet(assumptions.clone())), t), &defs));
                         let mut proof_tree = HashMap::new();
-                        let mut todo = VecDeque::new();
+                        let mut todo = BinaryHeap::new();
+                        let mut age = 0;
                         proof_tree.insert(to_prove.clone(), None);
-                        todo.push_back(subs(to_prove.clone(), &defs));
+                        todo.push((Reverse(0), subs(to_prove.clone(), &defs)));
 
                         let mut assignment_it = Assignments::new(vars(&to_prove).iter().map(|x| x.to_string()).collect());
 
@@ -2485,65 +2532,69 @@ fn main() {
                                 }
                             }
 
-                            match todo.pop_front() {
+                            match todo.pop() {
                                 None => {
                                     println!("\nFailure!");
                                     break;
                                 }
 
-                                Some(new_t) => {
-                                    if new_t == AST::Int(One::one()) {
-                                        println!();
+                                Some((_, AST::Bin(Op::Prove, assms, box AST::Int(n)))) if n == One::one() => {
+                                    let new_t = AST::Bin(Op::Prove, assms, Box::new(AST::Int(n)));
 
-                                        // If we're proving some equality, add it as a rule.
-                                        match to_prove {
-                                            AST::Bin(Op::Equals, lhs, rhs) => {
-                                                println!("Adding proof rule: {} => {}", lhs, rhs);
-                                                add_rule(&mut rules, &mut proof_rules, vec!("proof rule".to_string()), *lhs, *rhs);
-                                            }
+                                    println!();
 
-                                            AST::Bin(Op::Prove, box AST::FinSet(assms), box AST::Bin(Op::Equals, lhs, rhs)) => {
-                                                let new_lhs;
-                                                let new_rhs;
-                                                if assms.is_empty() {
-                                                    new_lhs = *lhs;
-                                                    new_rhs = *rhs;
-                                                } else {
-                                                    let rest = fresh();
-                                                    let mut context = AST::App(Box::new(AST::Var("$elem".to_string())), vec!(assms[0].clone(), rest.clone()));
-                                                    for assm in &assms[1..assms.len()] {
-                                                        context = AST::App(Box::new(AST::Var("$elem".to_string())), vec!(assm.clone(), context));
-                                                    }
-                                                    new_lhs = AST::Bin(Op::Prove, Box::new(context), lhs);
+                                    // If we're proving some equality, add it as a rule.
+                                    match to_prove {
+                                        AST::Bin(Op::Equals, lhs, rhs) => {
+                                            println!("Adding proof rule: {} => {}", lhs, rhs);
+                                            add_rule(&mut rules, &mut proof_rules, vec!("proof rule".to_string()), *lhs, *rhs);
+                                        }
 
-                                                    let unbuild_context = AST::App(Box::new(AST::Var("∪".to_string())), vec!(AST::FinSet(assms), rest));
-                                                    new_rhs = AST::Bin(Op::Prove, Box::new(unbuild_context), rhs);
+                                        AST::Bin(Op::Prove, box AST::FinSet(assms), box AST::Bin(Op::Equals, lhs, rhs)) => {
+                                            let new_lhs;
+                                            let new_rhs;
+                                            if assms.is_empty() {
+                                                new_lhs = *lhs;
+                                                new_rhs = *rhs;
+                                            } else {
+                                                let rest = fresh();
+                                                let mut context = AST::App(Box::new(AST::Var("$elem".to_string())), vec!(assms[0].clone(), rest.clone()));
+                                                for assm in &assms[1..assms.len()] {
+                                                    context = AST::App(Box::new(AST::Var("$elem".to_string())), vec!(assm.clone(), context));
                                                 }
+                                                new_lhs = AST::Bin(Op::Prove, Box::new(context), lhs);
 
-                                                println!("Adding proof rule: {} => {}", new_lhs, new_rhs);
-                                                add_rule(&mut rules, &mut proof_rules, vec!("proof rule".to_string()), new_lhs, new_rhs);
+                                                let unbuild_context = AST::App(Box::new(AST::Var("∪".to_string())), vec!(AST::FinSet(assms), rest));
+                                                new_rhs = AST::Bin(Op::Prove, Box::new(unbuild_context), rhs);
                                             }
-                                            _ => ()
-                                        }
 
-                                        println!("Found proof:");
-                                        let mut cur_term = Some(new_t);
-                                        while cur_term != None {
-                                            println!("{}", cur_term.as_ref().unwrap());
-                                            cur_term = proof_tree[&cur_term.unwrap()].clone();
+                                            println!("Adding proof rule: {} => {}", new_lhs, new_rhs);
+                                            add_rule(&mut rules, &mut proof_rules, vec!("proof rule".to_string()), new_lhs, new_rhs);
                                         }
-                                        break;
+                                        _ => ()
                                     }
 
-                                    // println!("\n{} tried, {} left: {}", proof_tree.len() - todo.len(), todo.len(), new_t);
-                                    print!("\r{} tried, {} left", proof_tree.len() - todo.len(), todo.len());
+                                    println!("Found proof:");
+                                    let mut cur_term = Some(new_t);
+                                    while cur_term != None {
+                                        println!("{}", cur_term.as_ref().unwrap());
+                                        cur_term = proof_tree[&cur_term.unwrap()].clone();
+                                    }
+                                    break;
+                                }
+
+                                Some((priority, new_t)) => {
+                                    // println!("\n{} tried, {} left, priority {}: {}", proof_tree.len() - todo.len(), todo.len(), priority.0, new_t);
+                                    print!("\r{} tried, {} left, priority {}", proof_tree.len() - todo.len(), todo.len(), priority.0);
 
                                     for rule in &proof_rules {
                                         for t in rule.rewrite(&new_t) {
+                                            // let temp = t.clone();
                                             let new_expr = full_simplify(t);
+                                            // println!("{} => {} =>* {}", new_t, temp, new_expr);
                                             if !proof_tree.contains_key(&new_expr) {
                                                 proof_tree.insert(new_expr.clone(), Some(new_t.clone()));
-                                                todo.push_back(new_expr);
+                                                todo.push((Reverse(age + new_expr.size()), new_expr));
                                             }
                                         }
                                     }

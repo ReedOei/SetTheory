@@ -16,7 +16,11 @@ Rule $coeff($int(a), $var(x)) + $coeff($int(b), $var(x)) => (a + b)*x.
 
 Rule a ==> a => 1.
 
+Proof Rule 0^a => 0.
+Proof Rule a^(n + 1) => a*a^n.
+
 Proof Rule a + b => b + a.
+
 Proof Rule (a and b) ==> c => a ==> c.
 Proof Rule (a and b) ==> c => b ==> c.
 Proof Rule a ==> (b and c) => (a ==> b) and (b ==> c) .
@@ -42,18 +46,33 @@ Proof Rule a*b => b*a.
 Proof Rule 0 % n => 0.
 Proof Rule n % n => 0.
 
-Proof Rule S |- 1 => 1 .
+Proof Rule (S |- 1) => 1 .
+Proof Rule (S1 |- (S2 |- P)) => (S1 ∪ S2) |- P.
+
+// Assumption rule
+Proof Rule $elem(P, S) |- P => 1.
+// Contraction rule
+Proof Rule $elem(P, S) |- R => S |- R.
 
 Proof Rule (S |- (P and Q)) => (S |- P) and (S |- Q).
 Proof Rule (S |- (P or Q)) => S |- P.
 Proof Rule (S |- (P or Q)) => S |- Q.
+Proof Rule $elem(P or Q, S) |- R => (({P} ∪ S) |- R) and (({Q} ∪ S) |- R).
 
-/* Proof Rule x % n < n => 1 . */
+Proof Rule x % n < n => 1 .
 
-Proof Rule a^2 => a*a.
+Proof Rule a^$s($s(n)) => a*a^(n+1).
+Proof Rule a^(n+1) => a*a^n.
 
 Proof Rule a + b = a + c => b = c.
-Proof Rule b + a = c + a => b = c.
+Proof Rule a + b > a + c => b > c.
+Proof Rule a + b < a + c => b < c.
+Proof Rule a >= b => a > b or a = b.
+Proof Rule a <= b => a < b or a = b.
+
+Proof Rule a > b => b < a.
+Proof Rule $elem(a < c, S) |- (a < b) => ({a < c} ∪ S) |- c < b .
+Proof Rule $elem(c < b, S) |- (a < b) => ({c < b} ∪ S) |- a < c .
 
 Proof Rule a*b = a*c => b = c.
 Proof Rule b*a = c*a => b = c.
@@ -61,11 +80,14 @@ Proof Rule b*a = c*a => b = c.
 Proof Rule (a+b) % n => ((a % n) + (b % n)) % n.
 Proof Rule (a*b) % n => ((a % n) * (b % n)) % n.
 
-Proof Rule { x < n } |- P => { x < n } |- subs(P, x, x % n).
 Proof Rule $elem(n | m, S) |- P => ({ $fresh(k, m = k*n) } ∪ S) |- P .
-Proof Rule { P and Q } |- R => { P, Q } |- R .
 
-Proof Rule $elem($var(x) = a, S) |- P => ({ x = a } ∪ S) |- subs(P, a, x).
+Proof Rule $elem(a = b, S) |- P => ({ a = b } ∪ S) |- subs(P, a, b).
+Proof Rule $elem(a = b, S) |- P => ({ a = b } ∪ S) |- subs(P, b, a).
+
+// Induction on natural numbers
+Proof Rule (S |- $free_var(n, P)) => subs(S |- P, 0, n) and
+                                     ({ P } ∪ S) |- subs(P, n + 1, n) .
 
 // TODO: Remember proofs as a list of steps, check proofs by rewriting, but only looking for those steps.
 // TODO: Remember what sequences of rules are often used in proofs, then try to come up with intermediate theorems based on those.
@@ -74,20 +96,20 @@ Proof Rule $elem($var(x) = a, S) |- P => ({ x = a } ∪ S) |- subs(P, a, x).
 // TODO: Change how the nat iterator works, so it will also randomly try some bigger numbers (but still never repeat anything).
 // TODO: Add proof hints
 
-// TODO: Implement proof by induction.
-
 // TODO: Add quick primality test based on Fermat's little theorem to builtin code.
 
 // False statements we should find counterexamples for
-Prove 5*x = 2*x.
-Prove (n*k + m)^2 % n = m % n.
-Prove {n | (a + b)} |- ((n | a) and (n | b)).
+/* Prove 5*x = 2*x. */
+/* Prove (n*k + m)^2 % n = m % n. */
+/* Prove {n | (a + b)} |- ((n | a) and (n | b)). */
+/* Prove { x > 0, y > 0, z > 0} |- (x^2 + y^2 ≠ z^2) . */
 
 // True statements to prove
+Prove n + 1 > n .
 Prove (2 | (2*k)^2) .
 Prove (2*k + 1)^2 % 2 = 1.
-Prove { n | m } |- (n | m^2).
 Prove (n*x) % n = 0 .
 Prove (n*k + m) % n = m % n.
-Prove (n*k + m)^2 % n = m^2 % n.
+Prove { a <= b } |- (b >= a).
+Prove (n*k + m)^l % n = m^l % n.
 
