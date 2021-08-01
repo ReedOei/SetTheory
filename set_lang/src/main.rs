@@ -2388,12 +2388,15 @@ impl <'a> Iterator for TerminatingRewriter<'a> {
                 Some(expr) => {
                     let mut changed = false;
 
-                    for new_expr in self.rules.iter().flat_map(|rule| rule.rewrite(&expr)) {
-                        if new_expr != expr {
-                            self.exprs.push(full_simplify(new_expr));
-                            changed = true;
+                    for rule in self.rules {
+                        for new_expr in rule.rewrite(&expr) {
+                            if new_expr != expr {
+                                self.exprs.push(full_simplify(new_expr));
+                                changed = true;
+                            }
                         }
                     }
+
                     if !changed {
                         return Some(expr);
                     }
@@ -2491,13 +2494,13 @@ impl Iterator for Assignments {
 
         let orig_idx = self.cur_idx;
         loop {
-            let x = self.vars[self.cur_idx].clone();
-            match (*self.var_its.entry(x.clone()).or_insert_with(|| Box::new(std::iter::empty()))).next() {
+            let x = &self.vars[self.cur_idx];
+            match self.var_its.get_mut(x).unwrap().next() {
                 None => (), // continue and increment to the next to get a new item
                 Some(e) => {
                     // Generate new items for the queue
                     self.items.extend(self.gen_product(self.cur_idx, &e, (self.cur_idx + 1) % self.vars.len()));
-                    (*self.found_vals.entry(x).or_insert_with(Vec::new)).push(e.clone());
+                    self.found_vals.get_mut(x).unwrap().push(e);
                     self.cur_idx = (self.cur_idx + 1) % self.var_its.len();
                     return self.next();
                 }
@@ -2648,10 +2651,13 @@ fn main() {
                                     // println!("\n{} tried, {} left: {}", proof_tree.len() - todo.len(), todo.len(), new_t);
                                     print!("\r{} tried, {} left", proof_tree.len() - todo.len(), todo.len());
 
-                                    for new_expr in proof_rules.iter().flat_map(|rule| rule.rewrite(&new_t)).map(full_simplify) {
-                                        if !proof_tree.contains_key(&new_expr) {
-                                            proof_tree.insert(new_expr.clone(), Some(new_t.clone()));
-                                            todo.push_back(new_expr);
+                                    for rule in &proof_rules {
+                                        for t in rule.rewrite(&new_t) {
+                                            let new_expr = full_simplify(t);
+                                            if !proof_tree.contains_key(&new_expr) {
+                                                proof_tree.insert(new_expr.clone(), Some(new_t.clone()));
+                                                todo.push_back(new_expr);
+                                            }
                                         }
                                     }
                                 }
