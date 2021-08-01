@@ -1953,20 +1953,6 @@ fn drop_idx<T>(xs : &[T], idx : usize) -> Vec<T> where T : Clone {
     return new_xs;
 }
 
-fn replace_idx<T>(xs : &[T], idx : usize, x : T) -> Vec<T> where T : Clone {
-    let mut new_xs = Vec::with_capacity(xs.len());
-    new_xs.extend_from_slice(&xs[0..idx]);
-    new_xs.push(x);
-    new_xs.extend_from_slice(&xs[idx + 1..]);
-    return new_xs;
-}
-
-fn map_idx<T,F>(xs : Vec<T>, idx : usize, f : F) -> Vec<T> where F : FnOnce(T) -> T, T : Default {
-    let mut new_xs = xs;
-    new_xs[idx] = f(std::mem::take(&mut new_xs[idx]));
-    return new_xs;
-}
-
 fn at<'a>(expr : &'a AST, pos : &Vec<usize>, i : usize) -> &'a AST {
     if i >= pos.len() {
         return expr;

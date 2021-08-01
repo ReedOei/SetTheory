@@ -65,7 +65,7 @@ Proof Rule { x < n } |- P => { x < n } |- subs(P, x, x % n).
 Proof Rule $elem(n | m, S) |- P => ({ $fresh(k, m = k*n) } ∪ S) |- P .
 Proof Rule { P and Q } |- R => { P, Q } |- R .
 
-Proof Rule $elem($var = a, S) |- P => ({ x = a } ∪ S) |- subs(P, a, x).
+Proof Rule $elem($var(x) = a, S) |- P => ({ x = a } ∪ S) |- subs(P, a, x).
 
 // TODO: Remember proofs as a list of steps, check proofs by rewriting, but only looking for those steps.
 // TODO: Remember what sequences of rules are often used in proofs, then try to come up with intermediate theorems based on those.
@@ -87,7 +87,7 @@ Prove {n | (a + b)} |- ((n | a) and (n | b)).
 Prove (2 | (2*k)^2) .
 Prove (2*k + 1)^2 % 2 = 1.
 Prove { n | m } |- (n | m^2).
+Prove (n*x) % n = 0 .
 Prove (n*k + m) % n = m % n.
-// Prove (n*k + m)^2 % n = m^2 % n.
-// Prove (n*x) % n = 0 .
+Prove (n*k + m)^2 % n = m^2 % n.
 
