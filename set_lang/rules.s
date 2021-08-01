@@ -77,6 +77,8 @@ Proof Rule $elem($var = a, S) |- P => ({ x = a } ∪ S) |- subs(P, a, x).
 
 // TODO: Implement proof by induction.
 
+// TODO: Add quick primality test based on Fermat's little theorem to builtin code.
+
 // False statements we should find counterexamples for
 Prove 5*x = 2*x.
 Prove (n*k + m)^2 % n = m % n.
@@ -87,5 +89,5 @@ Prove (2 | (2*k)^2) .
 Prove (2*k + 1)^2 % 2 = 1.
 Prove { n | m } |- (n | m^2).
 Prove (n*k + m) % n = m % n.
-Prove (n*k + m)^2 % n = m^2 % n.
+// Prove (n*k + m)^2 % n = m^2 % n.
 

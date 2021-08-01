@@ -39,7 +39,7 @@ pub fn to_usize(n : &BigInt) -> Result<usize, String> {
         Some(m) => Ok(m.iter_u64_digits()
             .map(|d| d as usize)
             .fold(0, |accum, d| accum * (std::u64::MAX as usize) + d)),
-        None => Err(format!("Could not convert {:?} to usize", n.clone()))
+        None => Err(format!("Could not convert {:?} to usize", n))
     }
 }
 
@@ -177,7 +177,7 @@ impl Sequence for PrimeSeq {
         let n = as_int(v).ok()?;
 
         // The list of primes is never empty.
-        if n > self.primes.last().unwrap().clone() {
+        if &n > self.primes.last().unwrap() {
             self.run_sieve(to_usize(&n).ok()? - self.max);
         }
 
@@ -273,6 +273,12 @@ pub enum AST {
     Complement(Box<AST>)
 }
 
+impl Default for AST {
+    fn default() -> AST {
+        AST::Skip()
+    }
+}
+
 impl fmt::Display for AST {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -286,26 +292,26 @@ impl fmt::Display for AST {
             AST::Seq(name, _) => write!(f, "Seq({})", name),
             AST::FinSet(elems) => {
                 let mut s = String::new();
-                s.push_str("{");
-                if elems.len() > 0 {
+                s.push('{');
+                if !elems.is_empty() {
                     for e in &elems[..elems.len() - 1] {
                         s.push_str(format!("{}, ", e).as_str());
                     }
                     s.push_str(format!("{}", elems[elems.len() - 1]).as_str());
                 }
-                s.push_str("}");
+                s.push('}');
                 write!(f, "{}", s)
             }
             AST::List(elems) => {
                 let mut s = String::new();
-                s.push_str("[");
-                if elems.len() > 0 {
+                s.push('[');
+                if !elems.is_empty() {
                     for e in &elems[..elems.len() - 1] {
                         s.push_str(format!("{}, ", e).as_str());
                     }
                     s.push_str(format!("{}", elems[elems.len() - 1]).as_str());
                 }
-                s.push_str("]");
+                s.push(']');
                 write!(f, "{}", s)
             }
             AST::RangeSet(start, end, step) => write!(f, "{{ {}, {}...{} }}", start, step, end),
@@ -338,11 +344,11 @@ impl fmt::Display for AST {
 
             AST::CompSet(var_doms, clauses) => {
                 let mut s = String::new();
-                s.push_str("{");
+                s.push('{');
                 s.push_str(var_doms.iter().map(|(x, dom)| format!("{} ∈ {}", x, dom)).collect::<Vec<String>>().join(", ").as_str());
                 s.push_str(" : ");
                 s.push_str(clauses.iter().map(|clause| format!("{}", clause)).collect::<Vec<String>>().join(", ").as_str());
-                s.push_str("}");
+                s.push('}');
                 write!(f, "{}", s)
             }
 
@@ -801,14 +807,7 @@ pub fn subs(expr : AST, to_subs : &HashMap<String, AST>) -> AST {
 
         AST::App(f, args) => {
             if *f == AST::Var("$fresh".to_string()) {
-                match args[0].clone() {
-                    AST::Var(x) => {
-                        let mut new_subs = to_subs.clone();
-                        new_subs.insert(x.clone(), fresh());
-                        return subs(args[1].clone(), &new_subs);
-                    }
-                    _ => (),
-                }
+                return subs_expr(args[1].clone(), &fresh(), &args[0]);
             }
 
             return AST::App(Box::new(subs(*f, to_subs)),
@@ -1295,12 +1294,11 @@ pub fn eval(expr : AST) -> Result<AST, String> {
             match eval(*func)? {
                 AST::Function(name, formal_args, body) => {
                     let mut to_subs = HashMap::new();
-                    for (formal, actual) in formal_args.iter().zip(args) {
-                        to_subs.insert(formal.clone(), eval(actual)?);
-                    }
-
                     if let Some(ref f_name) = name {
-                        to_subs.insert(f_name.clone(), AST::Function(name.clone(), formal_args, body.clone()));
+                        to_subs.insert(f_name.clone(), AST::Function(name.clone(), formal_args.clone(), body.clone()));
+                    }
+                    for (formal, actual) in formal_args.into_iter().zip(args) {
+                        to_subs.insert(formal, eval(actual)?);
                     }
 
                     return eval(subs(*body, &to_subs));
@@ -1318,12 +1316,13 @@ pub fn eval(expr : AST) -> Result<AST, String> {
                     }
 
                     let mut to_subs = HashMap::new();
-                    for (formal, val) in formal_args.iter().zip(vals.clone()) {
-                        to_subs.insert(formal.clone(), val);
-                    }
 
                     if let Some(ref f_name) = name {
-                        to_subs.insert(f_name.clone(), AST::Memo(name.clone(), formal_args, body.clone(), memo.clone()));
+                        to_subs.insert(f_name.clone(), AST::Memo(name.clone(), formal_args.clone(), body.clone(), memo.clone()));
+                    }
+
+                    for (formal, val) in formal_args.into_iter().zip(vals.clone()) {
+                        to_subs.insert(formal, val);
                     }
 
                     let res = eval(subs(*body, &to_subs));
@@ -1520,15 +1519,19 @@ pub fn eval(expr : AST) -> Result<AST, String> {
     }
 }
 
-pub fn union(a : HashSet<String>, b : HashSet<String>) -> HashSet<String> {
-    return a.into_iter().chain(b.into_iter()).collect();
+pub fn union<'a>(a : HashSet<&'a str>, b : HashSet<&'a str>) -> HashSet<&'a str> {
+    let mut new_a = a;
+    new_a.extend(b);
+    return new_a;
 }
 
-pub fn diff(a : HashSet<String>, b : &HashSet<String>) -> HashSet<String> {
-    return a.into_iter().filter(|v| !b.contains(v)).collect();
+pub fn diff<'a>(a : HashSet<&'a str>, b : &HashSet<&'a str>) -> HashSet<&'a str> {
+    let mut new_a = a;
+    new_a.retain(|v| !b.contains(v));
+    return new_a;
 }
 
-pub fn vars(expr : &AST) -> HashSet<String> {
+pub fn vars<'a>(expr : &'a AST) -> HashSet<&'a str> {
     match expr {
         AST::Skip() => HashSet::new(),
         AST::Int(_) => HashSet::new(),
@@ -1539,7 +1542,7 @@ pub fn vars(expr : &AST) -> HashSet<String> {
         AST::Var(x) => {
             let mut vs = HashSet::new();
             if !x.starts_with('$') && x.chars().next().unwrap().is_alphabetic() {
-                vs.insert(x.clone());
+                vs.insert(x.as_str());
             }
             return vs;
         }
@@ -1548,8 +1551,8 @@ pub fn vars(expr : &AST) -> HashSet<String> {
 
         AST::Seq(_, _) => HashSet::new(),
 
-        AST::FinSet(elems) => elems.iter().map(vars).fold(HashSet::new(), union),
-        AST::List(elems) => elems.iter().map(vars).fold(HashSet::new(), union),
+        AST::FinSet(elems) => elems.iter().flat_map(|e| vars(&e).into_iter()).collect(),
+        AST::List(elems) => elems.iter().flat_map(|e| vars(&e).into_iter()).collect(),
 
         AST::RangeSet(start, end, step) => union(vars(start), union(vars(end), vars(step))),
         AST::Image(f, s) => union(vars(f), vars(s)),
@@ -1557,12 +1560,8 @@ pub fn vars(expr : &AST) -> HashSet<String> {
             let mut bound_vars = HashSet::new();
             let mut res = HashSet::new();
             for (x, dom) in var_doms {
-                for v in vars(dom) {
-                    if !bound_vars.contains(&v) {
-                        res.insert(v);
-                    }
-                }
-                bound_vars.insert(x.clone());
+                res.extend(diff(vars(dom), &bound_vars));
+                bound_vars.insert(x.as_str());
             }
             for clause in clauses {
                 res.extend(diff(vars(clause), &bound_vars));
@@ -1570,17 +1569,17 @@ pub fn vars(expr : &AST) -> HashSet<String> {
             return res;
         }
 
-        AST::App(f, xs) => union(vars(f), xs.iter().map(vars).fold(HashSet::new(), union)),
+        AST::App(f, xs) => union(vars(f), xs.iter().flat_map(|x| vars(&x).into_iter()).collect()),
 
         AST::Bin(_, a, b) => union(vars(a), vars(b)),
 
         AST::Function(_, args, body) => {
-            let arg_vars : HashSet<String> = args.iter().cloned().collect();
+            let arg_vars = args.iter().map(|x| x.as_str()).collect();
             return diff(vars(body), &arg_vars);
         }
 
         AST::Memo(_, args, body, _) => {
-            let arg_vars : HashSet<String> = args.iter().cloned().collect();
+            let arg_vars = args.iter().map(|x| x.as_str()).collect();
             return diff(vars(body), &arg_vars);
         }
 
@@ -1601,23 +1600,14 @@ enum UnificationStatus {
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
-struct Unification {
+struct Unification<'a> {
     eqs : Vec<(AST, AST)>,
-    lhs_vars : HashSet<String>,
+    lhs_vars : &'a HashSet<String>,
     subs : HashMap<String, AST>,
 }
 
-impl Unification {
-    fn new(lhs : AST, rhs : AST) -> Unification {
-        let lhs_vars = vars(&lhs);
-        return Unification {
-            eqs: vec!((lhs, rhs)),
-            lhs_vars: lhs_vars,
-            subs: HashMap::new(),
-        };
-    }
-
-    fn step(&mut self, unifs : &mut Vec<Unification>) -> UnificationStatus {
+impl <'a> Unification<'a> {
+    fn step(&mut self, unifs : &mut Vec<Unification<'a>>) -> UnificationStatus {
         // println!("Equations: {:?}", self.eqs);
         // println!("Substitution: {:?}", self.subs);
         match self.eqs.pop() {
@@ -1645,13 +1635,15 @@ impl Unification {
                                 return UnificationStatus::Failed;
                             }
                         } else {
-                            let mut new_subs = HashMap::new();
-                            new_subs.insert(x, t);
-                            for (a, b) in &mut self.eqs {
-                                *a = subs(a.clone(), &new_subs);
-                                *b = subs(b.clone(), &new_subs);
+                            let vx = AST::Var(x.clone());
+                            for (a,b) in &mut self.eqs {
+                                *a = subs_expr(std::mem::take(a), &t, &vx);
+                                *b = subs_expr(std::mem::take(b), &t, &vx);
                             }
-                            self.subs.extend(new_subs);
+                            for (_, cur_t) in self.subs.iter_mut() {
+                                *cur_t = subs_expr(std::mem::take(cur_t), &t, &vx);
+                            }
+                            self.subs.insert(x, t);
                             return UnificationStatus::Running;
                         }
                     }
@@ -1675,10 +1667,10 @@ impl Unification {
                         return UnificationStatus::Running;
                     }
 
-                    (AST::App(f, xs), rhs) => match *f {
+                    (AST::App(f, mut xs), rhs) => match *f {
                         AST::Var(fname) if fname == "$var" => match rhs {
                             AST::Var(y) => {
-                                self.eqs.push((xs[0].clone(), AST::Var(y)));
+                                self.eqs.push((xs.pop().unwrap(), AST::Var(y)));
                                 return UnificationStatus::Running;
                             }
                             _ => return UnificationStatus::Failed
@@ -1687,7 +1679,7 @@ impl Unification {
                         AST::Var(fname) if fname == "$free_var" => {
                             for y in vars(&rhs) {
                                 let mut new_unif = self.clone();
-                                new_unif.eqs.push((xs[0].clone(), AST::Var(y)));
+                                new_unif.eqs.push((xs[0].clone(), AST::Var(y.to_string())));
                                 new_unif.eqs.push((xs[1].clone(), rhs.clone()));
                                 unifs.push(new_unif);
                             }
@@ -1696,13 +1688,13 @@ impl Unification {
 
                         AST::Var(fname) if fname == "$coeff" => match rhs {
                             AST::Var(y) => {
-                                self.eqs.push((xs[0].clone(), AST::Int(One::one())));
-                                self.eqs.push((xs[1].clone(), AST::Var(y)));
+                                self.eqs.push((xs.pop().unwrap(), AST::Var(y)));
+                                self.eqs.push((xs.pop().unwrap(), AST::Int(One::one())));
                                 return UnificationStatus::Running;
                             }
                             AST::Bin(Op::Mul, a, b) => {
-                                self.eqs.push((xs[0].clone(), *a));
-                                self.eqs.push((xs[1].clone(), *b));
+                                self.eqs.push((xs.pop().unwrap(), *b));
+                                self.eqs.push((xs.pop().unwrap(), *a));
                                 return UnificationStatus::Running;
                             }
                             _ => return UnificationStatus::Failed
@@ -1710,7 +1702,7 @@ impl Unification {
 
                         AST::Var(fname) if fname == "$int" => match rhs {
                             AST::Int(n) => {
-                                self.eqs.push((xs[0].clone(), AST::Int(n)));
+                                self.eqs.push((xs.pop().unwrap(), AST::Int(n)));
                                 return UnificationStatus::Running;
                             }
                             _ => return UnificationStatus::Failed
@@ -1718,7 +1710,7 @@ impl Unification {
 
                         AST::Var(fname) if fname == "$s" => match rhs {
                             AST::Int(n) if n > Zero::zero() => {
-                                self.eqs.push((xs[0].clone(), AST::Int(n - 1)));
+                                self.eqs.push((xs.pop().unwrap(), AST::Int(n - 1)));
                                 return UnificationStatus::Running;
                             }
                             _ => return UnificationStatus::Failed
@@ -1743,7 +1735,7 @@ impl Unification {
 
                         AST::Var(fname) if fname == "$power" => match rhs {
                             AST::Int(n) if n == One::one() => {
-                                self.eqs.push((xs[1].clone(), AST::Int(Zero::zero())));
+                                self.eqs.push((xs.pop().unwrap(), AST::Int(Zero::zero())));
                                 return UnificationStatus::Running;
                             }
                             _ => return UnificationStatus::Failed
@@ -1770,7 +1762,7 @@ impl Unification {
                         AST::Var(fname) if fname == "$union" => match rhs {
                             // TODO: Should allow matching all possible partitions of the set into
                             // two nonempty subsets.
-                            AST::FinSet(elems) => unreachable!(),
+                            AST::FinSet(_) => unreachable!(),
                             _ => return UnificationStatus::Failed
                         }
 
@@ -1841,19 +1833,11 @@ impl Unification {
     }
 }
 
-struct UnificationIterator {
-    unifs : Vec<Unification>
+struct UnificationIterator<'a> {
+    unifs : Vec<Unification<'a>>
 }
 
-impl UnificationIterator {
-    fn new(lhs : AST, rhs : AST) -> UnificationIterator {
-        return UnificationIterator {
-            unifs: vec!(Unification::new(lhs, rhs))
-        };
-    }
-}
-
-impl Iterator for UnificationIterator {
+impl <'a> Iterator for UnificationIterator<'a> {
     type Item = HashMap<String, AST>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -1862,7 +1846,6 @@ impl Iterator for UnificationIterator {
                 None => return None,
                 Some(unification) => {
                     let mut u = unification;
-
                     match u.step(&mut self.unifs) {
                         UnificationStatus::Failed => continue,
                         UnificationStatus::Done => return Some(u.subs),
@@ -1874,21 +1857,42 @@ impl Iterator for UnificationIterator {
     }
 }
 
-struct Positions {
-    pos_queue : VecDeque<(AST, Vec<usize>)>
+struct Unifier {
+    lhs : AST,
+    lhs_vars : HashSet<String>
 }
 
-fn concat_pos(pos : Vec<usize>, i : usize) -> Vec<usize> {
-    let mut new_pos = pos;
-    new_pos.push(i);
-    return new_pos;
+impl Unifier {
+    fn new(lhs : AST) -> Unifier {
+        let lhs_vars = vars(&lhs).iter().map(|x| x.to_string()).collect();
+        return Unifier {
+            lhs: lhs,
+            lhs_vars: lhs_vars
+        };
+    }
+
+    fn unify<'a>(&'a self, rhs : AST) -> UnificationIterator<'a> {
+        return UnificationIterator {
+            unifs: vec!(Unification { eqs : vec!((self.lhs.clone(), rhs)), lhs_vars: &self.lhs_vars, subs: HashMap::new() })
+        };
+    }
+}
+
+struct Positions {
+    pos_queue : Vec<(AST, Vec<usize>)>
+}
+
+fn add_elem<T>(xs : &Vec<T>, x : T) -> Vec<T> where T : Clone {
+    let mut new_xs = xs.clone();
+    new_xs.push(x);
+    return new_xs;
 }
 
 impl Iterator for Positions {
     type Item = Vec<usize>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.pos_queue.pop_front() {
+        match self.pos_queue.pop() {
             None => return None,
             Some((expr, pos)) => {
                 match expr {
@@ -1897,73 +1901,73 @@ impl Iterator for Positions {
                     AST::Var(_) => (),
                     AST::Seq(_, _) => (),
 
-                    AST::Assumption(t) => self.pos_queue.push_back((*t, concat_pos(pos.clone(), 0))),
-                    AST::Prove(t) => self.pos_queue.push_back((*t, concat_pos(pos.clone(), 0))),
+                    AST::Assumption(t) => self.pos_queue.push((*t, add_elem(&pos, 0))),
+                    AST::Prove(t) => self.pos_queue.push((*t, add_elem(&pos, 0))),
 
                     AST::FinSet(elems) => {
                         for (i, e) in elems.into_iter().enumerate() {
-                            self.pos_queue.push_back((e, concat_pos(pos.clone(), i)));
+                            self.pos_queue.push((e, add_elem(&pos, i)));
                         }
                     }
 
                     AST::List(elems) => {
                         for (i, e) in elems.into_iter().enumerate() {
-                            self.pos_queue.push_back((e, concat_pos(pos.clone(), i)));
+                            self.pos_queue.push((e, add_elem(&pos, i)));
                         }
                     }
 
-                    AST::Memo(_, _, body, _) => self.pos_queue.push_back((*body, concat_pos(pos.clone(), 0))),
-                    AST::Function(_, _, body) => self.pos_queue.push_back((*body, concat_pos(pos.clone(), 0))),
+                    AST::Memo(_, _, body, _) => self.pos_queue.push((*body, add_elem(&pos, 0))),
+                    AST::Function(_, _, body) => self.pos_queue.push((*body, add_elem(&pos, 0))),
 
                     AST::App(func, xs) => {
-                        self.pos_queue.push_back((*func, concat_pos(pos.clone(), 0)));
+                        self.pos_queue.push((*func, add_elem(&pos, 0)));
                         for (i, x) in xs.into_iter().enumerate() {
-                            self.pos_queue.push_back((x, concat_pos(pos.clone(), i + 1)));
+                            self.pos_queue.push((x, add_elem(&pos, i + 1)));
                         }
                     }
 
                     AST::RangeSet(start, end, step) => {
-                        self.pos_queue.push_back((*start, concat_pos(pos.clone(), 0)));
-                        self.pos_queue.push_back((*end, concat_pos(pos.clone(), 1)));
-                        self.pos_queue.push_back((*step, concat_pos(pos.clone(), 2)));
+                        self.pos_queue.push((*start, add_elem(&pos, 0)));
+                        self.pos_queue.push((*end, add_elem(&pos, 1)));
+                        self.pos_queue.push((*step, add_elem(&pos, 2)));
                     }
 
                     AST::IfThenElse(cond, then_expr, else_expr) => {
-                        self.pos_queue.push_back((*cond, concat_pos(pos.clone(), 0)));
-                        self.pos_queue.push_back((*then_expr, concat_pos(pos.clone(), 1)));
-                        self.pos_queue.push_back((*else_expr, concat_pos(pos.clone(), 2)));
+                        self.pos_queue.push((*cond, add_elem(&pos, 0)));
+                        self.pos_queue.push((*then_expr, add_elem(&pos, 1)));
+                        self.pos_queue.push((*else_expr, add_elem(&pos, 2)));
                     }
 
                     AST::CompSet(var_doms, clauses) => {
                         let n = var_doms.len();
                         for (i, (_, dom)) in var_doms.into_iter().enumerate() {
-                            self.pos_queue.push_back((dom, concat_pos(pos.clone(), i)));
+                            self.pos_queue.push((dom, add_elem(&pos, i)));
                         }
                         for (i, clause) in clauses.into_iter().enumerate() {
-                            self.pos_queue.push_back((clause, concat_pos(pos.clone(), n + i)));
+                            self.pos_queue.push((clause, add_elem(&pos, n + i)));
                         }
                     }
 
                     AST::Bin(_, a, b) => {
-                        self.pos_queue.push_back((*a, concat_pos(pos.clone(), 0)));
-                        self.pos_queue.push_back((*b, concat_pos(pos.clone(), 1)));
+                        self.pos_queue.push((*a, add_elem(&pos, 0)));
+                        self.pos_queue.push((*b, add_elem(&pos, 1)));
                     }
 
                     AST::Image(a, b) => {
-                        self.pos_queue.push_back((*a, concat_pos(pos.clone(), 0)));
-                        self.pos_queue.push_back((*b, concat_pos(pos.clone(), 1)));
+                        self.pos_queue.push((*a, add_elem(&pos, 0)));
+                        self.pos_queue.push((*b, add_elem(&pos, 1)));
                     }
 
-                    AST::Complement(a) => self.pos_queue.push_back((*a, concat_pos(pos.clone(), 0))),
-                    AST::Sum(a) => self.pos_queue.push_back((*a, concat_pos(pos.clone(), 0))),
-                    AST::Negate(a) => self.pos_queue.push_back((*a, concat_pos(pos.clone(), 0))),
-                    AST::Factorial(a) => self.pos_queue.push_back((*a, concat_pos(pos.clone(), 0))),
+                    AST::Complement(a) => self.pos_queue.push((*a, add_elem(&pos, 0))),
+                    AST::Sum(a) => self.pos_queue.push((*a, add_elem(&pos, 0))),
+                    AST::Negate(a) => self.pos_queue.push((*a, add_elem(&pos, 0))),
+                    AST::Factorial(a) => self.pos_queue.push((*a, add_elem(&pos, 0))),
 
-                    AST::Definition(_, body) => self.pos_queue.push_back((*body, concat_pos(pos.clone(), 0))),
+                    AST::Definition(_, body) => self.pos_queue.push((*body, add_elem(&pos, 0))),
 
                     AST::Rule(_, lhs, rhs) => {
-                        self.pos_queue.push_back((*lhs, concat_pos(pos.clone(), 0)));
-                        self.pos_queue.push_back((*rhs, concat_pos(pos.clone(), 1)));
+                        self.pos_queue.push((*lhs, add_elem(&pos, 0)));
+                        self.pos_queue.push((*rhs, add_elem(&pos, 1)));
                     }
                 }
 
@@ -1973,7 +1977,115 @@ impl Iterator for Positions {
     }
 }
 
-fn map<'a, F>(expr : &'a AST, pos : Vec<usize>, i : usize, f : F) -> Box<dyn Iterator<Item=AST> + 'a> where F : Fn(AST) -> Box<dyn Iterator<Item=AST> + 'a> {
+fn replace_idx<T>(xs : &Vec<T>, idx : usize, x : T) -> Vec<T> where T : Clone {
+    let mut new_xs = Vec::with_capacity(xs.len());
+    new_xs.extend_from_slice(&xs[0..idx]);
+    new_xs.push(x);
+    new_xs.extend_from_slice(&xs[idx + 1..]);
+    return new_xs;
+}
+
+fn map_idx<T,F>(xs : Vec<T>, idx : usize, f : F) -> Vec<T> where F : FnOnce(T) -> T, T : Default {
+    let mut new_xs = xs;
+    new_xs[idx] = f(std::mem::take(&mut new_xs[idx]));
+    return new_xs;
+}
+
+fn map<F>(expr : AST, pos : Vec<usize>, i : usize, f : F) -> AST where F : Fn(AST) -> AST {
+    if i >= pos.len() {
+        return f(expr);
+    }
+    let idx = pos[i];
+    match expr {
+        AST::Skip() => f(expr),
+        AST::Int(_) => f(expr),
+        AST::Var(_) => f(expr),
+        AST::Seq(_, _) => f(expr),
+
+        AST::Assumption(t) => AST::Assumption(Box::new(map(*t, pos, i + 1, f))),
+        AST::Prove(t) => AST::Prove(Box::new(map(*t, pos, i + 1, f))),
+
+        AST::FinSet(elems) => AST::FinSet(map_idx(elems, idx, move |t| map(t, pos, i + 1, f))),
+        AST::List(elems) => AST::List(map_idx(elems, idx, move |t| map(t, pos, i + 1, f))),
+
+        AST::Memo(name, args, body, memo) => AST::Memo(name, args, Box::new(map(*body, pos, i + 1, f)), memo),
+        AST::Function(name, args, body) => AST::Function(name, args, Box::new(map(*body, pos, i + 1, f))),
+
+        AST::App(func, xs) => {
+            if idx == 0 {
+                return AST::App(Box::new(map(*func, pos, i + 1, f)), xs);
+            } else {
+                let xs_idx = idx - 1;
+                return AST::App(func, map_idx(xs, xs_idx, |t| map(t, pos, i + 1, f)));
+            }
+        }
+
+        AST::RangeSet(start, end, step) => {
+            if idx == 0 {
+                return AST::RangeSet(Box::new(map(*start, pos, i + 1, f)), end, step);
+            } else if idx == 1 {
+                return AST::RangeSet(start, Box::new(map(*end, pos, i + 1, f)), step);
+            } else {
+                return AST::RangeSet(start, end, Box::new(map(*step, pos, i + 1, f)));
+            }
+        }
+
+        AST::IfThenElse(cond, then_expr, else_expr) => {
+            if idx == 0 {
+                return AST::IfThenElse(Box::new(map(*cond, pos, i + 1, f)), then_expr, else_expr);
+            } else if idx == 1 {
+                return AST::IfThenElse(cond, Box::new(map(*then_expr, pos, i + 1, f)), else_expr);
+            } else {
+                return AST::IfThenElse(cond, then_expr, Box::new(map(*else_expr, pos, i + 1, f)));
+            }
+        }
+
+        AST::CompSet(var_doms, clauses) => {
+            if idx < var_doms.len() {
+                return AST::CompSet(map_idx(var_doms,
+                                                idx,
+                                                move |(x, dom)| (x, map(dom, pos, i + 1, f))),
+                                    clauses);
+            } else {
+                let clause_idx = idx - var_doms.len();
+                return AST::CompSet(var_doms, map_idx(clauses, clause_idx, move |t| map(t, pos, i + 1, f)));
+            }
+        }
+
+        AST::Bin(op, a, b) => {
+            if idx == 0 {
+                return AST::Bin(op, Box::new(map(*a, pos, i + 1, f)), b);
+            } else {
+                return AST::Bin(op, a, Box::new(map(*b, pos, i + 1, f)));
+            }
+        }
+
+        AST::Image(a, b) => {
+            if idx == 0 {
+                return AST::Image(Box::new(map(*a, pos, i + 1, f)), b);
+            } else {
+                return AST::Image(a, Box::new(map(*b, pos, i + 1, f)));
+            }
+        }
+
+        AST::Complement(a) => AST::Complement(Box::new(map(*a, pos, i + 1, f))),
+        AST::Sum(a) => AST::Sum(Box::new(map(*a, pos, i + 1, f))),
+        AST::Negate(a) => AST::Negate(Box::new(map(*a, pos, i + 1, f))),
+        AST::Factorial(a) => AST::Factorial(Box::new(map(*a, pos, i + 1, f))),
+
+        AST::Definition(name, body) => AST::Definition(name, Box::new(map(*body, pos, i + 1, f))),
+
+        AST::Rule(attrs, lhs, rhs) => {
+            if idx == 0 {
+                return AST::Rule(attrs, Box::new(map(*lhs, pos, i + 1, f)), rhs);
+            } else {
+                return AST::Rule(attrs, lhs, Box::new(map(*rhs, pos, i + 1, f)));
+            }
+        }
+    }
+}
+
+fn map_iter<'a, F>(expr : &'a AST, pos : Vec<usize>, i : usize, f : F) -> Box<dyn Iterator<Item=AST> + 'a> where F : Fn(AST) -> Box<dyn Iterator<Item=AST> + 'a> {
     if i >= pos.len() {
         return f(expr.clone());
     }
@@ -1984,106 +2096,88 @@ fn map<'a, F>(expr : &'a AST, pos : Vec<usize>, i : usize, f : F) -> Box<dyn Ite
         AST::Var(_) => Box::new(std::iter::empty()),
         AST::Seq(_, _) => Box::new(std::iter::empty()),
 
-        AST::Assumption(t) => Box::new(map(t, pos, i + 1, f).map(|t| AST::Assumption(Box::new(t)))),
-        AST::Prove(t) => Box::new(map(t, pos, i + 1, f).map(|t| AST::Prove(Box::new(t)))),
+        AST::Assumption(t) => Box::new(map_iter(t, pos, i + 1, f).map(|t| AST::Assumption(Box::new(t)))),
+        AST::Prove(t) => Box::new(map_iter(t, pos, i + 1, f).map(|t| AST::Prove(Box::new(t)))),
 
         AST::FinSet(elems) =>
-            Box::new(map(&elems[idx], pos, i + 1, f).map(move |t| {
-                let mut new_elems = elems.clone();
-                new_elems[idx] = t;
-                return AST::FinSet(new_elems);
-            })),
+            Box::new(map_iter(&elems[idx], pos, i + 1, f).map(move |t| AST::FinSet(replace_idx(elems, idx, t)))),
 
         AST::List(elems) =>
-            Box::new(map(&elems[idx], pos, i + 1, f).map(move |t| {
-                let mut new_elems = elems.clone();
-                new_elems[idx] = t;
-                return AST::FinSet(new_elems);
-            })),
+            Box::new(map_iter(&elems[idx], pos, i + 1, f).map(move |t| AST::List(replace_idx(elems, idx, t)))),
 
         AST::Memo(name, args, body, memo) =>
-            Box::new(map(body, pos, i + 1, f).map(move |t| AST::Memo(name.clone(), args.clone(), Box::new(t), memo.clone()))),
+            Box::new(map_iter(body, pos, i + 1, f).map(move |t| AST::Memo(name.clone(), args.clone(), Box::new(t), memo.clone()))),
         AST::Function(name, args, body) =>
-            Box::new(map(body, pos, i + 1, f).map(move |t| AST::Function(name.clone(), args.clone(), Box::new(t)))),
+            Box::new(map_iter(body, pos, i + 1, f).map(move |t| AST::Function(name.clone(), args.clone(), Box::new(t)))),
 
         AST::App(func, xs) => {
             if idx == 0 {
-                return Box::new(map(func, pos, i + 1, f).map(move |t| AST::App(Box::new(t), xs.clone())));
+                return Box::new(map_iter(func, pos, i + 1, f).map(move |t| AST::App(Box::new(t), xs.clone())));
             } else {
                 let xs_idx = idx - 1;
-                return Box::new(map(&xs[xs_idx], pos, i + 1, f).map(move |t| {
-                    let mut new_xs = xs.clone();
-                    new_xs[xs_idx] = t;
-                    return AST::App(func.clone(), new_xs);
-                }));
+                return Box::new(map_iter(&xs[xs_idx], pos, i + 1, f).map(move |t| AST::App(func.clone(), replace_idx(xs, xs_idx, t))));
             }
         }
 
         AST::RangeSet(start, end, step) => {
             if idx == 0 {
-                return Box::new(map(start, pos, i + 1, f).map(move |t| AST::RangeSet(Box::new(t), end.clone(), step.clone())));
+                return Box::new(map_iter(start, pos, i + 1, f).map(move |t| AST::RangeSet(Box::new(t), end.clone(), step.clone())));
             } else if idx == 1 {
-                return Box::new(map(end, pos, i + 1, f).map(move |t| AST::RangeSet(start.clone(), Box::new(t), step.clone())));
+                return Box::new(map_iter(end, pos, i + 1, f).map(move |t| AST::RangeSet(start.clone(), Box::new(t), step.clone())));
             } else {
-                return Box::new(map(step, pos, i + 1, f).map(move |t| AST::RangeSet(start.clone(), end.clone(), Box::new(t))));
+                return Box::new(map_iter(step, pos, i + 1, f).map(move |t| AST::RangeSet(start.clone(), end.clone(), Box::new(t))));
             }
         }
 
         AST::IfThenElse(cond, then_expr, else_expr) => {
             if idx == 0 {
-                return Box::new(map(cond, pos, i + 1, f).map(move |t| AST::IfThenElse(Box::new(t), then_expr.clone(), else_expr.clone())));
+                return Box::new(map_iter(cond, pos, i + 1, f).map(move |t| AST::IfThenElse(Box::new(t), then_expr.clone(), else_expr.clone())));
             } else if idx == 1 {
-                return Box::new(map(then_expr, pos, i + 1, f).map(move |t| AST::IfThenElse(cond.clone(), Box::new(t), else_expr.clone())));
+                return Box::new(map_iter(then_expr, pos, i + 1, f).map(move |t| AST::IfThenElse(cond.clone(), Box::new(t), else_expr.clone())));
             } else {
-                return Box::new(map(else_expr, pos, i + 1, f).map(move |t| AST::IfThenElse(cond.clone(), then_expr.clone(), Box::new(t))));
+                return Box::new(map_iter(else_expr, pos, i + 1, f).map(move |t| AST::IfThenElse(cond.clone(), then_expr.clone(), Box::new(t))));
             }
         }
 
         AST::CompSet(var_doms, clauses) => {
             if idx < var_doms.len() {
-                return Box::new(map(&var_doms[idx].1, pos, i + 1, f).map(move |t| {
-                    let mut new_var_doms = var_doms.clone();
-                    new_var_doms[idx] = (new_var_doms[idx].0.clone(), t);
-                    return AST::CompSet(new_var_doms, clauses.clone());
-                }));
+                return Box::new(map_iter(&var_doms[idx].1, pos, i + 1, f)
+                    .map(move |t| AST::CompSet(replace_idx(var_doms, idx, (var_doms[idx].0.clone(), t)), clauses.clone())));
             } else {
                 let clause_idx = idx - var_doms.len();
-                return Box::new(map(&clauses[clause_idx], pos, i + 1, f).map(move |t| {
-                    let mut new_clauses = clauses.clone();
-                    new_clauses[clause_idx] = t;
-                    return AST::CompSet(var_doms.clone(), new_clauses);
-                }));
+                return Box::new(map_iter(&clauses[clause_idx], pos, i + 1, f)
+                    .map(move |t| AST::CompSet(var_doms.clone(), replace_idx(clauses, clause_idx, t))));
             }
         }
 
         AST::Bin(op, a, b) => {
             if idx == 0 {
-                return Box::new(map(a, pos, i + 1, f).map(move |t| AST::Bin(*op, Box::new(t), b.clone())));
+                return Box::new(map_iter(a, pos, i + 1, f).map(move |t| AST::Bin(*op, Box::new(t), b.clone())));
             } else {
-                return Box::new(map(b, pos, i + 1, f).map(move |t| AST::Bin(*op, a.clone(), Box::new(t))));
+                return Box::new(map_iter(b, pos, i + 1, f).map(move |t| AST::Bin(*op, a.clone(), Box::new(t))));
             }
         }
 
         AST::Image(a, b) => {
             if idx == 0 {
-                return Box::new(map(a, pos, i + 1, f).map(move |t| AST::Image(Box::new(t), b.clone())));
+                return Box::new(map_iter(a, pos, i + 1, f).map(move |t| AST::Image(Box::new(t), b.clone())));
             } else {
-                return Box::new(map(b, pos, i + 1, f).map(move |t| AST::Image(a.clone(), Box::new(t))));
+                return Box::new(map_iter(b, pos, i + 1, f).map(move |t| AST::Image(a.clone(), Box::new(t))));
             }
         }
 
-        AST::Complement(a) => Box::new(map(a, pos, i + 1, f).map(|t| AST::Complement(Box::new(t)))),
-        AST::Sum(a) => Box::new(map(a, pos, i + 1, f).map(|t| AST::Sum(Box::new(t)))),
-        AST::Negate(a) => Box::new(map(a, pos, i + 1, f).map(|t| AST::Negate(Box::new(t)))),
-        AST::Factorial(a) => Box::new(map(a, pos, i + 1, f).map(|t| AST::Factorial(Box::new(t)))),
+        AST::Complement(a) => Box::new(map_iter(a, pos, i + 1, f).map(|t| AST::Complement(Box::new(t)))),
+        AST::Sum(a) => Box::new(map_iter(a, pos, i + 1, f).map(|t| AST::Sum(Box::new(t)))),
+        AST::Negate(a) => Box::new(map_iter(a, pos, i + 1, f).map(|t| AST::Negate(Box::new(t)))),
+        AST::Factorial(a) => Box::new(map_iter(a, pos, i + 1, f).map(|t| AST::Factorial(Box::new(t)))),
 
-        AST::Definition(name, body) => Box::new(map(body, pos, i + 1, f).map(move |t| AST::Definition(name.clone(), Box::new(t)))),
+        AST::Definition(name, body) => Box::new(map_iter(body, pos, i + 1, f).map(move |t| AST::Definition(name.clone(), Box::new(t)))),
 
         AST::Rule(attrs, lhs, rhs) => {
             if idx == 0 {
-                return Box::new(map(lhs, pos, i + 1, f).map(move |t| AST::Rule(attrs.clone(), Box::new(t), rhs.clone())));
+                return Box::new(map_iter(lhs, pos, i + 1, f).map(move |t| AST::Rule(attrs.clone(), Box::new(t), rhs.clone())));
             } else {
-                return Box::new(map(rhs, pos, i + 1, f).map(move |t| AST::Rule(attrs.clone(), lhs.clone(), Box::new(t))));
+                return Box::new(map_iter(rhs, pos, i + 1, f).map(move |t| AST::Rule(attrs.clone(), lhs.clone(), Box::new(t))));
             }
         }
     }
@@ -2091,38 +2185,42 @@ fn map<'a, F>(expr : &'a AST, pos : Vec<usize>, i : usize, f : F) -> Box<dyn Ite
 
 impl AST {
     fn positions(&self) -> Positions {
-        let mut pos_queue = VecDeque::new();
-        pos_queue.push_back((self.clone(), vec!()));
-        return Positions { pos_queue: pos_queue };
+        return Positions { pos_queue: vec!((self.clone(), vec!())) };
     }
 }
 
-fn rewrite_with<'a>(lhs : &'a AST, rhs : &'a AST, expr : &'a AST) -> Box<dyn Iterator<Item=AST> + 'a> {
-    return Box::new(expr.positions().flat_map(move |pos| {
-        return map(expr, pos, 0, move |t| {
-            let f = move |to_subs| subs(rhs.clone(), &to_subs);
-            return Box::new(UnificationIterator::new(lhs.clone(), t).map(f));
-        });
-    }));
+struct RewriteRule {
+    unifier : Unifier,
+    rhs : AST
 }
 
-fn single_rewrite<'a>(rules : &'a [AST], expr : &'a AST) -> Box<dyn Iterator<Item=AST> + 'a> {
-    return Box::new(rules.iter().flat_map(move |rule| match rule {
-        AST::Rule(_, lhs, rhs) => rewrite_with(lhs, rhs, expr),
-        _ => Box::new(std::iter::empty()),
-    }));
+impl RewriteRule {
+    fn new(lhs : AST, rhs : AST) -> RewriteRule {
+        return RewriteRule {
+            unifier: Unifier::new(lhs),
+            rhs: rhs
+        };
+    }
+
+    fn rewrite<'a>(&'a self, expr : &'a AST) -> Box<dyn Iterator<Item=AST> + 'a> {
+        return Box::new(expr.positions().flat_map(move |pos| {
+            return map_iter(expr, pos, 0, move |t| {
+                let f = move |to_subs| subs(self.rhs.clone(), &to_subs);
+                return Box::new(self.unifier.unify(t).map(f));
+            });
+        }));
+    }
 }
 
-pub fn simplify_tree(expr : AST) -> AST {
+pub fn simplify_tree(expr : &AST) -> Option<AST> {
     // println!("e: {:?}, pos: {:?}", expr, expr.positions().collect::<Vec<Vec<usize>>>());
     for pos in expr.positions() {
-        for new_expr in map(&expr, pos, 0, |t| Box::new(std::iter::once(simplify(t)))) {
-            if new_expr != expr {
-                return new_expr;
-            }
+        let new_expr = map(expr.clone(), pos, 0, simplify);
+        if &new_expr != expr {
+            return Some(new_expr);
         }
     }
-    return expr;
+    return None;
 }
 
 pub fn simplify(expr : AST) -> AST {
@@ -2211,7 +2309,7 @@ pub fn simplify(expr : AST) -> AST {
             }
 
         AST::Bin(Op::Prove, box AST::FinSet(assms), p) =>
-            if assms.len() == 0 {
+            if assms.is_empty() {
                 *p
             } else {
                 AST::Bin(Op::Prove, Box::new(AST::FinSet(assms)), p)
@@ -2255,30 +2353,28 @@ pub fn simplify(expr : AST) -> AST {
     }
 }
 
+fn full_simplify(expr : AST) -> AST {
+    let mut res = expr;
+    loop {
+        match simplify_tree(&res) {
+            None => return res,
+            Some(new_res) => res = new_res
+        }
+    }
+}
+
 struct TerminatingRewriter<'a> {
-    rules : &'a [AST],
+    rules : &'a [RewriteRule],
     exprs : Vec<AST>
 }
 
 impl <'a> TerminatingRewriter<'a> {
-    fn new(rules : &'a [AST], expr : AST) -> TerminatingRewriter<'a> {
+    fn new(rules : &'a [RewriteRule], expr : AST) -> TerminatingRewriter<'a> {
         return TerminatingRewriter {
             rules: rules,
             exprs: vec!(expr)
         };
     }
-}
-
-fn full_simplify(expr : AST) -> AST {
-    let mut res = expr;
-    loop {
-        let old_res = res.clone();
-        res = simplify_tree(res);
-        if res == old_res {
-            break;
-        }
-    }
-    return res;
 }
 
 impl <'a> Iterator for TerminatingRewriter<'a> {
@@ -2291,7 +2387,8 @@ impl <'a> Iterator for TerminatingRewriter<'a> {
 
                 Some(expr) => {
                     let mut changed = false;
-                    for new_expr in single_rewrite(self.rules, &expr) {
+
+                    for new_expr in self.rules.iter().flat_map(|rule| rule.rewrite(&expr)) {
                         if new_expr != expr {
                             self.exprs.push(full_simplify(new_expr));
                             changed = true;
@@ -2346,7 +2443,7 @@ impl Assignments {
         // TODO: Eventually not all variables will be natural numbers...
         for x in &vars {
             found_vals.insert(x.clone(), vec!());
-            var_its.insert(x.clone(), Box::new(nat().map(|n| AST::Int(n))));
+            var_its.insert(x.clone(), Box::new(nat().map(AST::Int)));
         }
         return Assignments {
             vars: vars,
@@ -2400,7 +2497,7 @@ impl Iterator for Assignments {
                 Some(e) => {
                     // Generate new items for the queue
                     self.items.extend(self.gen_product(self.cur_idx, &e, (self.cur_idx + 1) % self.vars.len()));
-                    (*self.found_vals.entry(x).or_insert(vec!())).push(e.clone());
+                    (*self.found_vals.entry(x).or_insert_with(Vec::new)).push(e.clone());
                     self.cur_idx = (self.cur_idx + 1) % self.var_its.len();
                     return self.next();
                 }
@@ -2439,26 +2536,25 @@ fn main() {
             let mut rules = Vec::new();
             let mut proof_rules = Vec::new();
 
-            pub fn add_rule(rules : &mut Vec<AST>, proof_rules : &mut Vec<AST>, attrs : Vec<String>, lhs : AST, rhs : AST) {
+            fn add_rule(rules : &mut Vec<RewriteRule>, proof_rules : &mut Vec<RewriteRule>, attrs : Vec<String>, lhs : AST, rhs : AST) {
                 let mut to_subs = HashMap::new();
                 for x in vars(&lhs) {
                     if !x.starts_with('$') && x.chars().next().unwrap().is_alphabetic() {
-                        to_subs.insert(x.clone(), fresh());
+                        to_subs.insert(x.to_string(), fresh());
                     }
                 }
-                let fresh_rule = AST::Rule(attrs.clone(), Box::new(subs(lhs, &to_subs)),
-                                                          Box::new(subs(rhs, &to_subs)));
+                let fresh_lhs = subs(lhs, &to_subs);
+                let fresh_rhs = subs(rhs, &to_subs);
                 if !attrs.contains(&"proof rule".to_string()) {
-                    rules.push(fresh_rule.clone());
+                    rules.push(RewriteRule::new(fresh_lhs.clone(), fresh_rhs.clone()));
                 }
-                proof_rules.push(fresh_rule);
+                proof_rules.push(RewriteRule::new(fresh_lhs, fresh_rhs));
             }
 
             let mut assumptions = Vec::new();
 
             for expr in exprs {
-                // println!("{:?}", defs.clone());
-                match expr.clone() {
+                match &expr {
                     AST::Skip() => continue,
                     other => println!("> {}.", other)
                 }
@@ -2485,25 +2581,18 @@ fn main() {
                         proof_tree.insert(to_prove.clone(), None);
                         todo.push_back(subs(to_prove.clone(), &defs));
 
-                        let mut assignment_it = Assignments::new(vars(&to_prove).into_iter().collect());
+                        let mut assignment_it = Assignments::new(vars(&to_prove).iter().map(|x| x.to_string()).collect());
 
                         let expr_start = now_millis();
                         loop {
-                            match assignment_it.next() {
-                                Some(a) => {
-                                    print!("... Trying: {:?}", a);
-                                    match eval(subs(to_prove.clone(), &a)) {
-                                        Ok(AST::Int(n)) => {
-                                            if n == Zero::zero() {
-                                                println!("\nFound counterexample: {:?}", a);
-                                                break;
-                                            }
-                                        }
-
-                                        _ => ()
+                            if let Some(a) = assignment_it.next() {
+                                print!("... Trying: {:?}", a);
+                                if let Ok(AST::Int(n)) = eval(subs(to_prove.clone(), &a)) {
+                                    if n == Zero::zero() {
+                                        println!("\nFound counterexample: {:?}", a);
+                                        break;
                                     }
                                 }
-                                None => ()
                             }
 
                             match todo.pop_front() {
@@ -2514,10 +2603,10 @@ fn main() {
 
                                 Some(new_t) => {
                                     if new_t == AST::Int(One::one()) {
-                                        print!("\n");
+                                        println!();
 
                                         // If we're proving some equality, add it as a rule.
-                                        match to_prove.clone() {
+                                        match to_prove {
                                             AST::Bin(Op::Equals, lhs, rhs) => {
                                                 println!("Adding proof rule: {} => {}", lhs, rhs);
                                                 add_rule(&mut rules, &mut proof_rules, vec!("proof rule".to_string()), *lhs, *rhs);
@@ -2526,7 +2615,7 @@ fn main() {
                                             AST::Bin(Op::Prove, box AST::FinSet(assms), box AST::Bin(Op::Equals, lhs, rhs)) => {
                                                 let new_lhs;
                                                 let new_rhs;
-                                                if assms.len() == 0 {
+                                                if assms.is_empty() {
                                                     new_lhs = *lhs;
                                                     new_rhs = *rhs;
                                                 } else {
@@ -2537,7 +2626,7 @@ fn main() {
                                                     }
                                                     new_lhs = AST::Bin(Op::Prove, Box::new(context), lhs);
 
-                                                    let unbuild_context = AST::App(Box::new(AST::Var("∪".to_string())), vec!(AST::FinSet(assms.clone()), rest));
+                                                    let unbuild_context = AST::App(Box::new(AST::Var("∪".to_string())), vec!(AST::FinSet(assms), rest));
                                                     new_rhs = AST::Bin(Op::Prove, Box::new(unbuild_context), rhs);
                                                 }
 
@@ -2559,7 +2648,7 @@ fn main() {
                                     // println!("\n{} tried, {} left: {}", proof_tree.len() - todo.len(), todo.len(), new_t);
                                     print!("\r{} tried, {} left", proof_tree.len() - todo.len(), todo.len());
 
-                                    for new_expr in single_rewrite(&proof_rules, &new_t).map(full_simplify) {
+                                    for new_expr in proof_rules.iter().flat_map(|rule| rule.rewrite(&new_t)).map(full_simplify) {
                                         if !proof_tree.contains_key(&new_expr) {
                                             proof_tree.insert(new_expr.clone(), Some(new_t.clone()));
                                             todo.push_back(new_expr);
