@@ -51,13 +51,12 @@ Proof Rule (S1 |- (S2 |- P)) => (S1 ∪ S2) |- P.
 
 // Assumption rule
 Proof Rule $elem(P, S) |- P => 1.
-// Contraction rule
-Proof Rule $elem(P, S) |- R => S |- R.
 
 Proof Rule (S |- (P and Q)) => (S |- P) and (S |- Q).
 Proof Rule (S |- (P or Q)) => S |- P.
 Proof Rule (S |- (P or Q)) => S |- Q.
 Proof Rule $elem(P or Q, S) |- R => (({P} ∪ S) |- R) and (({Q} ∪ S) |- R).
+Proof Rule S |- (P ==> Q) => (S ∪ {P}) |- Q.
 
 Proof Rule x % n < n => 1 .
 
@@ -65,6 +64,8 @@ Proof Rule a^$s($s(n)) => a*a^(n+1).
 Proof Rule a^(n+1) => a*a^n.
 
 Proof Rule a + b = a + c => b = c.
+Proof Rule a*b = a*c => b = c.
+Proof Rule b*a = c*a => b = c.
 Proof Rule a + b > a + c => b > c.
 Proof Rule a + b < a + c => b < c.
 Proof Rule a >= b => a > b or a = b.
@@ -73,9 +74,6 @@ Proof Rule a <= b => a < b or a = b.
 Proof Rule a > b => b < a.
 Proof Rule $elem(a < c, S) |- (a < b) => ({a < c} ∪ S) |- c < b .
 Proof Rule $elem(c < b, S) |- (a < b) => ({c < b} ∪ S) |- a < c .
-
-Proof Rule a*b = a*c => b = c.
-Proof Rule b*a = c*a => b = c.
 
 Proof Rule (a+b) % n => ((a % n) + (b % n)) % n.
 Proof Rule (a*b) % n => ((a % n) * (b % n)) % n.
@@ -99,17 +97,17 @@ Proof Rule (S |- $free_var(n, P)) => subs(S |- P, 0, n) and
 // TODO: Add quick primality test based on Fermat's little theorem to builtin code.
 
 // False statements we should find counterexamples for
-/* Prove 5*x = 2*x. */
-/* Prove (n*k + m)^2 % n = m % n. */
-/* Prove {n | (a + b)} |- ((n | a) and (n | b)). */
-/* Prove { x > 0, y > 0, z > 0} |- (x^2 + y^2 ≠ z^2) . */
+Prove 5*x = 2*x.
+Prove (n*k + m)^2 % n = m % n.
+Prove {n | (a + b)} |- ((n | a) and (n | b)).
+Prove { x > 0, y > 0, z > 0} |- (x^2 + y^2 ≠ z^2) .
 
 // True statements to prove
 Prove n + 1 > n .
+Prove { a <= b } |- (b >= a).
 Prove (2 | (2*k)^2) .
 Prove (2*k + 1)^2 % 2 = 1.
 Prove (n*x) % n = 0 .
 Prove (n*k + m) % n = m % n.
-Prove { a <= b } |- (b >= a).
 Prove (n*k + m)^l % n = m^l % n.
 

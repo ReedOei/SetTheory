@@ -279,6 +279,14 @@ impl Default for AST {
     }
 }
 
+fn format_assignment(a : &HashMap<String, AST>) -> String {
+    let mut s = String::new();
+    s.push('{');
+    s.push_str(a.iter().map(|(k, v)| format!("{} -> {}", k, v)).collect::<Vec<String>>().join(", ").as_str());
+    s.push('}');
+    return s;
+}
+
 impl fmt::Display for AST {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -2523,7 +2531,7 @@ fn main() {
                         let expr_start = now_millis();
                         loop {
                             if let Some(a) = assignment_it.next() {
-                                print!("... Trying: {:?}", a);
+                                print!("... Trying: {}", format_assignment(&a));
                                 if let Ok(AST::Int(n)) = eval(subs(to_prove.clone(), &a)) {
                                     if n == Zero::zero() {
                                         println!("\nFound counterexample: {:?}", a);
@@ -2542,6 +2550,12 @@ fn main() {
                                     let new_t = AST::Bin(Op::Prove, assms, Box::new(AST::Int(n)));
 
                                     println!();
+                                    println!("Found proof:");
+                                    let mut cur_term = Some(new_t);
+                                    while cur_term != None {
+                                        println!("{}", cur_term.as_ref().unwrap());
+                                        cur_term = proof_tree[&cur_term.unwrap()].clone();
+                                    }
 
                                     // If we're proving some equality, add it as a rule.
                                     match to_prove {
@@ -2574,12 +2588,6 @@ fn main() {
                                         _ => ()
                                     }
 
-                                    println!("Found proof:");
-                                    let mut cur_term = Some(new_t);
-                                    while cur_term != None {
-                                        println!("{}", cur_term.as_ref().unwrap());
-                                        cur_term = proof_tree[&cur_term.unwrap()].clone();
-                                    }
                                     break;
                                 }
 
