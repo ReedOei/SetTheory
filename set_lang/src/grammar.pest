@@ -83,7 +83,7 @@ COMMENT = _{ ("//" ~ (!"\n" ~ ANY)*)
 
 special = { "ℕ" | "𝕀" | "ℙ" | "ℂ" | "ℚ" | "ω" | "ℝ" | "π"
           | "σ" | "τ" | "Π" | "ξ" | "μ" | "δ" | "θ" | "γ"
-          | "β" | "α" | "$" | "⋃" | "⋂" | "_" }
+          | "β" | "α" | "$" | "?" | "⋃" | "⋂" | "_" }
 start_char = { ASCII_ALPHA | special }
 char = { ASCII_ALPHANUMERIC | special }
 var = @{ start_char ~ char* }

@@ -49,6 +49,30 @@ pub trait Sequence {
     fn index_of(&mut self, v : AST) -> Option<usize>;
 }
 
+pub struct Naturals;
+impl Naturals {
+    fn new() -> Naturals {
+        return Naturals;
+    }
+}
+
+impl Sequence for Naturals {
+    fn nth(&mut self, n : usize) -> Result<AST, String> {
+        return Ok(AST::Int(BigInt::from(n)));
+    }
+
+    fn increasing(&self) -> bool {
+        return true;
+    }
+
+    fn index_of(&mut self, v : AST) -> Option<usize> {
+        match v {
+            AST::Int(n) => to_usize(&n).ok(),
+            _ => None
+        }
+    }
+}
+
 pub struct PrimeSeq {
     max : usize,
     primes : Vec<BigInt>,
@@ -815,7 +839,7 @@ pub fn subs(expr : AST, to_subs : &HashMap<String, AST>) -> AST {
 
         AST::App(f, args) => {
             if *f == AST::Var("$fresh".to_string()) {
-                return subs(subs_expr(args[1].clone(), &fresh(), &args[0]), to_subs);
+                return subs(subs_expr(args[1].clone(), &AST::Var(fresh()), &args[0]), to_subs);
             }
 
             return AST::App(Box::new(subs(*f, to_subs)),
@@ -1549,7 +1573,8 @@ pub fn vars(expr : &AST) -> HashSet<&str> {
 
         AST::Var(x) => {
             let mut vs = HashSet::new();
-            if !x.starts_with('$') && x.chars().next().unwrap().is_alphabetic() {
+            let c = x.chars().next().unwrap();
+            if c.is_alphabetic() || c == '?' {
                 vs.insert(x.as_str());
             }
             return vs;
@@ -1621,9 +1646,7 @@ impl <'a> Unification<'a> {
 
         match (lhs, rhs) {
             (AST::Var(x), t) => {
-                if let Some(name) = x.strip_prefix('$') {
-                    return AST::Var(name.to_string()) == t;
-                } else if !self.lhs_vars.contains(&x) {
+                if !self.lhs_vars.contains(&x) {
                     return AST::Var(x) == t;
                 } else {
                     let vx = AST::Var(x.clone());
@@ -1840,7 +1863,7 @@ struct Unifier {
 
 impl Unifier {
     fn new(lhs : AST) -> Unifier {
-        let lhs_vars = vars(&lhs).iter().map(|x| x.to_string()).collect();
+        let lhs_vars = vars(&lhs).iter().filter(|x| x.starts_with('?')).map(|x| x.to_string()).collect();
         return Unifier {
             lhs: lhs,
             lhs_vars: lhs_vars
@@ -2216,7 +2239,6 @@ impl RewriteRule {
 }
 
 pub fn simplify(expr : &AST) -> Option<AST> {
-    // println!("hi: {:?}", expr);
     match expr {
         AST::Bin(Op::Add, box AST::Int(n), box AST::Int(m)) => Some(AST::Int(n + m)),
         AST::Bin(Op::Add, box AST::Int(n), b) if n == &Zero::zero() => Some(*b.clone()),
@@ -2455,10 +2477,10 @@ impl Iterator for Assignments {
     }
 }
 
-pub fn fresh() -> AST {
+pub fn fresh() -> String {
     unsafe {
         FRESH_COUNTER += 1;
-        return AST::Var(format!("v{}", FRESH_COUNTER));
+        return format!("v{}", FRESH_COUNTER);
     }
 }
 
@@ -2476,6 +2498,7 @@ fn main() {
         Ok(exprs) => {
             let mut defs = HashMap::new();
             defs.insert("p".to_string(), AST::Seq("primes".to_string(), Rc::new(RefCell::new(PrimeSeq::new()))));
+            defs.insert("ℕ".to_string(), AST::Seq("naturals".to_string(), Rc::new(RefCell::new(Naturals::new()))));
 
             let mut rules = Vec::new();
             let mut proof_rules = Vec::new();
@@ -2483,8 +2506,8 @@ fn main() {
             fn add_rule(rules : &mut Vec<RewriteRule>, proof_rules : &mut Vec<RewriteRule>, attrs : Vec<String>, lhs : AST, rhs : AST) {
                 let mut to_subs = HashMap::new();
                 for x in vars(&lhs) {
-                    if !x.starts_with('$') && x.chars().next().unwrap().is_alphabetic() {
-                        to_subs.insert(x.to_string(), fresh());
+                    if x.starts_with('?') {
+                        to_subs.insert(x.to_string(), AST::Var(format!("?{}", fresh())));
                     }
                 }
                 let fresh_lhs = subs(lhs, &to_subs);
@@ -2519,14 +2542,24 @@ fn main() {
                     AST::Assumption(t) => assumptions.push(*t),
 
                     AST::Prove(t) => {
-                        let to_prove = full_simplify(subs(AST::Bin(Op::Prove, Box::new(AST::FinSet(assumptions.clone())), t), &defs));
+                        let to_prove_rhs = subs(*t, &defs);
+                        let rhs_vars = vars(&to_prove_rhs);
+
+                        let relevant_assms = assumptions.iter()
+                            .filter(|assm| !vars(assm).is_disjoint(&rhs_vars))
+                            .cloned()
+                            .collect();
+
+                        let mut assignment_it = Assignments::new(rhs_vars.into_iter().map(|x| x.to_string()).collect());
+
+                        let to_prove_assms = subs(AST::FinSet(relevant_assms), &defs);
+                        let to_prove = full_simplify(AST::Bin(Op::Prove, Box::new(to_prove_assms), Box::new(to_prove_rhs)));
+
                         let mut proof_tree = HashMap::new();
                         let mut todo = BinaryHeap::new();
                         let mut age = 0;
                         proof_tree.insert(to_prove.clone(), None);
                         todo.push((Reverse(0), subs(to_prove.clone(), &defs)));
-
-                        let mut assignment_it = Assignments::new(vars(&to_prove).iter().map(|x| x.to_string()).collect());
 
                         let expr_start = now_millis();
                         loop {
@@ -2534,7 +2567,7 @@ fn main() {
                                 print!("... Trying: {}", format_assignment(&a));
                                 if let Ok(AST::Int(n)) = eval(subs(to_prove.clone(), &a)) {
                                     if n == Zero::zero() {
-                                        println!("\nFound counterexample: {:?}", a);
+                                        println!("\nFound counterexample: {}", format_assignment(&a));
                                         break;
                                     }
                                 }
@@ -2571,7 +2604,7 @@ fn main() {
                                                 new_lhs = *lhs;
                                                 new_rhs = *rhs;
                                             } else {
-                                                let rest = fresh();
+                                                let rest = AST::Var(fresh());
                                                 let mut context = AST::App(Box::new(AST::Var("$elem".to_string())), vec!(assms[0].clone(), rest.clone()));
                                                 for assm in &assms[1..assms.len()] {
                                                     context = AST::App(Box::new(AST::Var("$elem".to_string())), vec!(assm.clone(), context));
