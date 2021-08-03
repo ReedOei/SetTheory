@@ -101,11 +101,11 @@ Prove {n | (a + b)} |- ((n | a) and (n | b)).
 Prove { a > 0, b > 0, c > 0} |- (a^2 + b^2 ≠ c^2) .
 
 /* // True statements to prove */
-/* Prove n + 1 > n . */
-/* Prove { x <= y } |- (x >= y). */
-/* Prove (2 | (2*k)^2) . */
-/* Prove (2*k + 1)^2 % 2 = 1. */
-/* Prove (n*x) % n = 0 . */
-/* Prove (n*k + m) % n = m % n. */
-/* Prove (n*k + m)^l % n = m^l % n. */
+Prove n + 1 > n .
+Prove { x <= y } |- (x >= y).
+Prove (2 | (2*k)^2) .
+Prove (2*k + 1)^2 % 2 = 1.
+Prove (n*x) % n = 0 .
+Prove (n*k + m) % n = m % n.
+Prove (n*k + m)^l % n = m^l % n.
 

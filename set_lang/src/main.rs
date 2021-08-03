@@ -321,7 +321,7 @@ impl fmt::Display for AST {
             AST::Rule(attrs, lhs, rhs) => write!(f, "Rule {} => {} {:?}", lhs, rhs, attrs),
             AST::Assumption(t) => write!(f, "Assume {}", t),
             AST::Prove(t) => write!(f, "Prove {}", t),
-            AST::Seq(name, _) => write!(f, "Seq({})", name),
+            AST::Seq(name, _) => write!(f, "{}", name),
             AST::FinSet(elems) => {
                 let mut s = String::new();
                 s.push('{');
@@ -2497,8 +2497,8 @@ fn main() {
     match parsed {
         Ok(exprs) => {
             let mut defs = HashMap::new();
-            defs.insert("p".to_string(), AST::Seq("primes".to_string(), Rc::new(RefCell::new(PrimeSeq::new()))));
-            defs.insert("ℕ".to_string(), AST::Seq("naturals".to_string(), Rc::new(RefCell::new(Naturals::new()))));
+            defs.insert("p".to_string(), AST::Seq("Prime".to_string(), Rc::new(RefCell::new(PrimeSeq::new()))));
+            defs.insert("ℕ".to_string(), AST::Seq("ℕ".to_string(), Rc::new(RefCell::new(Naturals::new()))));
 
             let mut rules = Vec::new();
             let mut proof_rules = Vec::new();
@@ -2597,7 +2597,7 @@ fn main() {
                                             add_rule(&mut rules, &mut proof_rules, vec!("proof rule".to_string()), *lhs, *rhs);
                                         }
 
-                                        AST::Bin(Op::Prove, box AST::FinSet(assms), box AST::Bin(Op::Equals, lhs, rhs)) => {
+                                        AST::Bin(Op::Prove, box AST::FinSet(mut assms), box AST::Bin(Op::Equals, lhs, rhs)) => {
                                             let new_lhs;
                                             let new_rhs;
                                             if assms.is_empty() {
@@ -2605,19 +2605,24 @@ fn main() {
                                                 new_rhs = *rhs;
                                             } else {
                                                 let rest = AST::Var(fresh());
+
                                                 let mut context = AST::App(Box::new(AST::Var("$elem".to_string())), vec!(assms[0].clone(), rest.clone()));
                                                 for assm in &assms[1..assms.len()] {
                                                     context = AST::App(Box::new(AST::Var("$elem".to_string())), vec!(assm.clone(), context));
                                                 }
-                                                new_lhs = AST::Bin(Op::Prove, Box::new(context), lhs);
 
+                                                assms.push(AST::Bin(Op::Equals, lhs, rhs));
                                                 let unbuild_context = AST::App(Box::new(AST::Var("∪".to_string())), vec!(AST::FinSet(assms), rest));
-                                                new_rhs = AST::Bin(Op::Prove, Box::new(unbuild_context), rhs);
+
+                                                let prop_var = Box::new(AST::Var(fresh()));
+                                                new_lhs = AST::Bin(Op::Prove, Box::new(context), prop_var.clone());
+                                                new_rhs = AST::Bin(Op::Prove, Box::new(unbuild_context), prop_var);
                                             }
 
                                             println!("Adding proof rule: {} => {}", new_lhs, new_rhs);
                                             add_rule(&mut rules, &mut proof_rules, vec!("proof rule".to_string()), new_lhs, new_rhs);
                                         }
+
                                         _ => ()
                                     }
 
