@@ -73,6 +73,46 @@ impl Sequence for Naturals {
     }
 }
 
+pub struct Integers;
+impl Integers {
+    fn new() -> Integers {
+        return Integers;
+    }
+}
+
+impl Sequence for Integers {
+    // Enumerate the integers as 0,-1,1,-2,2,...
+    fn nth(&mut self, n : usize) -> Result<AST, String> {
+        if n % 2 == 0 {
+            return Ok(AST::Int(BigInt::from(n / 2)));
+        } else {
+            return Ok(AST::Int(-BigInt::from(n / 2)));
+        }
+    }
+
+    fn increasing(&self) -> bool {
+        return false;
+    }
+
+    fn index_of(&mut self, v : AST) -> Option<usize> {
+        match v {
+            AST::Int(n) =>
+                if n < Zero::zero() {
+                    match to_usize(&-n) {
+                        Ok(m) => Some(2*m - 1),
+                        _ => None
+                    }
+                } else {
+                    match to_usize(&n) {
+                        Ok(m) => Some(2*m),
+                        _ => None
+                    }
+                }
+            _ => None
+        }
+    }
+}
+
 pub struct PrimeSeq {
     max : usize,
     primes : Vec<BigInt>,
@@ -1071,6 +1111,8 @@ pub fn enumerate(expr : AST) -> Result<Box<dyn Iterator<Item=Result<AST, String>
         }
 
         AST::IfThenElse(cond, then_expr, else_expr) => enumerate(eval(AST::IfThenElse(cond, then_expr, else_expr))?),
+
+        AST::Seq(_, implementation) => Ok(Box::new((0..).map(move |n| implementation.borrow_mut().nth(n)))),
 
         expr => Err(format!("Cannot enumerate: {:?}", expr)),
     }
@@ -2376,49 +2418,35 @@ pub fn now_millis() -> u128 {
         .as_millis();
 }
 
-struct Nat {
-    n : BigInt
-}
-impl Iterator for Nat {
-    type Item = BigInt;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let v = self.n.clone();
-        self.n += 1;
-        return Some(v);
-    }
-}
-
-fn nat() -> Nat {
-    return Nat { n : Zero::zero() };
-}
-
 struct Assignments {
     vars : Vec<String>,
     items : VecDeque<HashMap<String, AST>>,
     found_vals : HashMap<String, Vec<AST>>,
-    var_its : HashMap<String, Box<dyn Iterator<Item=AST>>>,
+    var_its : HashMap<String, Box<dyn Iterator<Item=Result<AST, String>>>>,
     cur_idx : usize,
     done: bool
 }
 
 impl Assignments {
-    fn new(vars : Vec<String>) -> Assignments {
+    fn from(var_doms : Vec<(String, AST)>) -> Result<Assignments, String> {
         let mut found_vals = HashMap::new();
-        let mut var_its : HashMap<String, Box<dyn Iterator<Item=AST>>> = HashMap::new();
+        let mut var_its : HashMap<String, Box<dyn Iterator<Item=Result<AST, String>>>> = HashMap::new();
+        let mut vars = Vec::new();
         // TODO: Eventually not all variables will be natural numbers...
-        for x in &vars {
+        for (x, dom) in var_doms {
             found_vals.insert(x.clone(), vec!());
-            var_its.insert(x.clone(), Box::new(nat().map(AST::Int)));
+            var_its.insert(x.clone(), enumerate(dom)?);
+            vars.push(x);
         }
-        return Assignments {
+
+        return Ok(Assignments {
+            done: vars.is_empty(),
             vars: vars,
             items: VecDeque::new(),
             found_vals: found_vals,
             var_its: var_its,
             cur_idx: 0,
-            done: false
-        };
+        });
     }
 
     fn gen_product(&self, xi : usize, e : &AST, i : usize) -> Box<dyn Iterator<Item=HashMap<String, AST>>> {
@@ -2459,14 +2487,14 @@ impl Iterator for Assignments {
         loop {
             let x = &self.vars[self.cur_idx];
             match self.var_its.get_mut(x).unwrap().next() {
-                None => (), // continue and increment to the next to get a new item
-                Some(e) => {
+                Some(Ok(e)) => {
                     // Generate new items for the queue
                     self.items.extend(self.gen_product(self.cur_idx, &e, (self.cur_idx + 1) % self.vars.len()));
                     self.found_vals.get_mut(x).unwrap().push(e);
                     self.cur_idx = (self.cur_idx + 1) % self.var_its.len();
                     return self.next();
                 }
+                _ => (), // continue and increment to the next to get a new item
             }
             self.cur_idx = (self.cur_idx + 1) % self.var_its.len();
             if self.cur_idx == orig_idx {
@@ -2499,6 +2527,7 @@ fn main() {
             let mut defs = HashMap::new();
             defs.insert("p".to_string(), AST::Seq("Prime".to_string(), Rc::new(RefCell::new(PrimeSeq::new()))));
             defs.insert("ℕ".to_string(), AST::Seq("ℕ".to_string(), Rc::new(RefCell::new(Naturals::new()))));
+            defs.insert("ℤ".to_string(), AST::Seq("ℤ".to_string(), Rc::new(RefCell::new(Integers::new()))));
 
             let mut rules = Vec::new();
             let mut proof_rules = Vec::new();
@@ -2545,15 +2574,38 @@ fn main() {
                         let to_prove_rhs = subs(*t, &defs);
                         let rhs_vars = vars(&to_prove_rhs);
 
-                        let relevant_assms = assumptions.iter()
+                        let relevant_assms : Vec<AST> = assumptions.iter()
                             .filter(|assm| !vars(assm).is_disjoint(&rhs_vars))
-                            .cloned()
+                            .map(|assm| subs(assm.clone(), &defs))
                             .collect();
 
-                        let mut assignment_it = Assignments::new(rhs_vars.into_iter().map(|x| x.to_string()).collect());
+                        let mut to_find = rhs_vars.clone();
+                        let mut var_doms = Vec::new();
+                        for assm in relevant_assms.iter() {
+                            if let AST::Bin(Op::Elem, box AST::Var(y), box dom) = assm {
+                                if to_find.contains(y.as_str()) {
+                                    var_doms.push((y.clone(), dom.clone()));
+                                    to_find.remove(y.as_str());
+                                }
+                            }
+                        }
 
-                        let to_prove_assms = subs(AST::FinSet(relevant_assms), &defs);
-                        let to_prove = full_simplify(AST::Bin(Op::Prove, Box::new(to_prove_assms), Box::new(to_prove_rhs)));
+                        let mut assignment_it : Box<dyn Iterator<Item=HashMap<String, AST>>> = {
+                            if !to_find.is_empty() {
+                                println!("Not trying to generate counterexamples: Could not find domain for variables {:?}", to_find);
+                                Box::new(std::iter::empty())
+                            } else {
+                                match Assignments::from(var_doms) {
+                                    Ok(it) => Box::new(it),
+                                    Err(err) => {
+                                        println!("Not trying to generate counterexamples: {}", err);
+                                        Box::new(std::iter::empty())
+                                    }
+                                }
+                            }
+                        };
+
+                        let to_prove = full_simplify(AST::Bin(Op::Prove, Box::new(AST::FinSet(relevant_assms)), Box::new(to_prove_rhs)));
 
                         let mut proof_tree = HashMap::new();
                         let mut todo = BinaryHeap::new();

@@ -86,26 +86,28 @@ Proof Rule (?S |- $free_var(?n, ?P)) => subs(?S |- ?P, 0, ?n) and
 
 // TODO: Add quick primality test based on Fermat's little theorem to builtin code.
 
-// False statements we should find counterexamples for
 Assume n ∈ ℕ.
 Assume m ∈ ℕ.
 Assume k ∈ ℕ.
 Assume l ∈ ℕ.
-Assume a ∈ ℕ.
-Assume b ∈ ℕ.
-Assume c ∈ ℕ.
 
+Assume a ∈ ℤ.
+Assume b ∈ ℤ.
+Assume c ∈ ℤ.
+
+// False statements we should find counterexamples for
 Prove 5*n = 2*n.
 Prove (n*k + m)^2 % n = m % n.
 Prove {n | (a + b)} |- ((n | a) and (n | b)).
-Prove { a > 0, b > 0, c > 0} |- (a^2 + b^2 ≠ c^2) .
+Prove { n > 0, m > 0, k > 0} |- (n^2 + m^2 ≠ k^2) .
+Prove { n <= m } |- (n >= m).
+Prove a + b >= b. // False in integers
 
 /* // True statements to prove */
 Prove n + 1 > n .
-Prove { x <= y } |- (x >= y).
 Prove (2 | (2*k)^2) .
 Prove (2*k + 1)^2 % 2 = 1.
-Prove (n*x) % n = 0 .
+Prove (n*k) % n = 0 .
 Prove (n*k + m) % n = m % n.
 Prove (n*k + m)^l % n = m^l % n.
 
