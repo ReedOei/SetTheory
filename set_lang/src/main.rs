@@ -25,6 +25,7 @@ use std::fmt;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::iter::Iterator;
+use std::ops;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::rc::Rc;
 
@@ -80,14 +81,18 @@ impl Integers {
     }
 }
 
+pub fn int_nth(n : usize) -> BigInt {
+    if n % 2 == 0 {
+        return BigInt::from(n / 2);
+    } else {
+        return -BigInt::from((n + 1) / 2);
+    }
+}
+
 impl Sequence for Integers {
     // Enumerate the integers as 0,-1,1,-2,2,...
     fn nth(&mut self, n : usize) -> Result<AST, String> {
-        if n % 2 == 0 {
-            return Ok(AST::Int(BigInt::from(n / 2)));
-        } else {
-            return Ok(AST::Int(-BigInt::from(n / 2)));
-        }
+        return Ok(AST::Int(int_nth(n)));
     }
 
     fn increasing(&self) -> bool {
@@ -109,6 +114,269 @@ impl Sequence for Integers {
                     }
                 }
             _ => None
+        }
+    }
+}
+
+pub fn prime_factor(n_in : BigInt, ps : &mut PrimeSeq) -> std::collections::hash_map::IntoIter<BigInt, BigInt> {
+    let mut n = n_in;
+    let mut powers = HashMap::new();
+    let mut m = 0;
+    loop {
+        let p = ps.at(m);
+        if p.clone()*p.clone() > n {
+            break;
+        }
+        if n.clone() % p.clone() == Zero::zero() {
+            *powers.entry(p.clone()).or_insert(Zero::zero()) += 1;
+            n /= p;
+            m = 0;
+        } else {
+            m += 1;
+        }
+    }
+    *powers.entry(n).or_insert(Zero::zero()) += 1;
+    return powers.into_iter();
+}
+
+#[derive(Debug, Clone)]
+pub struct Rat {
+    n : BigInt,
+    d : BigInt
+}
+
+impl PartialEq for Rat {
+    fn eq(&self, other : &Rat) -> bool {
+        return self.n.clone() * other.d.clone() == other.n.clone() * self.d.clone();
+    }
+}
+
+impl PartialOrd for Rat {
+    fn partial_cmp(&self, other : &Rat) -> Option<std::cmp::Ordering> {
+        return (self.n.clone() * other.d.clone()).partial_cmp(&(other.n.clone() * self.d.clone()));
+    }
+}
+
+impl Eq for Rat {
+
+}
+
+impl Ord for Rat {
+    fn cmp(&self, other: &Rat) -> std::cmp::Ordering {
+        return (self.n.clone() * other.d.clone()).cmp(&(other.n.clone() * self.d.clone()));
+    }
+}
+
+impl Hash for Rat {
+    fn hash<H>(&self, state : &mut H) where H: std::hash::Hasher {
+        let r = self.clone().simplify();
+        r.n.hash(state);
+        r.d.hash(state);
+    }
+}
+
+impl fmt::Display for Rat {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}/{}", self.n, self.d)
+    }
+}
+
+pub fn gcd(a : BigInt, b : BigInt) -> BigInt {
+    let mut x = a;
+    let mut y = b;
+    while y != Zero::zero() {
+        let temp = y.clone();
+        y = x % y;
+        x = temp;
+    }
+    return x;
+}
+
+impl Rat {
+    pub fn new(n : BigInt, d : BigInt) -> Rat {
+        let r = Rat { n, d };
+        return r.simplify();
+    }
+
+    pub fn from_usize(n : usize) -> Rat {
+        return Rat::new(BigInt::from(n), One::one());
+    }
+
+    pub fn simplify(mut self) -> Rat {
+        let g = gcd(self.n.clone(), self.d.clone());
+        self.n /= g.clone();
+        self.d /= g;
+        if self.d < Zero::zero() && self.n < Zero::zero() {
+            std::mem::swap(&mut self.n, &mut self.d);
+        }
+        return self;
+    }
+
+    pub fn pow(mut self, a : &BigInt) -> Rat {
+        if a > &Zero::zero() {
+            let mut n : BigInt = One::one();
+            let orig_n = self.n.clone();
+            let orig_d = self.d.clone();
+            while &n < a {
+                self.n *= orig_n.clone();
+                self.d *= orig_d.clone();
+                n += 1;
+            }
+            return self;
+        } else if a < &Zero::zero() {
+            std::mem::swap(&mut self.n, &mut self.d);
+            return self.pow(&-a);
+        } else {
+            return Rat { n: One::one(), d: One::one() };
+        }
+    }
+}
+
+impl ops::Add<BigInt> for Rat {
+    type Output = Rat;
+
+    fn add(self, b : BigInt) -> Rat {
+        return Rat::new(self.n + b * self.d.clone(), self.d);
+    }
+}
+
+impl ops::Sub<BigInt> for Rat {
+    type Output = Rat;
+
+    fn sub(self, b : BigInt) -> Rat {
+        return Rat::new(self.n - b * self.d.clone(), self.d);
+    }
+}
+
+impl ops::Mul<BigInt> for Rat {
+    type Output = Rat;
+
+    fn mul(self, b : BigInt) -> Rat {
+        return Rat::new(self.n * b, self.d);
+    }
+}
+
+impl ops::Div<BigInt> for Rat {
+    type Output = Rat;
+
+    fn div(self, b : BigInt) -> Rat {
+        return Rat::new(self.n, self.d * b);
+    }
+}
+
+impl ops::Add<Rat> for Rat {
+    type Output = Rat;
+
+    fn add(self, b : Rat) -> Rat {
+        return Rat::new(self.n * b.d.clone() + b.n * self.d.clone(), self.d * b.d);
+    }
+}
+
+impl ops::Sub<Rat> for Rat {
+    type Output = Rat;
+
+    fn sub(self, b : Rat) -> Rat {
+        return Rat::new(self.n * b.d.clone() - b.n * self.d.clone(), self.d * b.d);
+    }
+}
+
+impl ops::Mul<Rat> for Rat {
+    type Output = Rat;
+
+    fn mul(self, b : Rat) -> Rat {
+        return Rat::new(self.n * b.n, self.d * b.d);
+    }
+}
+
+impl ops::Div<Rat> for Rat {
+    type Output = Rat;
+
+    fn div(self, b : Rat) -> Rat {
+        return Rat::new(self.n * b.d, self.d * b.n);
+    }
+}
+
+impl ops::MulAssign<Rat> for Rat {
+    fn mul_assign(&mut self, b : Rat) {
+        self.n *= b.n;
+        self.d *= b.d;
+    }
+}
+
+impl ops::Neg for Rat {
+    type Output = Rat;
+
+    fn neg(self) -> Rat {
+        return Rat { n: -self.n, d: self.d };
+    }
+}
+
+pub struct Rationals {
+    ps : PrimeSeq
+}
+impl Rationals {
+    fn new() -> Rationals {
+        return Rationals { ps : PrimeSeq::new() };
+    }
+
+    fn calc_nth(&mut self, n : usize) -> Result<Rat, String> {
+        let mut res = Rat::from_usize(1);
+        for (p,a) in prime_factor(BigInt::from(n), &mut self.ps) {
+            let b = int_nth(to_usize(&a)?);
+            let r = Rat::new(p.clone(), One::one()).pow(&b);
+            // println!("{}: {}^({} => {}) = {}", n, p, a, b, r);
+            res *= r;
+        }
+        return Ok(res);
+    }
+}
+impl Sequence for Rationals {
+    fn nth(&mut self, n : usize) -> Result<AST, String> {
+        if n == 0 {
+            return Ok(AST::Rat(Rat::from_usize(0)));
+        }
+
+        if n % 2 == 0 {
+            return Ok(AST::Rat(self.calc_nth(n / 2)?));
+        } else {
+            return Ok(AST::Rat(-self.calc_nth((n + 1) / 2)?));
+        }
+    }
+
+    fn increasing(&self) -> bool {
+        return false;
+    }
+
+    fn index_of(&mut self, v : AST) -> Option<usize> {
+        let (mut n,d) = match v {
+            AST::Int(n) => (n, One::one()),
+            AST::Rat(Rat{n,d}) => (n,d),
+            _ => return None
+        };
+
+        let neg = n < Zero::zero();
+        if neg {
+            n = -n;
+        }
+
+        let mut powers : HashMap<BigInt, BigInt> = HashMap::new();
+        for (p,a) in prime_factor(n, &mut self.ps) {
+            *powers.entry(p).or_insert(Zero::zero()) += a;
+        }
+        for (p,a) in prime_factor(d, &mut self.ps) {
+            *powers.entry(p).or_insert(Zero::zero()) -= a;
+        }
+
+        let mut res = 1;
+
+        for (p,a) in powers.into_iter() {
+            res *= Pow::pow(to_usize(&p).ok()?, Integers.index_of(AST::Int(a))?);
+        }
+
+        if neg {
+            return Some(2*res - 1);
+        } else {
+            return Some(2*res);
         }
     }
 }
@@ -137,7 +405,7 @@ impl PrimeSeq {
             i += 1;
         }
 
-        println!("Running sieve to {}", increment + self.max);
+        println!("\nRunning sieve to {}", increment + self.max);
 
         let mut p = 0;
         while p < self.sieve.len() {
@@ -294,6 +562,7 @@ pub enum AST {
     Prove(Box<AST>),
 
     Int(BigInt),
+    Rat(Rat),
 
     Var(String),
 
@@ -356,6 +625,7 @@ impl fmt::Display for AST {
         match self {
             AST::Skip() => write!(f, "skip"),
             AST::Int(n) => write!(f, "{}", n),
+            AST::Rat(r) => write!(f, "{}", r),
             AST::Var(x) => write!(f, "{}", x),
             AST::Definition(name, body) => write!(f, "Let {} := {}", name, body),
             AST::Rule(attrs, lhs, rhs) => write!(f, "Rule {} => {} {:?}", lhs, rhs, attrs),
@@ -735,6 +1005,14 @@ pub fn parse(source : &str) -> Result<Vec<AST>, String> {
     return Ok(res);
 }
 
+pub fn as_rat(expr : AST) -> Result<Rat, String> {
+    match expr {
+        AST::Int(n) => Ok(Rat::new(n, One::one())),
+        AST::Rat(r) => Ok(r),
+        _ => Err(format!("Expected integer but got {:?}", expr))
+    }
+}
+
 pub fn as_int(expr : AST) -> Result<BigInt, String> {
     match expr {
         AST::Int(n) => Ok(n),
@@ -827,6 +1105,7 @@ pub fn subs_expr(expr : AST, rep : &AST, pat : &AST) -> AST {
         AST::Sum(arg) => AST::Sum(Box::new(subs_expr(*arg, rep, pat))),
 
         AST::Int(n) => AST::Int(n),
+        AST::Rat(r) => AST::Rat(r),
         AST::Var(x) => AST::Var(x),
         AST::Skip() => AST::Skip()
     }
@@ -903,6 +1182,7 @@ pub fn subs(expr : AST, to_subs : &HashMap<String, AST>) -> AST {
         AST::Sum(arg) => AST::Sum(Box::new(subs(*arg, to_subs))),
 
         AST::Int(n) => AST::Int(n),
+        AST::Rat(r) => AST::Rat(r),
         AST::Var(x) =>
             if to_subs.contains_key(x.as_str()) {
                 return to_subs[x.as_str()].clone();
@@ -1180,9 +1460,18 @@ pub fn is_value(expr : &AST) -> bool {
     }
 }
 
+pub fn wrap_num(r : Rat) -> AST {
+    if r.d == One::one() {
+        return AST::Int(r.n);
+    } else {
+        return AST::Rat(r);
+    }
+}
+
 pub fn eval(expr : AST) -> Result<AST, String> {
     match expr {
         AST::Int(n) => Ok(AST::Int(n)),
+        AST::Rat(r) => Ok(AST::Rat(r)),
 
         AST::Seq(name, implementation) => Ok(AST::Seq(name, implementation)),
 
@@ -1247,30 +1536,26 @@ pub fn eval(expr : AST) -> Result<AST, String> {
         }
 
         AST::Bin(Op::Add, a, b) => {
-            return Ok(AST::Int(as_int(eval(*a)?)? + as_int(eval(*b)?)?));
+            return Ok(wrap_num(as_rat(eval(*a)?)? + as_rat(eval(*b)?)?));
         }
 
         AST::Bin(Op::Sub, a, b) => {
-            return Ok(AST::Int(as_int(eval(*a)?)? - as_int(eval(*b)?)?));
+            return Ok(wrap_num(as_rat(eval(*a)?)? - as_rat(eval(*b)?)?));
         }
 
         AST::Bin(Op::Mul, a, b) => {
-            return Ok(AST::Int(as_int(eval(*a)?)? * as_int(eval(*b)?)?));
+            return Ok(wrap_num(as_rat(eval(*a)?)? * as_rat(eval(*b)?)?));
         }
 
         AST::Bin(Op::Div, a, b) => {
-            let aval = as_int(eval(*a)?)?;
-            let bval = as_int(eval(*b)?)?;
+            let aval = as_rat(eval(*a)?)?;
+            let bval = as_rat(eval(*b)?)?;
 
-            if bval == Zero::zero() {
+            if bval.n == Zero::zero() {
                 return Err("Cannot divide by 0".to_string());
             }
 
-            if aval.clone() % bval.clone() == Zero::zero() {
-                return Ok(AST::Int(aval / bval));
-            } else {
-                return Err(format!("Cannot do {} / {} (rational numbers not implemented)", aval, bval));
-            }
+            return Ok(wrap_num(aval / bval));
         }
 
         AST::Bin(Op::Mod, a, b) => {
@@ -1282,10 +1567,7 @@ pub fn eval(expr : AST) -> Result<AST, String> {
         }
 
         AST::Bin(Op::Exp, a, b) => {
-            return match as_int(eval(*b)?)?.to_biguint() {
-                Some(n) => Ok(AST::Int(Pow::pow(as_int(eval(*a)?)?, n))),
-                None => Err("Cannot raise integer to negative power!".to_string())
-            };
+            return Ok(wrap_num(as_rat(eval(*a)?)?.pow(&as_int(eval(*b)?)?)));
         }
 
         AST::Bin(Op::Equals, a, b) => {
@@ -1314,7 +1596,7 @@ pub fn eval(expr : AST) -> Result<AST, String> {
         }
 
         AST::Bin(Op::Lt, a, b) => {
-            if as_int(eval(*a)?)? < as_int(eval(*b)?)? {
+            if as_rat(eval(*a)?)? < as_rat(eval(*b)?)? {
                 return Ok(AST::Int(One::one()));
             } else {
                 return Ok(AST::Int(Zero::zero()));
@@ -1322,7 +1604,7 @@ pub fn eval(expr : AST) -> Result<AST, String> {
         }
 
         AST::Bin(Op::Le, a, b) => {
-            if as_int(eval(*a)?)? <= as_int(eval(*b)?)? {
+            if as_rat(eval(*a)?)? <= as_rat(eval(*b)?)? {
                 return Ok(AST::Int(One::one()));
             } else {
                 return Ok(AST::Int(Zero::zero()));
@@ -1330,7 +1612,7 @@ pub fn eval(expr : AST) -> Result<AST, String> {
         }
 
         AST::Bin(Op::Gt, a, b) => {
-            if as_int(eval(*a)?)? > as_int(eval(*b)?)? {
+            if as_rat(eval(*a)?)? > as_rat(eval(*b)?)? {
                 return Ok(AST::Int(One::one()));
             } else {
                 return Ok(AST::Int(Zero::zero()));
@@ -1338,7 +1620,7 @@ pub fn eval(expr : AST) -> Result<AST, String> {
         }
 
         AST::Bin(Op::Ge, a, b) => {
-            if as_int(eval(*a)?)? >= as_int(eval(*b)?)? {
+            if as_rat(eval(*a)?)? >= as_rat(eval(*b)?)? {
                 return Ok(AST::Int(One::one()));
             } else {
                 return Ok(AST::Int(Zero::zero()));
@@ -1441,18 +1723,7 @@ pub fn eval(expr : AST) -> Result<AST, String> {
                             return Ok(AST::Int(n));
                         }
 
-                        "gcd" => {
-                            let mut a = as_int(eval(args[0].clone())?)?;
-                            let mut b = as_int(eval(args[0].clone())?)?;
-
-                            while b != Zero::zero() {
-                                let temp = a;
-                                a = b.clone();
-                                b = temp % b;
-                            }
-
-                            return Ok(AST::Int(a));
-                        }
+                        "gcd" => Ok(AST::Int(gcd(as_int(eval(args[0].clone())?)?, as_int(eval(args[1].clone())?)?))),
 
                         "memo" => {
                             match eval(args[0].clone())? {
@@ -1609,6 +1880,7 @@ pub fn vars(expr : &AST) -> HashSet<&str> {
     match expr {
         AST::Skip() => HashSet::new(),
         AST::Int(_) => HashSet::new(),
+        AST::Rat(_) => HashSet::new(),
 
         AST::Assumption(t) => vars(t),
         AST::Prove(t) => vars(t),
@@ -1940,6 +2212,7 @@ impl Iterator for Positions {
                 match expr {
                     AST::Skip() => (),
                     AST::Int(_) => (),
+                    AST::Rat(_) => (),
                     AST::Var(_) => (),
                     AST::Seq(_, _) => (),
 
@@ -2034,6 +2307,7 @@ fn at<'a>(expr : &'a AST, pos : &Vec<usize>, i : usize) -> &'a AST {
     match expr {
         AST::Skip() => expr,
         AST::Int(_) => expr,
+        AST::Rat(_) => expr,
         AST::Var(_) => expr,
         AST::Seq(_, _) => expr,
 
@@ -2125,6 +2399,7 @@ fn at_mut<'a>(expr : &'a mut AST, pos : &Vec<usize>, i : usize) -> &'a mut AST {
     match expr {
         AST::Skip() => expr,
         AST::Int(_) => expr,
+        AST::Rat(_) => expr,
         AST::Var(_) => expr,
         AST::Seq(_, _) => expr,
 
@@ -2217,6 +2492,7 @@ impl AST {
         match self {
             AST::Skip() => 1,
             AST::Int(_) => 1,
+            AST::Rat(_) => 1,
             AST::Var(_) => 1,
             AST::Seq(_, _) => 1,
 
@@ -2280,15 +2556,30 @@ impl RewriteRule {
     }
 }
 
+pub fn truth_val(b : bool) -> AST {
+    AST::Int(if b { One::one() } else { Zero::zero() })
+}
+
 pub fn simplify(expr : &AST) -> Option<AST> {
     match expr {
+        AST::Rat(Rat {n, d}) if d == &One::one() => Some(AST::Int(n.clone())),
+
         AST::Bin(Op::Add, box AST::Int(n), box AST::Int(m)) => Some(AST::Int(n + m)),
+        AST::Bin(Op::Add, box AST::Rat(n), box AST::Rat(m)) => Some(AST::Rat(n.clone() + m.clone())),
+        AST::Bin(Op::Add, box AST::Rat(n), box AST::Int(m)) => Some(AST::Rat(n.clone() + m.clone())),
+        AST::Bin(Op::Add, box AST::Int(n), box AST::Rat(m)) => Some(AST::Rat(m.clone() + n.clone())),
         AST::Bin(Op::Add, box AST::Int(n), b) if n == &Zero::zero() => Some(*b.clone()),
         AST::Bin(Op::Add, a, box AST::Int(m)) if m == &Zero::zero() => Some(*a.clone()),
 
         AST::Bin(Op::Sub, box AST::Int(n), box AST::Int(m)) => Some(AST::Int(n - m)),
+        AST::Bin(Op::Sub, box AST::Rat(n), box AST::Rat(m)) => Some(AST::Rat(n.clone() - m.clone())),
+        AST::Bin(Op::Sub, box AST::Int(n), box AST::Rat(m)) => Some(AST::Rat(Rat::new(n.clone(), One::one()) - m.clone())),
+        AST::Bin(Op::Sub, box AST::Rat(n), box AST::Int(m)) => Some(AST::Rat(n.clone() - m.clone())),
 
         AST::Bin(Op::Mul, box AST::Int(n), box AST::Int(m)) => Some(AST::Int(n * m)),
+        AST::Bin(Op::Mul, box AST::Rat(n), box AST::Rat(m)) => Some(AST::Rat(n.clone() * m.clone())),
+        AST::Bin(Op::Mul, box AST::Rat(n), box AST::Int(m)) => Some(AST::Rat(n.clone() * m.clone())),
+        AST::Bin(Op::Mul, box AST::Int(n), box AST::Rat(m)) => Some(AST::Rat(m.clone() * n.clone())),
         AST::Bin(Op::Mul, box AST::Int(n), _) if n == &Zero::zero() => Some(AST::Int(Zero::zero())),
         AST::Bin(Op::Mul, box AST::Int(n), b) if n == &One::one() => Some(*b.clone()),
         AST::Bin(Op::Mul, _, box AST::Int(m)) if m == &Zero::zero() => Some(AST::Int(Zero::zero())),
@@ -2304,23 +2595,59 @@ pub fn simplify(expr : &AST) -> Option<AST> {
         AST::Bin(Op::Or, a, box AST::Int(m)) if m == &Zero::zero() => Some(*a.clone()),
         AST::Bin(Op::Or, _, box AST::Int(m)) if m == &One::one() => Some(AST::Int(One::one())),
 
-        AST::Bin(Op::Div, box AST::Int(n), box AST::Int(m)) if m != &Zero::zero() => Some(AST::Int(n / m)),
+        AST::Bin(Op::Div, box AST::Int(n), box AST::Int(m)) if m != &Zero::zero() => {
+            if n % m == Zero::zero() {
+                Some(AST::Int(n / m))
+            } else {
+                Some(AST::Rat(Rat::new(n.clone(), m.clone())))
+            }
+        }
+
+        AST::Bin(Op::Div, box AST::Rat(n), box AST::Rat(m)) => Some(AST::Rat(n.clone() / m.clone())),
+        AST::Bin(Op::Div, box AST::Rat(n), box AST::Int(m)) => Some(AST::Rat(n.clone() / m.clone())),
+        AST::Bin(Op::Div, box AST::Int(n), box AST::Rat(m)) => Some(AST::Rat(Rat::new(n.clone(), One::one()) / m.clone())),
 
         AST::Bin(Op::Mod, box AST::Int(n), box AST::Int(m)) if m != &Zero::zero() => Some(AST::Int(n % m)),
         AST::Bin(Op::Mod, box AST::Bin(Op::Mod, a, b), c) if b == c => Some(AST::Bin(Op::Mod, a.clone(), b.clone())),
 
-        AST::Bin(Op::Exp, box AST::Int(n), box AST::Int(m)) if m >= &Zero::zero() => Some(AST::Int(Pow::pow(n.clone(), m.clone().to_biguint().unwrap()))),
+        AST::Bin(Op::Exp, box AST::Int(n), box AST::Int(m)) => {
+            if m >= &Zero::zero() {
+                Some(AST::Int(Pow::pow(n.clone(), m.clone().to_biguint().unwrap())))
+            } else {
+                Some(AST::Rat(Rat::new(n.clone(), One::one()).pow(m)))
+            }
+        }
+        AST::Bin(Op::Exp, box AST::Rat(n), box AST::Int(m)) => Some(AST::Rat(n.clone().pow(m))),
 
         // AST::Bin(Op::Prove, box AST::FinSet(assms), p) if assms.is_empty() => Some(*p.clone()),
 
-        AST::Bin(Op::Equals, box AST::Int(n), box AST::Int(m)) => Some(AST::Int(if n == m { One::one() } else { Zero::zero() })),
+        AST::Bin(Op::Equals, box AST::Int(n), box AST::Int(m)) => Some(truth_val(n == m)),
+        AST::Bin(Op::Equals, box AST::Rat(n), box AST::Rat(m)) => Some(truth_val(n == m)),
+        AST::Bin(Op::Equals, box AST::Int(n), box AST::Rat(m)) => Some(truth_val(&Rat::new(n.clone(), One::one()) == m)),
+        AST::Bin(Op::Equals, box AST::Rat(n), box AST::Int(m)) => Some(truth_val(n == &Rat::new(m.clone(), One::one()))),
         AST::Bin(Op::Equals, a, b) if a == b => Some(AST::Int(One::one())),
 
-        AST::Bin(Op::Lt, box AST::Int(n), box AST::Int(m)) => Some(AST::Int(if n < m { One::one() } else { Zero::zero() })),
-        AST::Bin(Op::Le, box AST::Int(n), box AST::Int(m)) => Some(AST::Int(if n <= m { One::one() } else { Zero::zero() })),
-        AST::Bin(Op::Gt, box AST::Int(n), box AST::Int(m)) => Some(AST::Int(if n > m { One::one() } else { Zero::zero() })),
-        AST::Bin(Op::Ge, box AST::Int(n), box AST::Int(m)) => Some(AST::Int(if n >= m { One::one() } else { Zero::zero() })),
-        AST::Bin(Op::NotEquals, box AST::Int(n), box AST::Int(m)) => Some(AST::Int(if n != m { One::one() } else { Zero::zero() })),
+        AST::Bin(Op::Lt, box AST::Int(n), box AST::Int(m)) => Some(truth_val(n < m)),
+        AST::Bin(Op::Le, box AST::Int(n), box AST::Int(m)) => Some(truth_val(n <= m)),
+        AST::Bin(Op::Gt, box AST::Int(n), box AST::Int(m)) => Some(truth_val(n > m)),
+        AST::Bin(Op::Ge, box AST::Int(n), box AST::Int(m)) => Some(truth_val(n >= m)),
+        AST::Bin(Op::NotEquals, box AST::Int(n), box AST::Int(m)) => Some(truth_val(n != m)),
+
+        AST::Bin(Op::Lt, box AST::Rat(n), box AST::Rat(m)) => Some(truth_val(n < m)),
+        AST::Bin(Op::Le, box AST::Rat(n), box AST::Rat(m)) => Some(truth_val(n <= m)),
+        AST::Bin(Op::Gt, box AST::Rat(n), box AST::Rat(m)) => Some(truth_val(n > m)),
+        AST::Bin(Op::Ge, box AST::Rat(n), box AST::Rat(m)) => Some(truth_val(n >= m)),
+        AST::Bin(Op::NotEquals, box AST::Rat(n), box AST::Rat(m)) => Some(truth_val(n != m)),
+
+        AST::App(box AST::Seq(_, implementation), xs) => {
+            match &xs[0] {
+                AST::Int(n) => match to_usize(&n) {
+                    Ok(m) => implementation.borrow_mut().nth(m).ok(),
+                    _ => None
+                }
+                _ => None
+            }
+        }
 
         AST::App(f, xs) => {
             if **f == AST::Var("subs".to_string()) {
@@ -2377,7 +2704,7 @@ impl <'a> TerminatingRewriter<'a> {
     fn new(rules : &'a [RewriteRule], expr : AST) -> TerminatingRewriter<'a> {
         return TerminatingRewriter {
             rules: rules,
-            exprs: vec!(expr)
+            exprs: vec!(full_simplify(expr))
         };
     }
 }
@@ -2525,9 +2852,10 @@ fn main() {
     match parsed {
         Ok(exprs) => {
             let mut defs = HashMap::new();
-            defs.insert("p".to_string(), AST::Seq("Prime".to_string(), Rc::new(RefCell::new(PrimeSeq::new()))));
+            defs.insert("Prime".to_string(), AST::Seq("Prime".to_string(), Rc::new(RefCell::new(PrimeSeq::new()))));
             defs.insert("ℕ".to_string(), AST::Seq("ℕ".to_string(), Rc::new(RefCell::new(Naturals::new()))));
             defs.insert("ℤ".to_string(), AST::Seq("ℤ".to_string(), Rc::new(RefCell::new(Integers::new()))));
+            defs.insert("ℚ".to_string(), AST::Seq("ℚ".to_string(), Rc::new(RefCell::new(Rationals::new()))));
 
             let mut rules = Vec::new();
             let mut proof_rules = Vec::new();
@@ -2711,7 +3039,7 @@ fn main() {
                         let mut exprs = HashSet::new();
                         for res in TerminatingRewriter::new(&rules, subs(expr, &defs)) {
                             if !exprs.contains(&res) {
-                                println!("{:?}", res.clone());
+                                println!("{}", res);
                                 exprs.insert(res);
                             }
                         }

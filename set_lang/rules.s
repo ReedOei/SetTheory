@@ -95,19 +95,23 @@ Assume a ∈ ℤ.
 Assume b ∈ ℤ.
 Assume c ∈ ℤ.
 
+Assume p ∈ ℚ.
+Assume q ∈ ℚ.
+
 // False statements we should find counterexamples for
 Prove 5*n = 2*n.
 Prove (n*k + m)^2 % n = m % n.
 Prove {n | (a + b)} |- ((n | a) and (n | b)).
 Prove { n > 0, m > 0, k > 0} |- (n^2 + m^2 ≠ k^2) .
 Prove { n <= m } |- (n >= m).
-Prove a + b >= b. // False in integers
+Prove a + b >= b. // False in integers, but not in natural numbers
+Prove p^2 >= p. // False in rational numbers, but not in integers
 
 /* // True statements to prove */
-Prove n + 1 > n .
-Prove (2 | (2*k)^2) .
-Prove (2*k + 1)^2 % 2 = 1.
-Prove (n*k) % n = 0 .
-Prove (n*k + m) % n = m % n.
-Prove (n*k + m)^l % n = m^l % n.
+/* Prove n + 1 > n . */
+/* Prove (2 | (2*k)^2) . */
+/* Prove (2*k + 1)^2 % 2 = 1. */
+/* Prove (n*k) % n = 0 . */
+/* Prove (n*k + m) % n = m % n. */
+/* Prove (n*k + m)^l % n = m^l % n. */
 
