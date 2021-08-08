@@ -1,6 +1,7 @@
 use num_bigint::{BigInt, ToBigUint};
+use num_traits::{Zero, One, Pow};
 use std::cell::RefCell;
-use std::collections::{BinaryHeap, HashSet, HashMap, VecDeque};
+use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Debug;
 use std::rc::Rc;
@@ -198,4 +199,18 @@ impl fmt::Display for AST {
     }
 }
 
+pub fn as_rat(expr : AST) -> Result<Rat, String> {
+    match expr {
+        AST::Int(n) => Ok(Rat::new(n, One::one())),
+        AST::Rat(r) => Ok(r),
+        _ => Err(format!("Expected rational number but got {:?}", expr))
+    }
+}
+
+pub fn as_int(expr : AST) -> Result<BigInt, String> {
+    match expr {
+        AST::Int(n) => Ok(n),
+        _ => Err(format!("Expected integer but got {:?}", expr))
+    }
+}
 
