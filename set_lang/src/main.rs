@@ -467,6 +467,81 @@ impl Iterator for PrimeIt {
     }
 }
 
+struct MatrixGen {
+    generated : Vec<AST>,
+    keys : Vec<Vec<String>>,
+    items : Assignments,
+}
+
+impl MatrixGen {
+    fn new(n : usize, seq : AST) -> Result<MatrixGen, String> {
+        let mut keys = Vec::new();
+        let mut var_doms = Vec::new();
+        let mut k = 0;
+        for _ in 0..n {
+            let mut key_row = Vec::new();
+            for _ in 0..n {
+                key_row.push(k.to_string());
+                var_doms.push((k.to_string(), seq.clone()));
+                k += 1;
+            }
+            keys.push(key_row);
+        }
+        return Ok(MatrixGen {
+            generated: Vec::new(),
+            keys: keys,
+            items: Assignments::from(var_doms)?
+        });
+    }
+}
+
+impl Sequence for MatrixGen {
+    fn nth(&mut self, n : usize) -> Result<AST, String> {
+        while n >= self.generated.len() {
+            match self.items.next() {
+                None => return Err("No more items to generate!".to_string()),
+                Some(kvs) => {
+                    let mut rows = Vec::new();
+
+                    for i in &self.keys {
+                        let mut row = Vec::new();
+                        for k in i {
+                            row.push(kvs[k].clone());
+                        }
+                        rows.push(AST::List(row));
+                    }
+                    self.generated.push(AST::List(rows));
+                }
+            }
+        }
+
+        return Ok(self.generated[n].clone());
+    }
+
+    fn increasing(&self) -> bool {
+        return false;
+    }
+
+    fn index_of(&mut self, v : AST) -> Option<usize> {
+        return self.generated.iter().position(|w| &v == w);
+    }
+}
+
+struct MakeMatrixGen;
+impl MakeMatrixGen {
+    fn new() -> MakeMatrixGen {
+        return MakeMatrixGen;
+    }
+}
+
+impl BuiltinFunc for MakeMatrixGen {
+    fn apply(&self, args : Vec<AST>) -> Result<AST, String> {
+        let n = to_usize(&as_int(eval(args[0].clone())?)?)?;
+        let seq = eval(args[1].clone())?;
+        return Ok(AST::Seq("matrix_generator".to_string(), Rc::new(RefCell::new(MatrixGen::new(n, seq)?))));
+    }
+}
+
 struct Factors {
     n : BigInt,
     m : usize,
@@ -551,6 +626,10 @@ pub enum Op {
     Prove
 }
 
+pub trait BuiltinFunc {
+    fn apply(&self, args : Vec<AST>) -> Result<AST, String>;
+}
+
 #[derive(Clone, Educe)]
 #[educe(Debug, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub enum AST {
@@ -560,6 +639,7 @@ pub enum AST {
     Rule(Vec<String>, Box<AST>, Box<AST>),
     Assumption(Box<AST>),
     Prove(Box<AST>),
+    Counterexample(Box<AST>),
 
     Int(BigInt),
     Rat(Rat),
@@ -574,6 +654,15 @@ pub enum AST {
         #[educe(Ord(ignore))]
         #[educe(PartialOrd(ignore))]
         Rc<RefCell<dyn Sequence>>),
+
+    Builtin(String,
+        #[educe(Debug(ignore))]
+        #[educe(Hash(ignore))]
+        #[educe(Eq(ignore))]
+        #[educe(PartialEq(ignore))]
+        #[educe(Ord(ignore))]
+        #[educe(PartialOrd(ignore))]
+        Rc<RefCell<dyn BuiltinFunc>>),
 
     FinSet(Vec<AST>),
     List(Vec<AST>),
@@ -631,7 +720,9 @@ impl fmt::Display for AST {
             AST::Rule(attrs, lhs, rhs) => write!(f, "Rule {} => {} {:?}", lhs, rhs, attrs),
             AST::Assumption(t) => write!(f, "Assume {}", t),
             AST::Prove(t) => write!(f, "Prove {}", t),
+            AST::Counterexample(t) => write!(f, "Counterexample {}", t),
             AST::Seq(name, _) => write!(f, "{}", name),
+            AST::Builtin(name, _) => write!(f, "{}", name),
             AST::FinSet(elems) => {
                 let mut s = String::new();
                 s.push('{');
@@ -931,6 +1022,7 @@ pub fn to_ast(pair : Pair<Rule>, arith_climber : &PrecClimber<Rule>, bool_climbe
 
         Rule::assumption => Ok(AST::Assumption(Box::new(primary(pair.into_inner().next().unwrap())?))),
         Rule::prove => Ok(AST::Prove(Box::new(primary(pair.into_inner().next().unwrap())?))),
+        Rule::counterexample => Ok(AST::Counterexample(Box::new(primary(pair.into_inner().next().unwrap())?))),
 
         Rule::factorial => {
             let mut it = pair.into_inner();
@@ -1009,7 +1101,7 @@ pub fn as_rat(expr : AST) -> Result<Rat, String> {
     match expr {
         AST::Int(n) => Ok(Rat::new(n, One::one())),
         AST::Rat(r) => Ok(r),
-        _ => Err(format!("Expected integer but got {:?}", expr))
+        _ => Err(format!("Expected rational number but got {:?}", expr))
     }
 }
 
@@ -1031,6 +1123,7 @@ pub fn subs_expr(expr : AST, rep : &AST, pat : &AST) -> AST {
 
         AST::Assumption(t) => AST::Assumption(Box::new(subs_expr(*t, rep, pat))),
         AST::Prove(t) => AST::Prove(Box::new(subs_expr(*t, rep, pat))),
+        AST::Counterexample(t) => AST::Counterexample(Box::new(subs_expr(*t, rep, pat))),
 
         AST::FinSet(elems) => AST::FinSet(elems.into_iter().map(| e | subs_expr(e, rep, pat)).collect()),
 
@@ -1039,6 +1132,7 @@ pub fn subs_expr(expr : AST, rep : &AST, pat : &AST) -> AST {
         AST::List(elems) => AST::List(elems.into_iter().map(| e | subs_expr(e, rep, pat)).collect()),
 
         AST::Seq(name, implementation) => AST::Seq(name, implementation),
+        AST::Builtin(name, implementation) => AST::Builtin(name, implementation),
 
         AST::RangeSet(start, end, step) =>
                 AST::RangeSet(Box::new(subs_expr(*start, rep, pat)),
@@ -1119,6 +1213,7 @@ pub fn subs(expr : AST, to_subs : &HashMap<String, AST>) -> AST {
 
         AST::Assumption(t) => AST::Assumption(Box::new(subs(*t, to_subs))),
         AST::Prove(t) => AST::Prove(Box::new(subs(*t, to_subs))),
+        AST::Counterexample(t) => AST::Counterexample(Box::new(subs(*t, to_subs))),
 
         AST::FinSet(elems) => AST::FinSet(elems.into_iter().map(| e | subs(e, to_subs)).collect()),
 
@@ -1127,6 +1222,7 @@ pub fn subs(expr : AST, to_subs : &HashMap<String, AST>) -> AST {
         AST::List(elems) => AST::List(elems.into_iter().map(| e | subs(e, to_subs)).collect()),
 
         AST::Seq(name, implementation) => AST::Seq(name, implementation),
+        AST::Builtin(name, implementation) => AST::Builtin(name, implementation),
 
         AST::RangeSet(start, end, step) =>
                 AST::RangeSet(Box::new(subs(*start, to_subs)),
@@ -1468,12 +1564,77 @@ pub fn wrap_num(r : Rat) -> AST {
     }
 }
 
+pub fn scalar_matrix(a : &AST, n : usize) -> AST {
+    let mut rows = Vec::new();
+    for i in 0..n {
+        let mut row = Vec::new();
+
+        for j in 0..n {
+            if i == j {
+                row.push(a.clone());
+            } else {
+                row.push(AST::Int(Zero::zero()));
+            }
+        }
+
+        rows.push(AST::List(row));
+    }
+
+    return AST::List(rows);
+}
+
+pub fn full_matrix(a : &AST, n : usize) -> AST {
+    let mut rows = Vec::new();
+    for _ in 0..n {
+        let mut row = Vec::new();
+
+        for _ in 0..n {
+            row.push(a.clone());
+        }
+
+        rows.push(AST::List(row));
+    }
+
+    return AST::List(rows);
+}
+
+pub fn lift_operands(a : AST, b : AST, full_mat : bool) -> (AST, AST) {
+    let make_matrix = |x, n| if full_mat { full_matrix(x, n) } else { scalar_matrix(x, n) };
+    match (a,b) {
+        (AST::Int(n), AST::Rat(r)) => (AST::Rat(Rat::new(n, One::one())), AST::Rat(r)),
+        (AST::Rat(r), AST::Int(n)) => (AST::Rat(r), AST::Rat(Rat::new(n, One::one()))),
+        (AST::Int(n), AST::List(m)) => (make_matrix(&AST::Int(n), m.len()), AST::List(m)),
+        (AST::Rat(r), AST::List(m)) => (make_matrix(&AST::Rat(r), m.len()), AST::List(m)),
+        (AST::List(m), AST::Int(n)) => {
+            let d = m.len();
+            (AST::List(m), make_matrix(&AST::Int(n), d))
+        }
+        (AST::List(m), AST::Rat(r)) => {
+            let d = m.len();
+            (AST::List(m), make_matrix(&AST::Rat(r), d))
+        }
+        (x,y) => (x,y)
+    }
+}
+
+pub fn as_matrix(xs : Vec<AST>) -> Result<Vec<Vec<AST>>, String> {
+    let mut rows = Vec::new();
+    for x in xs {
+        match x {
+            AST::List(ys) => rows.push(ys),
+            _ => return Err(format!("Expected matrix (list of lists) but one 'row' was: {}", x))
+        }
+    }
+    return Ok(rows);
+}
+
 pub fn eval(expr : AST) -> Result<AST, String> {
     match expr {
         AST::Int(n) => Ok(AST::Int(n)),
         AST::Rat(r) => Ok(AST::Rat(r)),
 
         AST::Seq(name, implementation) => Ok(AST::Seq(name, implementation)),
+        AST::Builtin(name, implementation) => Ok(AST::Builtin(name, implementation)),
 
         AST::FinSet(elems) => {
             let mut new_elems = Vec::new();
@@ -1536,15 +1697,72 @@ pub fn eval(expr : AST) -> Result<AST, String> {
         }
 
         AST::Bin(Op::Add, a, b) => {
-            return Ok(wrap_num(as_rat(eval(*a)?)? + as_rat(eval(*b)?)?));
+            match lift_operands(eval(*a)?, eval(*b)?, true) {
+                (AST::Int(n), AST::Int(m)) => Ok(AST::Int(n + m)),
+                (AST::Rat(n), AST::Rat(m)) => Ok(AST::Rat(n + m)),
+                (AST::List(n), AST::List(m)) => {
+                    if n.len() != m.len() {
+                        return Err(format!("Tried to add matrixes of different lengths ({:?} and {:?})", n, m));
+                    }
+
+                    let mut res = Vec::new();
+                    for (a,b) in n.into_iter().zip(m) {
+                        res.push(eval(AST::Bin(Op::Add, Box::new(a), Box::new(b)))?);
+                    }
+                    return Ok(AST::List(res));
+                }
+                (x,y) => return Err(format!("I don't know how to add {} and {}", x, y))
+            }
         }
 
         AST::Bin(Op::Sub, a, b) => {
-            return Ok(wrap_num(as_rat(eval(*a)?)? - as_rat(eval(*b)?)?));
+            match lift_operands(eval(*a)?, eval(*b)?, true) {
+                (AST::Int(n), AST::Int(m)) => Ok(AST::Int(n - m)),
+                (AST::Rat(n), AST::Rat(m)) => Ok(AST::Rat(n - m)),
+                (AST::List(n), AST::List(m)) => {
+                    if n.len() != m.len() {
+                        return Err(format!("Tried to subtract matrixes of different lengths ({:?} and {:?})", n, m));
+                    }
+
+                    let mut res = Vec::new();
+                    for (a,b) in n.into_iter().zip(m) {
+                        res.push(eval(AST::Bin(Op::Sub, Box::new(a), Box::new(b)))?);
+                    }
+                    return Ok(AST::List(res));
+                }
+                (x,y) => return Err(format!("I don't know how to add {} and {}", x, y))
+            }
         }
 
         AST::Bin(Op::Mul, a, b) => {
-            return Ok(wrap_num(as_rat(eval(*a)?)? * as_rat(eval(*b)?)?));
+            match lift_operands(eval(*a)?, eval(*b)?, false) {
+                (AST::Int(n), AST::Int(m)) => Ok(AST::Int(n * m)),
+                (AST::Rat(n), AST::Rat(m)) => Ok(AST::Rat(n * m)),
+                (AST::List(n), AST::List(m)) => {
+                    let n_mat = as_matrix(n)?;
+                    let m_mat = as_matrix(m)?;
+                    if m_mat.is_empty() || n_mat.is_empty() || n_mat.len() != m_mat[0].len() {
+                        return Err(format!("Tried to multiply matrixes of wrong dimensions ({:?} and {:?})", n_mat, m_mat));
+                    }
+
+                    let mut rows = Vec::new();
+                    for i in 0..n_mat.len() {
+                        let mut row = Vec::new();
+                        for j in 0..m_mat[0].len() {
+                            let mut val = AST::Int(Zero::zero());
+                            for k in 0..n_mat[0].len() {
+                                let n_val = Box::new(n_mat[i][k].clone());
+                                let m_val = Box::new(m_mat[k][j].clone());
+                                val = eval(AST::Bin(Op::Add, Box::new(val), Box::new(AST::Bin(Op::Mul, n_val, m_val))))?;
+                            }
+                            row.push(val);
+                        }
+                        rows.push(AST::List(row));
+                    }
+                    return Ok(AST::List(rows));
+                }
+                (x,y) => return Err(format!("I don't know how to add {} and {}", x, y))
+            }
         }
 
         AST::Bin(Op::Div, a, b) => {
@@ -1567,7 +1785,19 @@ pub fn eval(expr : AST) -> Result<AST, String> {
         }
 
         AST::Bin(Op::Exp, a, b) => {
-            return Ok(wrap_num(as_rat(eval(*a)?)?.pow(&as_int(eval(*b)?)?)));
+            match eval(*a)? {
+                AST::Int(n) => Ok(wrap_num(Rat::new(n, One::one()).pow(&as_int(eval(*b)?)?))),
+                AST::Rat(r) => Ok(wrap_num(r.pow(&as_int(eval(*b)?)?))),
+                t => {
+                    let orig = t.clone();
+                    let mut val = t;
+                    let bval = to_usize(&as_int(eval(*b)?)?)?;
+                    for _ in 1..bval {
+                        val = eval(AST::Bin(Op::Mul, Box::new(val), Box::new(orig.clone())))?;
+                    }
+                    return Ok(val);
+                }
+            }
         }
 
         AST::Bin(Op::Equals, a, b) => {
@@ -1646,6 +1876,8 @@ pub fn eval(expr : AST) -> Result<AST, String> {
             }
         }
 
+        AST::Var(name) if name.as_str() == "|" => Ok(AST::Var(name)),
+
         AST::App(func, args) => {
             match eval(*func)? {
                 AST::Function(name, formal_args, body) => {
@@ -1696,6 +1928,8 @@ pub fn eval(expr : AST) -> Result<AST, String> {
                     let n = to_usize(&as_int(eval(args[0].clone())?)?)?;
                     return implementation.borrow_mut().nth(n);
                 }
+
+                AST::Builtin(_, implementation) => implementation.borrow_mut().apply(args),
 
                 AST::Var(name) => {
                     match name.as_str() {
@@ -1796,8 +2030,6 @@ pub fn eval(expr : AST) -> Result<AST, String> {
             }
         }
 
-        AST::Var(x) => Ok(AST::Var(x)),
-
         AST::Function(name, formal_args, body) => Ok(AST::Function(name, formal_args, body)),
         AST::Memo(name, formal_args, body, memo) => Ok(AST::Memo(name, formal_args, body, memo)),
 
@@ -1884,6 +2116,7 @@ pub fn vars(expr : &AST) -> HashSet<&str> {
 
         AST::Assumption(t) => vars(t),
         AST::Prove(t) => vars(t),
+        AST::Counterexample(t) => vars(t),
 
         AST::Var(x) => {
             let mut vs = HashSet::new();
@@ -1897,6 +2130,7 @@ pub fn vars(expr : &AST) -> HashSet<&str> {
         AST::Rule(_, lhs, rhs) => union(vars(lhs), vars(rhs)),
 
         AST::Seq(_, _) => HashSet::new(),
+        AST::Builtin(_, _) => HashSet::new(),
 
         AST::FinSet(elems) => elems.iter().flat_map(|e| vars(e).into_iter()).collect(),
         AST::List(elems) => elems.iter().flat_map(|e| vars(e).into_iter()).collect(),
@@ -2127,7 +2361,7 @@ impl <'a> Unification<'a> {
                 }
             }
 
-            (_, _) => return false
+            (a, b) => return a == b
         }
 
         return true;
@@ -2215,9 +2449,11 @@ impl Iterator for Positions {
                     AST::Rat(_) => (),
                     AST::Var(_) => (),
                     AST::Seq(_, _) => (),
+                    AST::Builtin(_, _) => (),
 
                     AST::Assumption(t) => self.pos_queue.push((*t, add_elem(&pos, 0))),
                     AST::Prove(t) => self.pos_queue.push((*t, add_elem(&pos, 0))),
+                    AST::Counterexample(t) => self.pos_queue.push((*t, add_elem(&pos, 0))),
 
                     AST::FinSet(elems) => {
                         for (i, e) in elems.into_iter().enumerate() {
@@ -2310,9 +2546,11 @@ fn at<'a>(expr : &'a AST, pos : &Vec<usize>, i : usize) -> &'a AST {
         AST::Rat(_) => expr,
         AST::Var(_) => expr,
         AST::Seq(_, _) => expr,
+        AST::Builtin(_, _) => expr,
 
         AST::Assumption(t) => at(t, pos, i + 1),
         AST::Prove(t) => at(t, pos, i + 1),
+        AST::Counterexample(t) => at(t, pos, i + 1),
 
         AST::FinSet(elems) => at(&elems[idx], pos, i + 1),
         AST::List(elems) => at(&elems[idx], pos, i + 1),
@@ -2402,9 +2640,11 @@ fn at_mut<'a>(expr : &'a mut AST, pos : &Vec<usize>, i : usize) -> &'a mut AST {
         AST::Rat(_) => expr,
         AST::Var(_) => expr,
         AST::Seq(_, _) => expr,
+        AST::Builtin(_, _) => expr,
 
         AST::Assumption(t) => at_mut(t, pos, i + 1),
         AST::Prove(t) => at_mut(t, pos, i + 1),
+        AST::Counterexample(t) => at_mut(t, pos, i + 1),
 
         AST::FinSet(elems) => at_mut(&mut elems[idx], pos, i + 1),
         AST::List(elems) => at_mut(&mut elems[idx], pos, i + 1),
@@ -2496,8 +2736,11 @@ impl AST {
             AST::Var(_) => 1,
             AST::Seq(_, _) => 1,
 
+            AST::Builtin(_, _) => 1,
+
             AST::Assumption(t) => 1 + t.size(),
             AST::Prove(t) => 1 + t.size(),
+            AST::Counterexample(t) => 1 + t.size(),
 
             AST::FinSet(elems) => elems.iter().map(|e| e.size()).sum::<usize>() + 1,
             AST::List(elems) => elems.iter().map(|e| e.size()).sum::<usize>() + 1,
@@ -2839,6 +3082,43 @@ pub fn fresh() -> String {
     }
 }
 
+pub fn setup_proof(assumptions : &Vec<AST>, expr : AST)
+    -> (AST, Box<dyn Iterator<Item=HashMap<String, AST>>>) {
+
+    let rhs_vars = vars(&expr);
+
+    let relevant_assms : Vec<AST> = assumptions.iter()
+        .filter(|assm| !vars(assm).is_disjoint(&rhs_vars))
+        .cloned()
+        .collect();
+
+    let mut to_find = rhs_vars.clone();
+    let mut var_doms = Vec::new();
+    for assm in relevant_assms.iter() {
+        if let AST::Bin(Op::Elem, box AST::Var(y), box dom) = assm {
+            if to_find.contains(y.as_str()) {
+                var_doms.push((y.clone(), dom.clone()));
+                to_find.remove(y.as_str());
+            }
+        }
+    }
+
+    let to_prove = full_simplify(AST::Bin(Op::Prove, Box::new(AST::FinSet(relevant_assms)), Box::new(expr.clone())));
+
+    if !to_find.is_empty() {
+        println!("Not trying to generate counterexamples: Could not find domain for variables {:?}", to_find);
+        return (to_prove, Box::new(std::iter::empty()));
+    } else {
+        match Assignments::from(var_doms) {
+            Ok(it) => return (to_prove, Box::new(it)),
+            Err(err) => {
+                println!("Not trying to generate counterexamples: {}", err);
+                return (to_prove, Box::new(std::iter::empty()));
+            }
+        }
+    }
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     let contents = fs::read_to_string(&args[1])
@@ -2856,6 +3136,8 @@ fn main() {
             defs.insert("ℕ".to_string(), AST::Seq("ℕ".to_string(), Rc::new(RefCell::new(Naturals::new()))));
             defs.insert("ℤ".to_string(), AST::Seq("ℤ".to_string(), Rc::new(RefCell::new(Integers::new()))));
             defs.insert("ℚ".to_string(), AST::Seq("ℚ".to_string(), Rc::new(RefCell::new(Rationals::new()))));
+
+            defs.insert("M".to_string(), AST::Builtin("M".to_string(), Rc::new(RefCell::new(MakeMatrixGen::new()))));
 
             let mut rules = Vec::new();
             let mut proof_rules = Vec::new();
@@ -2896,44 +3178,34 @@ fn main() {
                         }
                     }
 
-                    AST::Assumption(t) => assumptions.push(*t),
+                    AST::Assumption(t) => assumptions.push(subs(*t, &defs)),
 
-                    AST::Prove(t) => {
-                        let to_prove_rhs = subs(*t, &defs);
-                        let rhs_vars = vars(&to_prove_rhs);
+                    AST::Counterexample(t) => {
+                        let (to_prove, mut assignment_it) = setup_proof(&assumptions, subs(*t, &defs));
 
-                        let relevant_assms : Vec<AST> = assumptions.iter()
-                            .filter(|assm| !vars(assm).is_disjoint(&rhs_vars))
-                            .map(|assm| subs(assm.clone(), &defs))
-                            .collect();
-
-                        let mut to_find = rhs_vars.clone();
-                        let mut var_doms = Vec::new();
-                        for assm in relevant_assms.iter() {
-                            if let AST::Bin(Op::Elem, box AST::Var(y), box dom) = assm {
-                                if to_find.contains(y.as_str()) {
-                                    var_doms.push((y.clone(), dom.clone()));
-                                    to_find.remove(y.as_str());
-                                }
-                            }
-                        }
-
-                        let mut assignment_it : Box<dyn Iterator<Item=HashMap<String, AST>>> = {
-                            if !to_find.is_empty() {
-                                println!("Not trying to generate counterexamples: Could not find domain for variables {:?}", to_find);
-                                Box::new(std::iter::empty())
-                            } else {
-                                match Assignments::from(var_doms) {
-                                    Ok(it) => Box::new(it),
-                                    Err(err) => {
-                                        println!("Not trying to generate counterexamples: {}", err);
-                                        Box::new(std::iter::empty())
+                        let expr_start = now_millis();
+                        let mut n = 0;
+                        loop {
+                            if let Some(a) = assignment_it.next() {
+                                print!("\r{} tried... Trying: {}", n, format_assignment(&a));
+                                if let Ok(AST::Int(n)) = eval(subs(to_prove.clone(), &a)) {
+                                    if n == Zero::zero() {
+                                        println!("\nFound counterexample: {}", format_assignment(&a));
+                                        break;
                                     }
                                 }
+                            } else {
+                                println!("No more counterexamples to generate!");
+                                break;
                             }
-                        };
+                            n += 1;
+                        }
+                        let expr_end = now_millis();
+                        println!("Elapsed: {}ms", expr_end - expr_start);
+                    }
 
-                        let to_prove = full_simplify(AST::Bin(Op::Prove, Box::new(AST::FinSet(relevant_assms)), Box::new(to_prove_rhs)));
+                    AST::Prove(t) => {
+                        let (to_prove, mut assignment_it) = setup_proof(&assumptions, subs(*t, &defs));
 
                         let mut proof_tree = HashMap::new();
                         let mut todo = BinaryHeap::new();
@@ -2944,6 +3216,7 @@ fn main() {
                         let expr_start = now_millis();
                         loop {
                             if let Some(a) = assignment_it.next() {
+                                // print!("... Trying: {} => {:?}", format_assignment(&a), eval(subs(to_prove.clone(), &a)));
                                 print!("... Trying: {}", format_assignment(&a));
                                 if let Ok(AST::Int(n)) = eval(subs(to_prove.clone(), &a)) {
                                     if n == Zero::zero() {
@@ -3031,11 +3304,11 @@ fn main() {
                         println!("Elapsed: {}ms", expr_end - expr_start);
                     }
 
-                    AST::Rule(attrs, lhs, rhs) => add_rule(&mut rules, &mut proof_rules, attrs, *lhs, *rhs),
+                    AST::Rule(attrs, lhs, rhs) =>
+                        add_rule(&mut rules, &mut proof_rules, attrs, subs(*lhs, &defs), subs(*rhs, &defs)),
 
                     _ => {
                         let expr_start = now_millis();
-                        // println!("{:?}", eval(subs(expr, &defs)));
                         let mut exprs = HashSet::new();
                         for res in TerminatingRewriter::new(&rules, subs(expr, &defs)) {
                             if !exprs.contains(&res) {

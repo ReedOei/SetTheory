@@ -4,6 +4,7 @@ term = _{ definition
         | proof_rule
         | rule
         | prove
+        | counterexample
         | assumption
         | ite
         | sum
@@ -13,6 +14,7 @@ definition = { "Let" ~ (var | var_op) ~ is ~ term }
 rule = { "Rule" ~ term ~ "=>" ~ term }
 proof_rule = { "Proof" ~ "Rule" ~ term ~ "=>" ~ term }
 prove = { "Prove" ~ term }
+counterexample = { "Counterexample" ~ term }
 assumption = { "Assume" ~ term }
 
 var_op = { rel_op }

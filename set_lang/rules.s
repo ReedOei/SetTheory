@@ -34,7 +34,7 @@ Proof Rule (?a*?b)^?n => ?a^?n * ?b^?n.
 Proof Rule ?a*(?b+?c) => ?a*?b + ?a*?c.
 Proof Rule (?b+?c)*?a => ?b*?a + ?c*?a.
 
-Proof Rule ?a*?b => ?b*?a.
+// Proof Rule ?a*?b => ?b*?a.
 
 Proof Rule 0 % ?n => 0.
 Proof Rule ?n % ?n => 0.
@@ -54,8 +54,8 @@ Proof Rule ?S |- (?P ==> ?Q) => (?S ∪ {?P}) |- ?Q.
 Proof Rule ?x % ?n < ?n => 1 .
 
 Proof Rule ?a + ?b = ?a + ?c => ?b = ?c.
-Proof Rule ?a*?b = ?a*?c => ?b = ?c.
-Proof Rule ?b*?a = ?c*?a => ?b = ?c.
+// Proof Rule ?a*?b = ?a*?c => ?b = ?c.
+// Proof Rule ?b*?a = ?c*?a => ?b = ?c.
 Proof Rule ?a + ?b > ?a + ?c => ?b > ?c.
 Proof Rule ?a + ?b < ?a + ?c => ?b < ?c.
 Proof Rule ?a >= ?b => ?a > ?b or ?a = ?b.
@@ -74,8 +74,9 @@ Proof Rule $elem(?a = ?b, ?S) |- ?P => ({ ?a = ?b } ∪ ?S) |- subs(?P, ?a, ?b).
 Proof Rule $elem(?a = ?b, ?S) |- ?P => ({ ?a = ?b } ∪ ?S) |- subs(?P, ?b, ?a).
 
 // Induction on natural numbers
-Proof Rule (?S |- $free_var(?n, ?P)) => subs(?S |- ?P, 0, ?n) and
-                                        ({ ?P } ∪ subs(?S, ?n + 1, ?n)) |- subs(?P, ?n + 1, ?n) .
+Proof Rule ($elem(?n ∈ ℕ, ?S) |- $free_var(?n, ?P)) =>
+    (({ n ∈ ℕ} ∪ subs(?S, 0, ?n)) |- subs(?P, 0, ?n)) and
+    (({ ?P, n ∈ ℕ} ∪ subs(?S, ?n + 1, ?n)) |- subs(?P, ?n + 1, ?n)) .
 
 // TODO: Remember proofs as a list of steps, check proofs by rewriting, but only looking for those steps.
 // TODO: Remember what sequences of rules are often used in proofs, then try to come up with intermediate theorems based on those.
@@ -107,11 +108,16 @@ Prove { n <= m } |- (n >= m).
 Prove a + b >= b. // False in integers, but not in natural numbers
 Prove p^2 >= p. // False in rational numbers, but not in integers
 
-/* // True statements to prove */
-/* Prove n + 1 > n . */
-/* Prove (2 | (2*k)^2) . */
-/* Prove (2*k + 1)^2 % 2 = 1. */
-/* Prove (n*k) % n = 0 . */
-/* Prove (n*k + m) % n = m % n. */
-/* Prove (n*k + m)^l % n = m^l % n. */
+Assume A ∈ M(2, ℤ).
+Assume B ∈ M(2, ℤ).
+Counterexample A*B = B*A. // Classic matrix example.
+Counterexample { A^n = [[0,0],[0,0]], B^m = [[0,0],[0,0]] } |- ((A+B)^(n+m) = [[0,0],[0,0]]) .
+
+// True statements to prove
+Prove n + 1 > n .
+Prove (2 | (2*k)^2) .
+Prove (2*k + 1)^2 % 2 = 1.
+Prove (n*k) % n = 0 .
+Prove (n*k + m) % n = m % n.
+Prove (n*k + m)^l % n = m^l % n.
 
